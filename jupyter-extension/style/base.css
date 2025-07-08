@@ -1,0 +1,15 @@
+.my-widget {
+  padding: 20px;
+  background: #f8f9fa;
+  min-height: 200px;
+}
+
+.my-widget h1 {
+  color: #1976d2;
+  margin-bottom: 16px;
+}
+
+.my-widget p {
+  color: #666;
+  font-size: 14px;
+}
