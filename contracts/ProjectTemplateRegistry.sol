@@ -56,7 +56,7 @@ contract ProjectTemplateRegistry {
         roles[1] = "aggregator";
         roles[2] = "coordinator";
 
-        string memory exampleJSON = '{"project_id":"fl-cancer-study-01","type":"federated_learning","objective":"Cancer study AI","roles":["data_owner","aggregator","coordinator"],"participants":[{"id":"0xABC","role":"data_owner"},{"id":"0xDEF","role":"aggregator"}],"assets":{"datasets":["ipfs://QmData1","ipfs://QmData2"],"scripts":["ipfs://QmTrainScript"]},"workflow":{"steps":[{"step":"local_training","executor":"0xABC"},{"step":"aggregation","executor":"0xDEF"}]},"policies":{"access":{"0xDEF":["view_results"],"0xABC":["execute_step_1"]}}}';
+        string memory exampleJSON = '{"project_id":"fl-cancer-study-01","type":"federated_learning","objective":"Cancer study AI","roles":["data_owner","aggregator","coordinator"],"participants":[{"id":"0xABC","role":"data_owner"},{"id":"0xDEF","role":"aggregator"}],"assets":{"datasets":["0xHIJ","0xLMN"],"scripts":["0xOPQ"]},"workflow":{"steps":[{"step":"local_training","executor":"0xABC"},{"step":"aggregation","executor":"0xDEF"}]},"policies":{"access":{"0xDEF":["view_results"],"0xABC":["execute_step_1"]}}}';
 
         uint256 templateId = templates.length;
         templates.push();

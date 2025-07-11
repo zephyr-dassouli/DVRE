@@ -21,6 +21,9 @@ const projectFactoryJson = JSON.parse(fs.readFileSync(projectFactoryPath));
 const templateRegistryPath = path.join(__dirname, "../artifacts/contracts/ProjectTemplateRegistry.sol/ProjectTemplateRegistry.json");
 const templateRegistryJson = JSON.parse(fs.readFileSync(templateRegistryPath));
 
+const assetFactoryPath = path.join(__dirname, "../artifacts/contracts/AssetFactory.sol/AssetFactory.json");
+const assetFactoryJson = JSON.parse(fs.readFileSync(assetFactoryPath));
+
 const deploy = async () => {
   console.log("Deploying all contracts with account:", account.address);
 
@@ -78,6 +81,23 @@ const deploy = async () => {
   const projectFactoryReceipt = await web3.eth.sendSignedTransaction(projectFactorySignedTx.rawTransaction);
   console.log("ProjectFactory deployed at:", projectFactoryReceipt.contractAddress);
 
+  // Deploy AssetFactory
+  console.log("\nDeploying AssetFactory...");
+  const assetFactoryContract = new web3.eth.Contract(assetFactoryJson.abi);
+  const assetFactoryDeployTx = assetFactoryContract.deploy({ data: assetFactoryJson.bytecode });
+
+  const assetFactoryGas = await assetFactoryDeployTx.estimateGas();
+  const assetFactoryTx = {
+    from: account.address,
+    gas: Math.floor(Number(assetFactoryGas) * 1.2),
+    gasPrice: 0,
+    data: assetFactoryDeployTx.encodeABI()
+  };
+
+  const assetFactorySignedTx = await web3.eth.accounts.signTransaction(assetFactoryTx, privateKey);
+  const assetFactoryReceipt = await web3.eth.sendSignedTransaction(assetFactorySignedTx.rawTransaction);
+  console.log("AssetFactory deployed at:", assetFactoryReceipt.contractAddress);
+
   // Verify initial templates
   console.log("\nVerifying initial templates...");
   const templateRegistryInstance = new web3.eth.Contract(templateRegistryJson.abi, templateRegistryReceipt.contractAddress);
@@ -95,6 +115,7 @@ const deploy = async () => {
   console.log(`  UserMetadataFactory:      ${userMetadataFactoryReceipt.contractAddress}`);
   console.log(`  ProjectTemplateRegistry:  ${templateRegistryReceipt.contractAddress}`);
   console.log(`  ProjectFactory:           ${projectFactoryReceipt.contractAddress}`);
+  console.log(`  AssetFactory:             ${assetFactoryReceipt.contractAddress}`);
   console.log(`\nDeployer: ${account.address}`);
 
   // Register all factories in FactoryRegistry (frontend needs these addresses)
@@ -102,7 +123,8 @@ const deploy = async () => {
   const factories = [
     { name: "UserMetadataFactory", address: userMetadataFactoryReceipt.contractAddress },
     { name: "ProjectTemplateRegistry", address: templateRegistryReceipt.contractAddress },
-    { name: "ProjectFactory", address: projectFactoryReceipt.contractAddress }
+    { name: "ProjectFactory", address: projectFactoryReceipt.contractAddress },
+    { name: "AssetFactory", address: assetFactoryReceipt.contractAddress }
   ];
 
   try {
