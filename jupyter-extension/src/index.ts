@@ -10,7 +10,7 @@ import {
 
 import { ILauncher } from '@jupyterlab/launcher';
 import { LabIcon } from '@jupyterlab/ui-components';
-import { AuthWidget, CollaborationWidget, GraphWidget, FederatedLearningWidget } from './components';
+import { AuthWidget, CollaborationWidget, GraphWidget, FederatedLearningWidget, IPFSWidget } from './components';
 
 // Import CSS
 import '../style/index.css';
@@ -34,6 +34,11 @@ const graphIcon = new LabIcon({
 const federatedLearningIcon = new LabIcon({
   name: 'my-extension:federated-learning',
   svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="3" cy="8" r="2" fill="currentColor"/><circle cx="8" cy="3" r="2" fill="currentColor"/><circle cx="13" cy="8" r="2" fill="currentColor"/><circle cx="8" cy="13" r="2" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><path d="M5.5 7L6.5 8.5M10.5 7L9.5 8.5M8.5 5.5L8.5 6.5M8.5 9.5L8.5 10.5" stroke="currentColor" stroke-width="1" fill="none"/><path d="M6 8h4M8 6v4" stroke="currentColor" stroke-width="0.5" opacity="0.6"/></svg>'
+});
+
+const ipfsIcon = new LabIcon({
+  name: 'my-extension:ipfs',
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="4" r="1.5" fill="currentColor"/><circle cx="4" cy="10" r="1.5" fill="currentColor"/><circle cx="12" cy="10" r="1.5" fill="currentColor"/><path d="M8 5.5L6.5 9.5M8 5.5L9.5 9.5M6.5 9.5L9.5 9.5" stroke="currentColor" stroke-width="1" fill="none"/></svg>'
 });
 
 const plugin: JupyterFrontEndPlugin<void> = {
@@ -121,11 +126,30 @@ const plugin: JupyterFrontEndPlugin<void> = {
       }
     });
 
+    // Command for IPFS
+    const ipfsCommand = 'my-extension:ipfs';
+    app.commands.addCommand(ipfsCommand, {
+      label: 'IPFS Manager',
+      caption: 'Manage files on IPFS and blockchain assets',
+      icon: ipfsIcon,
+      execute: () => {
+        const content = new IPFSWidget('IPFS Manager');
+        const widget = new MainAreaWidget({ content });
+        widget.id = `my-ipfs-${Date.now()}`;
+        widget.title.closable = true;
+        widget.title.icon = ipfsIcon;
+        
+        app.shell.add(widget, 'main');
+        app.shell.activateById(widget.id);
+      }
+    });
+
     // Add to command palette
     palette.addItem({ command: authCommand, category: 'D-VRE' });
     palette.addItem({ command: collaborationCommand, category: 'D-VRE' });
     palette.addItem({ command: graphCommand, category: 'D-VRE' });
     palette.addItem({ command: federatedLearningCommand, category: 'D-VRE' });
+    palette.addItem({ command: ipfsCommand, category: 'D-VRE' });
 
     if (launcher) {
       launcher.add({
@@ -150,6 +174,12 @@ const plugin: JupyterFrontEndPlugin<void> = {
         command: federatedLearningCommand,
         category: 'D-VRE',
         rank: 4
+      });
+
+      launcher.add({
+        command: ipfsCommand,
+        category: 'D-VRE',
+        rank: 5
       });
 
       console.log('Extension added to launcher successfully!');
