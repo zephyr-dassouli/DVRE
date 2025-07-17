@@ -2,6 +2,7 @@ import { ethers, BrowserProvider, Signer } from 'ethers';
 import AssetFactoryABI from '../abis/AssetFactory.json';
 import AssetABI from '../abis/Asset.json';
 import config from '../config';
+import { useFactoryRegistry } from '../hooks/useFactoryRegistry';
 
 export interface AssetInfo {
   address: string;
@@ -21,6 +22,7 @@ export class AssetService {
   constructor() {
     this.assetFactoryAddress = config.blockchain.assetFactoryAddress;
     this.initializeProvider();
+    this.initializeAssetFactory();
   }
 
   private async initializeProvider() {
@@ -34,8 +36,19 @@ export class AssetService {
     }
   }
 
-  setAssetFactoryAddress(address: string) {
-    this.assetFactoryAddress = address;
+  private async initializeAssetFactory() {
+    const { getFactoryAddress } = useFactoryRegistry();
+    try {
+      const registryAddress = await getFactoryAddress('AssetFactory');
+      if (registryAddress) {
+        this.assetFactoryAddress = registryAddress;
+        console.log('AssetFactory address loaded from registry:', registryAddress);
+      } else {
+        console.warn('AssetFactory not found in registry, using config fallback:', this.assetFactoryAddress);
+      }
+    } catch (error) {
+      console.warn('Failed to get AssetFactory from registry, using config fallback:', error);
+    }
   }
 
   isConfigured(): boolean {
