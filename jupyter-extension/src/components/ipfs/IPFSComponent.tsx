@@ -23,13 +23,24 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
   useEffect(() => {
     checkIPFSHealth();
     loadFiles();
-    loadAssets();
-    checkBlockchainAvailability();
+    checkBlockchainAvailability(); // This will also try to load assets
   }, []);
 
-  const checkBlockchainAvailability = () => {
-    const available = assetService.isConfigured() && typeof window !== 'undefined' && (window as any).ethereum;
-    setBlockchainAvailable(available);
+  const checkBlockchainAvailability = async () => {
+    const hasMetaMask = typeof window !== 'undefined' && (window as any).ethereum;
+    const isConfigured = assetService.isConfigured();
+    setBlockchainAvailable(hasMetaMask && isConfigured);
+    
+    // If blockchain is available, try to load assets immediately
+    if (hasMetaMask && isConfigured) {
+      try {
+        const assetList = await assetService.getAllAssets();
+        setAssets(assetList);
+        console.log('Blockchain assets loaded:', assetList.length);
+      } catch (error) {
+        console.warn('Failed to load blockchain assets on startup:', error);
+      }
+    }
   };
 
   const checkIPFSHealth = async () => {
@@ -80,27 +91,38 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
       setLoading(true);
       setError(null);
 
-      // Upload to IPFS
+      // Upload to IPFS first
       const uploadResult = await ipfsService.uploadFile(selectedFile);
       
-      // If user is connected and asset details are provided, create blockchain asset
-      if (userAccount && assetName.trim()) {
+      // If blockchain is available and asset name is provided, create blockchain asset
+      if (blockchainAvailable && assetName.trim()) {
         try {
+          if (!userAccount) {
+            // Try to connect wallet first
+            const account = await assetService.connectWallet();
+            setUserAccount(account);
+          }
+          
           await assetService.createAsset(assetName, assetType, uploadResult.Hash);
           await loadAssets();
+          alert(`Asset "${assetName}" created successfully on blockchain! IPFS Hash: ${uploadResult.Hash}`);
         } catch (error) {
           console.log('Failed to create blockchain asset, but IPFS upload succeeded:', error);
+          alert(`File uploaded to IPFS successfully, but blockchain registration failed: ${error instanceof Error ? error.message : 'Unknown error'}\nIPFS Hash: ${uploadResult.Hash}`);
         }
+      } else if (blockchainAvailable && !assetName.trim()) {
+        alert(`File uploaded to IPFS successfully! IPFS Hash: ${uploadResult.Hash}\n\nTip: Provide an asset name to register it on the blockchain.`);
+      } else {
+        alert(`File uploaded to IPFS successfully! IPFS Hash: ${uploadResult.Hash}`);
       }
 
-      // Refresh file list
+      // Refresh file list (fallback)
       await loadFiles();
       
       // Reset form
       setSelectedFile(null);
       setAssetName('');
       
-      alert(`File uploaded successfully! IPFS Hash: ${uploadResult.Hash}`);
     } catch (error) {
       console.error('Upload failed:', error);
       setError(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -176,11 +198,11 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
         <span style={{ 
           padding: '4px 8px', 
           borderRadius: '4px',
-          backgroundColor: blockchainAvailable ? '#4caf50' : '#ff9800',
+          backgroundColor: blockchainAvailable ? '#4caf50' : '#f44336',
           color: 'white',
           fontSize: '12px'
         }}>
-          Blockchain: {blockchainAvailable ? 'Available' : 'Optional'}
+          Blockchain: {blockchainAvailable ? 'Connected' : 'Not Available'}
         </span>
       </div>
 
@@ -216,92 +238,241 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
           />
         </div>
 
-        {/* Asset metadata (optional) */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
-          <input
-            type="text"
-            placeholder="Asset name (optional)"
-            value={assetName}
-            onChange={(e) => setAssetName(e.target.value)}
-            style={{ 
-              padding: '8px',
-              border: '1px solid var(--jp-border-color1)',
-              borderRadius: '4px',
-              flex: '1',
-              minWidth: '150px'
-            }}
-          />
-          <select
-            value={assetType}
-            onChange={(e) => setAssetType(e.target.value)}
-            style={{ 
-              padding: '8px',
-              border: '1px solid var(--jp-border-color1)',
-              borderRadius: '4px'
-            }}
-          >
-            <option value="dataset">Dataset</option>
-            <option value="model">Model</option>
-            <option value="script">Script</option>
-            <option value="document">Document</option>
-            <option value="other">Other</option>
-          </select>
+        {/* Asset metadata (required for blockchain) */}
+        <div style={{ marginBottom: '15px' }}>
+          <div style={{ marginBottom: '10px', fontSize: '14px', fontWeight: 'bold', color: 'var(--jp-ui-font-color1)' }}>
+            {blockchainAvailable ? 'Asset Details (Blockchain Registration)' : 'Asset Details (Optional)'}
+          </div>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder={blockchainAvailable ? "Asset name (required for blockchain)" : "Asset name (optional)"}
+              value={assetName}
+              onChange={(e) => setAssetName(e.target.value)}
+              style={{ 
+                padding: '8px',
+                border: `2px solid ${blockchainAvailable && !assetName ? '#f44336' : 'var(--jp-border-color1)'}`,
+                borderRadius: '4px',
+                flex: '1',
+                minWidth: '200px',
+                backgroundColor: blockchainAvailable ? 'var(--jp-layout-color0)' : 'var(--jp-layout-color1)'
+              }}
+            />
+            <select
+              value={assetType}
+              onChange={(e) => setAssetType(e.target.value)}
+              style={{ 
+                padding: '8px',
+                border: '1px solid var(--jp-border-color1)',
+                borderRadius: '4px',
+                backgroundColor: blockchainAvailable ? 'var(--jp-layout-color0)' : 'var(--jp-layout-color1)'
+              }}
+            >
+              <option value="dataset">Dataset</option>
+              <option value="model">Model</option>
+              <option value="script">Script</option>
+              <option value="document">Document</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          {blockchainAvailable && (
+            <div style={{ 
+              marginTop: '5px',
+              fontSize: '12px',
+              color: 'var(--jp-brand-color1)',
+              fontStyle: 'italic'
+            }}>
+              Asset name is required to register on the blockchain. Leave empty for IPFS-only storage.
+            </div>
+          )}
         </div>
 
-        <button
-          onClick={handleUpload}
-          disabled={!selectedFile || loading}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: selectedFile && !loading ? 'var(--jp-brand-color1)' : '#ccc',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: selectedFile && !loading ? 'pointer' : 'not-allowed'
-          }}
-        >
-          {loading ? 'Uploading...' : 'Upload to IPFS'}
-        </button>
-
-        {!userAccount && blockchainAvailable && (
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
-            onClick={connectWallet}
+            onClick={handleUpload}
+            disabled={!selectedFile || loading}
             style={{
               padding: '10px 20px',
-              backgroundColor: 'var(--jp-warn-color1)',
+              backgroundColor: selectedFile && !loading ? 'var(--jp-brand-color1)' : '#ccc',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: 'pointer',
-              marginLeft: '10px'
+              cursor: selectedFile && !loading ? 'pointer' : 'not-allowed',
+              fontWeight: 'bold'
             }}
           >
-            Connect Wallet (Optional)
+            {loading ? 'Uploading...' : blockchainAvailable ? 'Upload & Register Asset' : 'Upload to IPFS'}
           </button>
-        )}
+
+          {blockchainAvailable && !userAccount && (
+            <button
+              onClick={connectWallet}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: 'var(--jp-warn-color1)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Connect Wallet
+            </button>
+          )}
+
+          {blockchainAvailable && userAccount && (
+            <div style={{ 
+              padding: '8px 12px',
+              backgroundColor: 'var(--jp-brand-color1)',
+              color: 'white',
+              borderRadius: '4px',
+              fontSize: '12px'
+            }}>
+              Connected: {userAccount.substring(0, 6)}...{userAccount.substring(38)}
+            </div>
+          )}
+        </div>
 
         {!blockchainAvailable && (
           <div style={{ 
             marginTop: '10px',
+            padding: '10px',
+            backgroundColor: 'var(--jp-layout-color2)',
+            borderRadius: '4px',
             fontSize: '12px',
             color: 'var(--jp-ui-font-color2)',
-            fontStyle: 'italic'
+            border: '1px solid var(--jp-border-color2)'
           }}>
-            Note: Blockchain features are not configured. Files will only be stored on IPFS.
+            ⚠️ Blockchain not available: Install MetaMask and ensure contracts are deployed to enable asset registration.
           </div>
         )}
       </div>
 
-      {/* Files List */}
+      {/* Blockchain Assets (Primary) */}
+      {blockchainAvailable && (
+        <div style={{ 
+          border: '2px solid var(--jp-brand-color1)',
+          borderRadius: '8px',
+          padding: '20px',
+          marginBottom: '20px',
+          background: 'var(--jp-layout-color0)'
+        }}>
+          <h3 style={{ margin: '0 0 15px 0', color: 'var(--jp-ui-font-color1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            Blockchain Assets ({assets.length})
+            <button
+              onClick={loadAssets}
+              disabled={loading}
+              style={{
+                padding: '4px 8px',
+                backgroundColor: 'var(--jp-brand-color1)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
+          </h3>
+          
+          {assets.length === 0 ? (
+            <div style={{ 
+              padding: '20px',
+              textAlign: 'center',
+              color: 'var(--jp-ui-font-color2)',
+              background: 'var(--jp-layout-color2)',
+              borderRadius: '4px'
+            }}>
+              <p>No blockchain assets found.</p>
+              <p style={{ fontSize: '14px', margin: '10px 0' }}>
+                Upload a file with an asset name to create your first blockchain asset.
+              </p>
+            </div>
+          ) : (
+            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+              {assets.map((asset, index) => (
+                <div
+                  key={index}
+                  style={{
+                    padding: '15px',
+                    border: '1px solid var(--jp-border-color2)',
+                    borderRadius: '4px',
+                    marginBottom: '10px',
+                    background: 'var(--jp-layout-color1)'
+                  }}
+                >
+                  <div style={{ marginBottom: '8px' }}>
+                    <strong style={{ color: 'var(--jp-ui-font-color1)' }}>
+                      {asset.name}
+                    </strong>
+                    <span style={{ 
+                      marginLeft: '10px',
+                      padding: '2px 6px',
+                      backgroundColor: 'var(--jp-brand-color1)',
+                      color: 'white',
+                      borderRadius: '3px',
+                      fontSize: '10px'
+                    }}>
+                      {asset.assetType}
+                    </span>
+                  </div>
+                  <div style={{ 
+                    fontSize: '12px',
+                    color: 'var(--jp-ui-font-color2)',
+                    wordBreak: 'break-all',
+                    marginBottom: '8px'
+                  }}>
+                    IPFS: {asset.ipfsHash}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => handleDownload(asset.ipfsHash)}
+                      style={{
+                        padding: '4px 8px',
+                        backgroundColor: 'var(--jp-brand-color1)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      Download
+                    </button>
+                    <button
+                      onClick={() => window.open(getPublicUrl(asset.ipfsHash), '_blank')}
+                      style={{
+                        padding: '4px 8px',
+                        backgroundColor: 'var(--jp-accept-color1)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* IPFS Files (Fallback/Additional) */}
       <div style={{ 
         border: '1px solid var(--jp-border-color1)',
         borderRadius: '8px',
         padding: '20px',
         marginBottom: '20px',
-        background: 'var(--jp-layout-color0)'
+        background: 'var(--jp-layout-color0)',
+        opacity: blockchainAvailable ? 0.7 : 1
       }}>
         <h3 style={{ margin: '0 0 15px 0', color: 'var(--jp-ui-font-color1)' }}>
-          IPFS Files ({files.length})
+          Raw IPFS Files ({files.length}) {blockchainAvailable && '(Unregistered)'}
         </h3>
         
         <button
@@ -441,89 +612,6 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
           </div>
         )}
       </div>
-
-      {/* Assets List (if blockchain is available) */}
-      {assets.length > 0 && (
-        <div style={{ 
-          border: '1px solid var(--jp-border-color1)',
-          borderRadius: '8px',
-          padding: '20px',
-          background: 'var(--jp-layout-color0)'
-        }}>
-          <h3 style={{ margin: '0 0 15px 0', color: 'var(--jp-ui-font-color1)' }}>
-            Blockchain Assets ({assets.length})
-          </h3>
-          
-          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-            {assets.map((asset, index) => (
-              <div
-                key={index}
-                style={{
-                  padding: '15px',
-                  border: '1px solid var(--jp-border-color2)',
-                  borderRadius: '4px',
-                  marginBottom: '10px',
-                  background: 'var(--jp-layout-color1)'
-                }}
-              >
-                <div style={{ marginBottom: '8px' }}>
-                  <strong style={{ color: 'var(--jp-ui-font-color1)' }}>
-                    {asset.name}
-                  </strong>
-                  <span style={{ 
-                    marginLeft: '10px',
-                    padding: '2px 6px',
-                    backgroundColor: 'var(--jp-brand-color1)',
-                    color: 'white',
-                    borderRadius: '3px',
-                    fontSize: '10px'
-                  }}>
-                    {asset.assetType}
-                  </span>
-                </div>
-                <div style={{ 
-                  fontSize: '12px',
-                  color: 'var(--jp-ui-font-color2)',
-                  wordBreak: 'break-all',
-                  marginBottom: '8px'
-                }}>
-                  IPFS: {asset.ipfsHash}
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => handleDownload(asset.ipfsHash)}
-                    style={{
-                      padding: '4px 8px',
-                      backgroundColor: 'var(--jp-brand-color1)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    Download
-                  </button>
-                  <button
-                    onClick={() => window.open(getPublicUrl(asset.ipfsHash), '_blank')}
-                    style={{
-                      padding: '4px 8px',
-                      backgroundColor: 'var(--jp-accept-color1)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
-                    }}
-                  >
-                    View
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

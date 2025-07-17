@@ -2,7 +2,7 @@ import { ethers, BrowserProvider, Signer } from 'ethers';
 import AssetFactoryABI from '../abis/AssetFactory.json';
 import AssetABI from '../abis/Asset.json';
 import config from '../config';
-import { useFactoryRegistry } from '../hooks/useFactoryRegistry';
+import { getFactoryAddressFromRegistry } from './registryClient.js';
 
 export interface AssetInfo {
   address: string;
@@ -37,9 +37,8 @@ export class AssetService {
   }
 
   private async initializeAssetFactory() {
-    const { getFactoryAddress } = useFactoryRegistry();
     try {
-      const registryAddress = await getFactoryAddress('AssetFactory');
+      const registryAddress = await getFactoryAddressFromRegistry('AssetFactory');
       if (registryAddress) {
         this.assetFactoryAddress = registryAddress;
         console.log('AssetFactory address loaded from registry:', registryAddress);
@@ -52,7 +51,8 @@ export class AssetService {
   }
 
   isConfigured(): boolean {
-    return this.assetFactoryAddress !== '0x0000000000000000000000000000000000000000';
+    const configured = this.assetFactoryAddress !== '0x0000000000000000000000000000000000000000';
+    return configured;
   }
 
   async connectWallet(): Promise<string> {
@@ -80,7 +80,9 @@ export class AssetService {
 
     // Extract the asset address from the event
     const event = receipt.events?.find((e: any) => e.event === 'AssetCreated');
-    return event?.args?.assetAddress;
+    const assetAddress = event?.args?.assetAddress;
+    
+    return assetAddress;
   }
 
   async getUserAssets(userAddress: string): Promise<AssetInfo[]> {
@@ -154,8 +156,8 @@ export class AssetService {
       name,
       assetType,
       ipfsHash,
-      created: created.toNumber(),
-      updated: updated.toNumber()
+      created: Number(created),
+      updated: Number(updated)
     };
   }
 
