@@ -48,6 +48,7 @@ contract ProjectTemplateRegistry {
         // Initialize with predefined templates
         _createFederatedLearningTemplate();
         _createResearchCollaborationTemplate();
+        _createActiveLearningTemplate();
     }
 
     function _createFederatedLearningTemplate() internal {
@@ -123,6 +124,55 @@ contract ProjectTemplateRegistry {
         templatesByCreator[address(this)].push(templateId);
 
         emit TemplateRegistered(templateId, "Research Collaboration", "research_collaboration", address(this), block.timestamp);
+    }
+
+    function _createActiveLearningTemplate() internal {
+        string[] memory roles = new string[](2);
+        roles[0] = "coordinator";
+        roles[1] = "contributor";
+
+        string[] memory AL_scenarios = new string[](2);
+        AL_scenarios[0] = "pool-based";
+        AL_scenarios[1] = "stream-based";
+
+        string[] memory query_strategies = new string[](3);
+        query_strategies[0] = "uncertainty_sampling";
+        query_strategies[1] = "random_sampling";
+        query_strategies[2] = "entropy_sampling";
+
+        string memory exampleJSON = '{"project_id":"al-cancer-detection-01","type":"active_learning","objective":"Active learning for cancer detection model","roles":["coordinator","contributor"],"participants":[{"id":"0xABC","role":"coordinator"},{"id":"0xDEF","role":"contributor"}],"dataset_id":"cancer_images_v1","query_strategy":"uncertainty_sampling","AL_scenario":"pool-based","max_rounds":10,"voting_consensus":0.5,"policies":{"permissions":{"coordinator":["manage_project","start_rounds","approve_participants","view_all","modify_settings"],"contributor":["vote","view_results","submit_labels"]},"voting":{"enabled":true,"threshold":0.5,"revocable_by":"coordinator"}}}';
+
+        uint256 templateId = templates.length;
+        templates.push();
+        ProjectTemplate storage template = templates[templateId];
+        
+        template.name = "Active Learning";
+        template.description = "Collaborative active learning for machine learning model training";
+        template.projectType = "active_learning";
+        template.participantRoles = roles;
+        template.exampleJSON = exampleJSON;
+        template.isActive = true;
+        template.creator = address(this);
+        template.createdAt = block.timestamp;
+
+        // Add fields
+        template.fields.push(TemplateField("project_id", "string", true, ""));
+        template.fields.push(TemplateField("type", "string", true, "active_learning"));
+        template.fields.push(TemplateField("objective", "string", true, ""));
+        template.fields.push(TemplateField("roles", "array", true, '["coordinator","contributor"]'));
+        template.fields.push(TemplateField("participants", "array", false, "[]"));
+        template.fields.push(TemplateField("dataset_id", "string", false, ""));
+        template.fields.push(TemplateField("model_id", "string", false, ""));
+        template.fields.push(TemplateField("query_strategy", "string", false, "uncertainty_sampling"));
+        template.fields.push(TemplateField("AL_scenario", "string", false, "{}"));
+        template.fields.push(TemplateField("max_rounds", "number", false, "10"));
+        template.fields.push(TemplateField("voting_consensus", "number", false, "0"));
+        template.fields.push(TemplateField("policies", "object", true, '{"permissions":{"coordinator":["manage_project","start_rounds","approve_participants","view_all","modify_settings"],"contributor":["vote","view_results","submit_labels"]},"voting":{"enabled":true,"threshold":0.5,"revocable_by":"coordinator"}}'));
+
+        templatesByType["active_learning"].push(templateId);
+        templatesByCreator[address(this)].push(templateId);
+
+        emit TemplateRegistered(templateId, "Active Learning", "active_learning", address(this), block.timestamp);
     }
 
     // Get template by ID
