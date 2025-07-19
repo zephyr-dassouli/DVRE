@@ -5,5 +5,5 @@ export { GraphWidget } from './graph/GraphWidget';
 export { IPFSWidget } from './ipfs/IPFSWidget';
 export { FederatedLearningWidget } from './federatedlearning/FederatedLearningWidget';
 
-// Note: DAL components moved to dApps/
-// They will be dynamically loaded from their respective dApp packages
+// DAL components are now completely separate extensions
+// They will be discovered and loaded via ExtensionDiscovery

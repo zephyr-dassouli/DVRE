@@ -9,17 +9,27 @@ export interface IExtensionManifest {
   description: string;
   author: string;
   entrypoint: string;
+  category?: string;
   backend?: {
     dockerfile: string;
     port: number;
+    endpoints?: string[];
   };
   compute?: {
     dockerfile: string;
     volumes: string[];
+    capabilities?: string[];
   };
   workflows?: string;
   permissions: string[];
   dependencies: Record<string, string>;
+  metadata?: {
+    category?: string;
+    tags?: string[];
+    homepage?: string;
+    repository?: string;
+    license?: string;
+  };
 }
 
 export interface IExtensionInfo {
@@ -61,58 +71,96 @@ export class ExtensionDiscovery implements IExtensionDiscovery {
     const extensions: IExtensionInfo[] = [];
 
     try {
-      // For now, we'll use a simple file-based discovery
-      // In a real implementation, this would use proper file system APIs
-      const knownExtensions = ['dal']; // We'll expand this dynamically later
+      // In a browser environment, we need to use fetch to read files
+      // For now, we'll check for known extensions, but this could be made dynamic
+      const knownExtensions = ['dal']; 
 
       for (const extensionName of knownExtensions) {
-        const extensionPath = PathExt.join(this._dAppsPath, extensionName);
-
         try {
-          // In a real implementation, we'd read the actual file
-          // For now, we'll simulate the DAL extension
+          // Try to fetch the manifest.json file
+          const manifestPath = `../dApps/${extensionName}/manifest.json`;
+          const response = await fetch(manifestPath);
+          
+          if (response.ok) {
+            const manifest: IExtensionManifest = await response.json();
+            
+            extensions.push({
+              name: extensionName,
+              path: PathExt.join(this._dAppsPath, extensionName),
+              manifest
+            });
+            
+            console.log(`Discovered dApp extension: ${manifest.displayName}`);
+          } else {
+            console.warn(`Could not load manifest for ${extensionName}: ${response.statusText}`);
+          }
+        } catch (error) {
+          console.warn(`Failed to load extension ${extensionName}:`, error);
+          
+          // Fallback to hardcoded manifest for DAL if file reading fails
           if (extensionName === 'dal') {
-            const manifest: IExtensionManifest = {
+            const fallbackManifest: IExtensionManifest = {
               name: 'dal',
               displayName: 'Decentralized Active Learning',
               version: '1.0.0',
-              description: 'Active Learning dApp for DVRE',
+              description: 'Active Learning dApp for DVRE platform with CWL-orchestrated backend and AL engine',
               author: 'DVRE Team',
               entrypoint: 'extension/index.js',
               backend: {
                 dockerfile: 'backend/Dockerfile',
-                port: 8001
+                port: 8001,
+                endpoints: [
+                  "/api/projects/{project_id}/start-workflow",
+                  "/api/projects/{project_id}/status",
+                  "/api/projects/{project_id}/submit-labels"
+                ]
               },
               compute: {
                 dockerfile: 'al-engine/Dockerfile',
-                volumes: ['/dal_data']
+                volumes: ['/dal_data'],
+                capabilities: [
+                  "uncertainty_sampling",
+                  "entropy_sampling", 
+                  "random_sampling",
+                  "model_training"
+                ]
               },
               workflows: 'workflows/',
               permissions: [
                 'blockchain:read',
                 'blockchain:write',
                 'storage:read',
-                'storage:write'
+                'storage:write',
+                'dvre:project_access',
+                'dvre:cwl_execution'
               ],
               dependencies: {
-                '@dvre/core': '>=1.0.0'
+                '@dvre/core': '>=1.0.0',
+                'ethers': '^6.x.x',
+                'react': '^18.x.x'
+              },
+              metadata: {
+                category: 'Machine Learning',
+                tags: ['active-learning', 'machine-learning', 'decentralized'],
+                license: 'MIT'
               }
             };
 
             extensions.push({
               name: extensionName,
-              path: extensionPath,
-              manifest
+              path: PathExt.join(this._dAppsPath, extensionName),
+              manifest: fallbackManifest
             });
+            
+            console.log(`Using fallback manifest for ${extensionName}`);
           }
-        } catch (error) {
-          console.warn(`Failed to load extension ${extensionName}:`, error);
         }
       }
     } catch (error) {
       console.warn('Error discovering extensions:', error);
     }
 
+    console.log(`Discovered ${extensions.length} dApp extension(s)`);
     return extensions;
   }
 
@@ -122,6 +170,7 @@ export class ExtensionDiscovery implements IExtensionDiscovery {
       
       // For now, we'll return the extension info
       // In a real implementation, this would dynamically import the extension module
+      // and create the appropriate widget components
       return extensionInfo;
     } catch (error) {
       console.error(`Failed to load extension ${extensionInfo.name}:`, error);
