@@ -328,14 +328,26 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({
 
   // Helper function to detect if a project should be a DAL project
   const checkIfShouldBeDALProject = useCallback((projectData: any): boolean => {
-    if (!projectData) return false;
+    console.log('🔍 WorkflowEditor checkIfShouldBeDALProject called with:', projectData);
     
-    // Check explicit type markers
-    if (projectData.type === 'active_learning' || projectData.project_type === 'active_learning') {
+    if (!projectData) {
+      console.log('❌ WorkflowEditor: No project data provided');
+      return false;
+    }
+    
+    // PRIORITY 1: Check explicit template type markers
+    if (projectData.templateType === 'active_learning' || 
+        projectData.project_type === 'active_learning' || 
+        projectData.type === 'active_learning') {
+      console.log('✅ WorkflowEditor: Detected as AL by explicit markers:', {
+        templateType: projectData.templateType,
+        project_type: projectData.project_type,
+        type: projectData.type
+      });
       return true;
     }
     
-    // Check project data for DAL indicators (enhanced detection)
+    // PRIORITY 2: Check project data for DAL indicators (enhanced detection)
     const indicators = [
       'active learning', 'al', 'dal', 'machine learning', 'annotation', 'labeling',
       'query strategy', 'uncertainty sampling', 'model training', 'classification',
@@ -350,7 +362,16 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({
       (projectData.keywords || []).join(' ')
     ).toLowerCase();
     
-    return indicators.some(indicator => projectText.includes(indicator));
+    const textMatch = indicators.some(indicator => projectText.includes(indicator));
+    
+    console.log('🔍 WorkflowEditor: Text analysis result:', {
+      projectText,
+      indicators,
+      textMatch,
+      finalResult: textMatch
+    });
+    
+    return textMatch;
   }, []);
 
   // Initialize AL config for DAL projects
@@ -368,101 +389,44 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({
       const shouldBeDALProject = checkIfShouldBeDALProject(projectConfig?.projectData);
       
       if (shouldBeDALProject) {
-        // Prompt user for AL configuration instead of using hardcoded values
-        console.log('Project detected as DAL project, requesting AL configuration from user');
+        // Create default AL configuration (no more prompts!)
+        console.log('Project detected as DAL project, creating default AL configuration');
         
-        const queryStrategy = prompt(
-          'Enter query strategy (uncertainty_sampling, diversity_sampling, query_by_committee, random_sampling):', 
-          'uncertainty_sampling'
-        ) || 'uncertainty_sampling';
-        
-        const scenario = prompt(
-          'Enter AL scenario (single_annotator, multi_annotator, federated, collaborative):', 
-          'single_annotator'
-        ) || 'single_annotator';
-        
-        const modelType = prompt(
-          'Enter model type (neural_network, logistic_regression, svm, random_forest):', 
-          'neural_network'
-        ) || 'neural_network';
-        
-        const maxIterations = parseInt(prompt('Enter maximum iterations:', '10') || '10');
-        const labelingBudget = parseInt(prompt('Enter labeling budget per iteration:', '100') || '100');
-        const validationSplit = parseFloat(prompt('Enter validation split (0.0-1.0):', '0.2') || '0.2');
-        
-        // Create model parameters based on type
-        let modelParameters: any = {};
-        if (modelType === 'neural_network') {
-          const layersInput = prompt('Enter hidden layers (comma-separated numbers, e.g., "64,32"):', '64,32');
-          const layers = layersInput ? layersInput.split(',').map(n => parseInt(n.trim())) : [64, 32];
-          const learningRate = parseFloat(prompt('Enter learning rate:', '0.001') || '0.001');
-          const batchSize = parseInt(prompt('Enter batch size:', '32') || '32');
-          
-          modelParameters = {
-            layers,
-            learning_rate: learningRate,
-            batch_size: batchSize
-          };
-        } else if (modelType === 'logistic_regression') {
-          const maxIter = parseInt(prompt('Enter max iterations for logistic regression:', '1000') || '1000');
-          const randomState = parseInt(prompt('Enter random state:', '42') || '42');
-          
-          modelParameters = {
-            max_iter: maxIter,
-            random_state: randomState,
-            solver: 'liblinear'
-          };
-        } else if (modelType === 'svm') {
-          const kernel = prompt('Enter SVM kernel (linear, rbf, poly, sigmoid):', 'rbf') || 'rbf';
-          const c = parseFloat(prompt('Enter C parameter:', '1.0') || '1.0');
-          
-          modelParameters = {
-            kernel,
-            C: c,
-            random_state: 42
-          };
-        } else if (modelType === 'random_forest') {
-          const nEstimators = parseInt(prompt('Enter number of estimators:', '100') || '100');
-          const maxDepth = parseInt(prompt('Enter max depth (0 for None):', '0') || '0');
-          
-          modelParameters = {
-            n_estimators: nEstimators,
-            max_depth: maxDepth === 0 ? null : maxDepth,
-            random_state: 42
-          };
-        }
-        
-        const userAlConfig: ALConfiguration = {
-          queryStrategy: queryStrategy as any,
-          AL_scenario: scenario as any,  
+        const defaultAlConfig: ALConfiguration = {
+          queryStrategy: 'uncertainty_sampling',
+          AL_scenario: 'single_annotator',
           model: {
-            type: modelType as any,
-            parameters: modelParameters
+            type: 'neural_network',
+            parameters: {
+              layers: [64, 32],
+              learning_rate: 0.001,
+              batch_size: 32
+            }
           },
-          labeling_budget: labelingBudget,
-          max_iterations: maxIterations,
-          validation_split: validationSplit,
-          federated: scenario === 'federated',
+          labeling_budget: 100,
+          max_iterations: 10,
+          validation_split: 0.2,
+          federated: false,
           contributors: []
         };
         
-        // Update the project configuration with user-defined DAL extension
+        // Update the project configuration with default DAL extension
         if (account) {
           try {
             projectConfigurationService.updateExtensionConfiguration(
               projectId,
               'dal',
-              userAlConfig,
+              defaultAlConfig,
               account
             );
-            setAlConfig(userAlConfig);
-            console.log('Created user-defined DAL extension for project:', projectId);
+            setAlConfig(defaultAlConfig);
+            console.log('Created default DAL extension for project:', projectId);
           } catch (error) {
             console.error('Failed to create DAL extension:', error);
-            setAlConfig(userAlConfig);
+            setAlConfig(defaultAlConfig);
           }
         } else {
-          setAlConfig(userAlConfig);
+          setAlConfig(defaultAlConfig);
         }
       } else {
         // For non-DAL projects, provide minimal AL config that can be activated later

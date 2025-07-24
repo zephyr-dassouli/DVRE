@@ -71,6 +71,13 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
       // For each user project, ensure it has a RO-Crate configuration
       for (const project of currentUserProjects) {
         try {
+          console.log(`🔍 Processing project ${project.address}:`, {
+            projectId: project.projectId,
+            projectData: project.projectData,
+            hasTypeField: !!project.projectData?.type,
+            typeValue: project.projectData?.type
+          });
+          
           // Check if RO-Crate already exists
           let config = projectConfigurationService.getProjectConfiguration(project.address);
           
@@ -84,7 +91,25 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
             );
             console.log(`Created RO-Crate for project ${project.address}:`, config);
           } else {
-            console.log(`Found existing RO-Crate for project ${project.address}`);
+            console.log(`Found existing RO-Crate for project ${project.address}`, {
+              configStatus: config.status,
+              hasDALExtension: !!config.extensions?.dal,
+              projectDataType: config.projectData?.type
+            });
+            
+            // 🔧 TEMP FIX: Force-recreate RO-Crate if project has AL type but no DAL extension
+            const shouldBeAL = project.projectData?.type === 'active_learning';
+            const hasDALExtension = !!config.extensions?.dal;
+            
+            if (shouldBeAL && !hasDALExtension) {
+              console.log(`🔧 Force-recreating RO-Crate for AL project without DAL extension: ${project.address}`);
+              config = await projectConfigurationService.autoCreateProjectConfiguration(
+                project.address,
+                project.projectData,
+                account
+              );
+              console.log(`✅ Recreated RO-Crate with DAL extension for project ${project.address}`);
+            }
           }
           
           if (config) {

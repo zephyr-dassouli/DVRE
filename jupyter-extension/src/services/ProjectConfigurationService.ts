@@ -287,9 +287,26 @@ export class ProjectConfigurationService {
    * Check if a project should use DAL template
    */
   private isDALProject(projectData: any): boolean {
-    if (!projectData) return false;
+    console.log('🔍 isDALProject called with:', projectData);
     
-    // Check project data for DAL indicators
+    if (!projectData) {
+      console.log('❌ isDALProject: No project data provided');
+      return false;
+    }
+    
+    // PRIORITY 1: Check explicit template type markers
+    if (projectData.templateType === 'active_learning' || 
+        projectData.project_type === 'active_learning' || 
+        projectData.type === 'active_learning') {
+      console.log('✅ isDALProject: Detected as AL by explicit markers:', {
+        templateType: projectData.templateType,
+        project_type: projectData.project_type,
+        type: projectData.type
+      });
+      return true;
+    }
+    
+    // PRIORITY 2: Check project data for DAL indicators (text analysis fallback)
     const indicators = [
       'active learning', 'al', 'dal', 'machine learning', 'annotation', 'labeling',
       'query strategy', 'uncertainty sampling', 'model training'
@@ -302,7 +319,16 @@ export class ProjectConfigurationService {
       (projectData.project_type || '')
     ).toLowerCase();
     
-    return indicators.some(indicator => projectText.includes(indicator));
+    const textMatch = indicators.some(indicator => projectText.includes(indicator));
+    
+    console.log('🔍 isDALProject: Text analysis result:', {
+      projectText,
+      indicators,
+      textMatch,
+      finalResult: textMatch
+    });
+    
+    return textMatch;
   }
 
   /**
