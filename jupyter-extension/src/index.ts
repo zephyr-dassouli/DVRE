@@ -11,7 +11,7 @@ import {
 import { ILauncher } from '@jupyterlab/launcher';
 import { LabIcon } from '@jupyterlab/ui-components';
 import { Widget } from '@lumino/widgets';
-import { AuthWidget, CollaborationWidget, GraphWidget, FederatedLearningWidget, IPFSWidget } from './components';
+import { AuthWidget, CollaborationWidget, GraphWidget, FederatedLearningWidget, IPFSWidget, ProjectConfigurationWidget } from './components';
 import { ExtensionDiscovery, IExtensionInfo } from './services/ExtensionDiscovery';
 
 // Import CSS
@@ -41,6 +41,11 @@ const federatedLearningIcon = new LabIcon({
 const ipfsIcon = new LabIcon({
   name: 'my-extension:ipfs',
   svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="4" r="1.5" fill="currentColor"/><circle cx="4" cy="10" r="1.5" fill="currentColor"/><circle cx="12" cy="10" r="1.5" fill="currentColor"/><path d="M8 5.5L6.5 9.5M8 5.5L9.5 9.5M6.5 9.5L9.5 9.5" stroke="currentColor" stroke-width="1" fill="none"/></svg>'
+});
+
+const configurationIcon = new LabIcon({
+  name: 'my-extension:configuration',
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/><path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.292-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.292c.415.764-.42 1.6-1.185 1.184l-.292-.159a1.873 1.873 0 0 0-2.692 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.693-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.292A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/></svg>'
 });
 
 // Dynamic icon for discovered extensions
@@ -248,12 +253,31 @@ const plugin: JupyterFrontEndPlugin<void> = {
       }
     });
 
+    // Command for project configuration
+    const configurationCommand = 'my-extension:configuration';
+    app.commands.addCommand(configurationCommand, {
+      label: 'Project Configuration',
+      caption: 'Configure project settings and preferences',
+      icon: configurationIcon,
+      execute: () => {
+        const content = new ProjectConfigurationWidget('Project Configuration');
+        const widget = new MainAreaWidget({ content });
+        widget.id = `my-configuration-${Date.now()}`;
+        widget.title.closable = true;
+        widget.title.icon = configurationIcon;
+        
+        app.shell.add(widget, 'main');
+        app.shell.activateById(widget.id);
+      }
+    });
+
     // Add core commands to command palette
     palette.addItem({ command: authCommand, category: 'DVRE Core' });
     palette.addItem({ command: collaborationCommand, category: 'DVRE Core' });
     palette.addItem({ command: graphCommand, category: 'DVRE Core' });
     palette.addItem({ command: federatedLearningCommand, category: 'DVRE Core' });
     palette.addItem({ command: ipfsCommand, category: 'DVRE Core' });
+    palette.addItem({ command: configurationCommand, category: 'DVRE Core' });
 
     // Add core commands to launcher
     if (launcher) {
@@ -285,6 +309,12 @@ const plugin: JupyterFrontEndPlugin<void> = {
         command: ipfsCommand,
         category: 'DVRE Core',
         rank: 5
+      });
+
+      launcher.add({
+        command: configurationCommand,
+        category: 'DVRE Core',
+        rank: 6
       });
 
       console.log('DVRE Core: Extension added to launcher successfully!');
