@@ -219,10 +219,23 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
       }
 
       // Success message
-      const deploymentMessage = `Project deployed successfully!\n\n` +
+      let deploymentMessage = `Project deployed successfully!\n\n` +
         `🔗 RO-Crate Hash: ${ipfsResult.roCrateHash}\n` +
         `📦 Bundle Hash: ${ipfsResult.bundleHash}\n` +
         `${ipfsResult.deployed ? '🚀 Orchestration: Deployed' : '⚠️ Orchestration: Failed'}`;
+      
+      // Add workflow ID if deployment succeeded
+      if (ipfsResult.deployed) {
+        // Small delay to ensure deployment status is saved
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Get updated project configuration to access deployment info
+        const updatedConfig = projectConfigurationService.getProjectConfiguration(selectedProject.projectId);
+        if (updatedConfig?.deployment?.orchestrationWorkflowId) {
+          deploymentMessage += `\n🆔 Workflow ID: ${updatedConfig.deployment.orchestrationWorkflowId}`;
+          deploymentMessage += `\n🔗 Check at: http://145.100.135.97:5004`;
+        }
+      }
       
       alert(deploymentMessage);
       
