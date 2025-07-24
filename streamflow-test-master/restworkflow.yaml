@@ -1,0 +1,56 @@
+  # # 3) alter file
+  # alter:
+  #   run:
+  #     class: CommandLineTool
+  #     baseCommand: ["sh","-exc"]
+  #     inputs:
+  #       file: File
+  #       script: File
+  #     arguments:
+  #       - valueFrom: |
+  #           cp "$(inputs.file.path)" work.txt
+  #           chmod +x "$(inputs.script.path)"
+  #           "$(inputs.script.path)" work.txt out.txt
+  #     outputs:
+  #       outputFile:
+  #         type: File
+  #         outputBinding:
+  #           glob: "out.txt"
+  #   in:
+  #     file: query/fetchedDir
+  #     script: mod_script
+  #   out: [outputFile]
+
+  # # 4) upload new file
+  # upload:
+  #   run:
+  #     class: CommandLineTool
+  #     requirements:
+  #       DockerRequirement:
+  #         dockerPull: ipfs/kubo:master-latest
+  #         dockerNetwork: "container:ipfs_node"
+  #     baseCommand: ["ipfs","add","-Q"]
+  #     inputs:
+  #       file:
+  #         type: File
+  #         inputBinding:
+  #           position: 1
+  #     outputs:
+  #       newHash:
+  #         type: string
+  #         outputBinding:
+  #           stdout: true
+  #   in:
+  #     file: alter/outputFile
+  #   out: [newHash]
+
+  # 5) kill the daemon container
+  # teardown:
+  #   run:
+  #     class: CommandLineTool
+  #     baseCommand: [docker]
+  #     arguments:
+  #       - valueFrom: rm -f ipfs_node
+  #         shellQuote: false
+  #   in: {}
+  #   out: []

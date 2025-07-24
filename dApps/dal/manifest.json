@@ -1,30 +1,11 @@
 {
-  "name": "dal",
-  "displayName": "Decentralized Active Learning",
-  "version": "1.0.0",
-  "description": "Active Learning dApp for DVRE platform with CWL-orchestrated backend and AL engine",
+  "name": "jupyter-dvre-dal",
+  "displayName": "Decentralized Active Learning (DAL)",
+  "version": "0.1.0",
+  "description": "A dApp for managing Decentralized Active Learning projects within the DVRE.",
   "author": "DVRE Team",
-  "entrypoint": "extension/index.js",
-  "backend": {
-    "dockerfile": "backend/Dockerfile",
-    "port": 8001,
-    "endpoints": [
-      "/api/projects/{project_id}/start-workflow",
-      "/api/projects/{project_id}/status",
-      "/api/projects/{project_id}/submit-labels"
-    ]
-  },
-  "compute": {
-    "dockerfile": "al-engine/Dockerfile",
-    "volumes": ["/dal_data"],
-    "capabilities": [
-      "uncertainty_sampling",
-      "entropy_sampling", 
-      "random_sampling",
-      "model_training"
-    ]
-  },
-  "workflows": "workflows/",
+  "category": "Machine Learning",
+  "entrypoint": "lib/index.js",
   "permissions": [
     "blockchain:read",
     "blockchain:write",
@@ -34,15 +15,10 @@
     "dvre:cwl_execution"
   ],
   "dependencies": {
-    "@dvre/core": ">=1.0.0",
-    "ethers": "^6.x.x",
-    "react": "^18.x.x"
+    "jupyter-dvre": ">=0.1.0"
   },
   "metadata": {
-    "category": "Machine Learning",
-    "tags": ["active-learning", "machine-learning", "decentralized"],
-    "homepage": "https://github.com/dvre/dal-extension",
-    "repository": "https://github.com/dvre/dal-extension.git",
-    "license": "MIT"
+    "tags": ["active-learning", "machine-learning", "decentralized", "cwl"],
+    "license": "BSD-3-Clause"
   }
 } 

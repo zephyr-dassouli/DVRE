@@ -1,4 +1,4 @@
-#!/Users/duongvuhai/Desktop/Thesis/DVRE/dApps/dal/venv-dal/bin/python3.12
+#!/Users/duongvuhai/Desktop/Thesis/DVRE/dApps/dal/venv-dal/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

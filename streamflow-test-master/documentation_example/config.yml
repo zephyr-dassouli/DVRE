@@ -1,0 +1,10 @@
+ssh:
+  host:  # of hostname van je server
+  user:  # SSH‑user
+  port: 22                # standaard is 22
+  key_filename: ~/.ssh/id_ed25519  # of wachtwoord (passwd)
+executors:
+  default:
+    type: docker
+transfer:
+  enabled: true

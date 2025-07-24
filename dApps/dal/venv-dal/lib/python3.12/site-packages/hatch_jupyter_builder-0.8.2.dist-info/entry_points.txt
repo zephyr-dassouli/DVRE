@@ -1,0 +1,5 @@
+[console_scripts]
+hatch-jupyter-builder = hatch_jupyter_builder.cli:run
+
+[hatch]
+jupyter = hatch_jupyter_builder.hooks

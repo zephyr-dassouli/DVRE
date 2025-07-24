@@ -24,8 +24,45 @@ const templateRegistryJson = JSON.parse(fs.readFileSync(templateRegistryPath));
 const assetFactoryPath = path.join(__dirname, "../artifacts/contracts/AssetFactory.sol/AssetFactory.json");
 const assetFactoryJson = JSON.parse(fs.readFileSync(assetFactoryPath));
 
+// Load WorkflowLibrary for linking
+const workflowLibraryPath = path.join(__dirname, "../artifacts/contracts/WorkflowLibrary.sol/WorkflowLibrary.json");
+const workflowLibraryJson = JSON.parse(fs.readFileSync(workflowLibraryPath));
+
+// Function to link library addresses in bytecode
+function linkLibrary(bytecode, placeholder, libraryAddress) {
+  // Remove 0x prefix from address and ensure it's 40 characters (20 bytes)
+  const address = libraryAddress.slice(2).toLowerCase();
+  // Escape the $ characters for regex
+  const escapedPlaceholder = placeholder.replace(/\$/g, '\\$');
+  const linkedBytecode = bytecode.replace(new RegExp(escapedPlaceholder, 'g'), address);
+  
+  // Verify linking worked
+  if (linkedBytecode.includes(placeholder)) {
+    throw new Error(`Library linking failed: placeholder ${placeholder} still present`);
+  }
+  
+  return linkedBytecode;
+}
+
 const deploy = async () => {
   console.log("Deploying all contracts with account:", account.address);
+
+  // Deploy WorkflowLibrary first
+  console.log("\nDeploying WorkflowLibrary...");
+  const workflowLibraryContract = new web3.eth.Contract(workflowLibraryJson.abi);
+  const workflowLibraryDeployTx = workflowLibraryContract.deploy({ data: workflowLibraryJson.bytecode });
+
+  const workflowLibraryGas = await workflowLibraryDeployTx.estimateGas();
+  const workflowLibraryTx = {
+    from: account.address,
+    gas: Math.floor(Number(workflowLibraryGas) * 1.2),
+    gasPrice: 0,
+    data: workflowLibraryDeployTx.encodeABI()
+  };
+
+  const workflowLibrarySignedTx = await web3.eth.accounts.signTransaction(workflowLibraryTx, privateKey);
+  const workflowLibraryReceipt = await web3.eth.sendSignedTransaction(workflowLibrarySignedTx.rawTransaction);
+  console.log("WorkflowLibrary deployed at:", workflowLibraryReceipt.contractAddress);
 
   // Deploy UserMetadataFactory
   console.log("\nDeploying UserMetadataFactory...");
@@ -61,11 +98,23 @@ const deploy = async () => {
   const templateRegistryReceipt = await web3.eth.sendSignedTransaction(templateRegistrySignedTx.rawTransaction);
   console.log("ProjectTemplateRegistry deployed at:", templateRegistryReceipt.contractAddress);
 
-  // Deploy ProjectFactory (JSON-based system)
+  // Deploy ProjectFactory with linked WorkflowLibrary
   console.log("\nDeploying ProjectFactory...");
+  
+  // Link WorkflowLibrary to ProjectFactory bytecode
+  const placeholder = '__$11cad8bab9bcc8d77d0860a93c9bc9898e$__';
+  const linkedProjectFactoryBytecode = linkLibrary(
+    projectFactoryJson.bytecode,
+    placeholder,
+    workflowLibraryReceipt.contractAddress
+  );
+  
+  console.log("Library linked successfully");
+  console.log("Template registry address:", templateRegistryReceipt.contractAddress);
+  
   const projectFactoryContract = new web3.eth.Contract(projectFactoryJson.abi);
   const projectFactoryDeployTx = projectFactoryContract.deploy({ 
-    data: projectFactoryJson.bytecode,
+    data: linkedProjectFactoryBytecode,
     arguments: [templateRegistryReceipt.contractAddress]
   });
 
@@ -112,6 +161,7 @@ const deploy = async () => {
   // Print summary
   console.log("\n=== Deployment Summary ===");
   console.log("Deployed Contracts:");
+  console.log(`  WorkflowLibrary:          ${workflowLibraryReceipt.contractAddress}`);
   console.log(`  UserMetadataFactory:      ${userMetadataFactoryReceipt.contractAddress}`);
   console.log(`  ProjectTemplateRegistry:  ${templateRegistryReceipt.contractAddress}`);
   console.log(`  ProjectFactory:           ${projectFactoryReceipt.contractAddress}`);
@@ -121,6 +171,7 @@ const deploy = async () => {
   // Register all factories in FactoryRegistry (frontend needs these addresses)
   console.log("\nRegistering all factories in FactoryRegistry...");
   const factories = [
+    { name: "WorkflowLibrary", address: workflowLibraryReceipt.contractAddress },
     { name: "UserMetadataFactory", address: userMetadataFactoryReceipt.contractAddress },
     { name: "ProjectTemplateRegistry", address: templateRegistryReceipt.contractAddress },
     { name: "ProjectFactory", address: projectFactoryReceipt.contractAddress },
