@@ -3,12 +3,14 @@ import {
   DVREProjectConfiguration,
   projectConfigurationService
 } from '../services/ProjectConfigurationService';
+import { useAuth } from './useAuth';
 
 /**
  * Hook for managing project configuration
  * Integrates with existing project collaboration system
  */
 export function useProjectConfiguration(projectId?: string) {
+  const { account } = useAuth(); // Get current user's wallet address
   const [configuration, setConfiguration] = useState<DVREProjectConfiguration | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +38,11 @@ export function useProjectConfiguration(projectId?: string) {
     projectData: any,
     templateId?: number
   ) => {
+    if (!account) {
+      setError('User not authenticated');
+      return null;
+    }
+
     setLoading(true);
     setError(null);
     
@@ -43,6 +50,7 @@ export function useProjectConfiguration(projectId?: string) {
       const config = await projectConfigurationService.createProjectConfiguration(
         projectId,
         projectData,
+        account,
         templateId
       );
       setConfiguration(config);
@@ -53,20 +61,21 @@ export function useProjectConfiguration(projectId?: string) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [account]);
 
   // Update dApp extension
   const updateExtension = useCallback(async (
     dAppName: string,
     extensionData: any
   ) => {
-    if (!projectId) return null;
+    if (!projectId || !account) return null;
     
     try {
       const updated = projectConfigurationService.updateExtensionConfiguration(
         projectId,
         dAppName,
-        extensionData
+        extensionData,
+        account
       );
       
       if (updated) {
@@ -78,20 +87,21 @@ export function useProjectConfiguration(projectId?: string) {
       setError(err instanceof Error ? err.message : 'Failed to update extension');
       return null;
     }
-  }, [projectId]);
+  }, [projectId, account]);
 
   // Add dataset
   const addDataset = useCallback(async (
     datasetId: string,
     dataset: any
   ) => {
-    if (!projectId) return null;
+    if (!projectId || !account) return null;
     
     try {
       const updated = projectConfigurationService.addDataset(
         projectId,
         datasetId,
-        dataset
+        dataset,
+        account
       );
       
       if (updated) {
@@ -103,20 +113,21 @@ export function useProjectConfiguration(projectId?: string) {
       setError(err instanceof Error ? err.message : 'Failed to add dataset');
       return null;
     }
-  }, [projectId]);
+  }, [projectId, account]);
 
   // Add workflow
   const addWorkflow = useCallback(async (
     workflowId: string,
     workflow: any
   ) => {
-    if (!projectId) return null;
+    if (!projectId || !account) return null;
     
     try {
       const updated = projectConfigurationService.addWorkflow(
         projectId,
         workflowId,
-        workflow
+        workflow,
+        account
       );
       
       if (updated) {
@@ -128,17 +139,17 @@ export function useProjectConfiguration(projectId?: string) {
       setError(err instanceof Error ? err.message : 'Failed to add workflow');
       return null;
     }
-  }, [projectId]);
+  }, [projectId, account]);
 
   // Publish to IPFS
   const publishToIPFS = useCallback(async () => {
-    if (!projectId) return null;
+    if (!projectId || !account) return null;
     
     setLoading(true);
     setError(null);
     
     try {
-      const result = await projectConfigurationService.publishToIPFS(projectId);
+      const result = await projectConfigurationService.publishToIPFS(projectId, account);
       
       // Reload configuration to get updated IPFS hashes
       if (result) {
@@ -152,20 +163,20 @@ export function useProjectConfiguration(projectId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [projectId, loadConfiguration]);
+  }, [projectId, account, loadConfiguration]);
 
   // Subscribe to configuration changes
   useEffect(() => {
-    if (projectId) {
-      const unsubscribe = projectConfigurationService.onConfigurationChange(
-        projectId,
-        (config) => {
-          setConfiguration(config);
-        }
-      );
-      
-      return unsubscribe;
-    }
+    if (!projectId) return;
+
+    const unsubscribe = projectConfigurationService.onConfigurationChange(
+      projectId,
+      (updatedConfig: DVREProjectConfiguration) => {
+        setConfiguration(updatedConfig);
+      }
+    );
+
+    return unsubscribe;
   }, [projectId]);
 
   // Load initial configuration

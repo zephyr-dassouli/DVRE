@@ -7,6 +7,7 @@ import ProjectTemplateRegistry from '../abis/ProjectTemplateRegistry.json';
 import ProjectFactory from '../abis/ProjectFactory.json';
 import JSONProject from '../abis/JSONProject.json';
 import { RPC_URL } from '../config/contracts';
+import { projectConfigurationService } from '../services/ProjectConfigurationService';
 
 export interface TemplateField {
   fieldName: string;
@@ -433,7 +434,25 @@ export const useProjects = () => {
 
       if (projectCreatedEvent) {
         const parsedEvent = factoryInterface.parseLog(projectCreatedEvent);
-        return parsedEvent?.args[0]; // project address
+        const projectAddress = parsedEvent?.args[1]; // project address
+
+        // Auto-create RO-Crate for the new project
+        if (projectAddress && account) {
+          try {
+            console.log('Auto-creating RO-Crate for new project:', projectAddress);
+            await projectConfigurationService.autoCreateProjectConfiguration(
+              projectAddress,
+              projectData,
+              account
+            );
+            console.log('RO-Crate auto-created successfully for project:', projectAddress);
+          } catch (error) {
+            console.error('Failed to auto-create RO-Crate:', error);
+            // Don't fail the entire project creation if RO-Crate creation fails
+          }
+        }
+
+        return projectAddress;
       }
 
       return null;
@@ -502,13 +521,31 @@ export const useProjects = () => {
 
       if (projectCreatedEvent) {
         const parsedEvent = factoryInterface.parseLog(projectCreatedEvent);
-        return parsedEvent?.args[0]; // project address
+        const projectAddress = parsedEvent?.args[1]; // project address
+
+        // Auto-create RO-Crate for the new project
+        if (projectAddress && account) {
+          try {
+            console.log('Auto-creating RO-Crate for new project:', projectAddress);
+            await projectConfigurationService.autoCreateProjectConfiguration(
+              projectAddress,
+              projectData,
+              account
+            );
+            console.log('RO-Crate auto-created successfully for project:', projectAddress);
+          } catch (error) {
+            console.error('Failed to auto-create RO-Crate:', error);
+            // Don't fail the entire project creation if RO-Crate creation fails
+          }
+        }
+
+        return projectAddress;
       }
 
       return null;
     } catch (err: any) {
       console.error('Failed to create custom project:', err);
-      setError(`Failed to create custom project: ${err.message}`);
+      setError(`Failed to create project: ${err.message}`);
       return null;
     }
   }, [account, getFactoryContract]);
