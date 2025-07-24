@@ -1,19 +1,12 @@
-export { AuthComponent } from './auth/AuthComponent';
+// Export all available widgets  
 export { AuthWidget } from './auth/AuthWidget';
 export { CollaborationWidget } from './collaboration/CollaborationWidget';
 export { GraphWidget } from './graph/GraphWidget';
-export { IPFSWidget } from './ipfs/IPFSWidget';
 export { FederatedLearningWidget } from './federatedlearning/FederatedLearningWidget';
+export { IPFSWidget } from './ipfs/IPFSWidget';
 
-// Project Configuration widget
-export { ProjectConfigurationWidget } from './configuration/ProjectConfigurationWidget';
-export {
-  DVREProjectConfiguration,
-  ConfigurationDataset,
-  ConfigurationWorkflow,
-  ConfigurationModel,
-  projectConfigurationService
-} from '../services/ProjectConfigurationService';
+// Export the new Project Deployment components
+export { ProjectDeploymentComponent, ProjectDeploymentWidget } from './deployment';
 
 // DAL components are now completely separate extensions
 // They will be discovered and loaded via ExtensionDiscovery

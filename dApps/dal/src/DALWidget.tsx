@@ -1,20 +1,27 @@
-import { ReactWidget } from '@jupyterlab/ui-components';
 import React from 'react';
-import DALComponent from './DALComponent';
+import { ReactWidget } from '@jupyterlab/ui-components';
+import { DALComponent } from './DALComponent';
 
+/**
+ * Clean DAL Widget - JupyterLab Integration
+ * Minimal wrapper for the DAL component
+ */
 export class DALWidget extends ReactWidget {
-  private _title: string;
-
-  constructor(title: string = 'Decentralized Active Learning') {
+  constructor() {
     super();
-    this._title = title;
-    this.addClass('dvre-widget');
-    this.addClass('dvre-dal-widget');
-    this.title.label = title;
-    this.title.closable = true;
+    this.addClass('jp-DALWidget');
+    this.title.label = 'Active Learning';
+    this.title.caption = 'Decentralized Active Learning Projects';
+    this.title.iconClass = 'jp-MaterialIcon jp-MLIcon';
   }
 
   render(): JSX.Element {
-    return <DALComponent title={this._title} />;
+    return (
+      <div className="jp-DALWidget-body">
+        <DALComponent />
+      </div>
+    );
   }
-} 
+}
+
+export default DALWidget; 
