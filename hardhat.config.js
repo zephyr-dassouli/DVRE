@@ -8,7 +8,8 @@ module.exports = {
       optimizer: {
         enabled: true,
         runs: 1  // More aggressive optimization for deployment
-      }
+      },
+      viaIR: true  // Enable intermediate representation compilation to fix "stack too deep"
     }
   },
 };

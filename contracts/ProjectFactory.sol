@@ -25,30 +25,17 @@ contract ProjectFactory {
         require(isActive, "Template is not active");
         require(bytes(_projectData).length > 0, "Project data cannot be empty");
 
-        address projectAddress;
+        // Create new project with simplified constructor
+        JSONProject newProject = new JSONProject(msg.sender, _projectData);
+        address projectAddress = address(newProject);
 
+        // Track DAL projects for special handling
         if (keccak256(abi.encodePacked(projectType)) == keccak256(abi.encodePacked("active_learning"))) {
-            JSONProject newProject = new JSONProject(
-                msg.sender, _projectData, JSONProject.ProjectType.ACTIVE_LEARNING,
-                "", 10, 60, address(0)
-            );
-            projectAddress = address(newProject);
             isDALProject[projectAddress] = true;
             dalProjects.push(projectAddress);
-        } else if (keccak256(abi.encodePacked(projectType)) == keccak256(abi.encodePacked("federated_learning"))) {
-            JSONProject newProject = new JSONProject(
-                msg.sender, _projectData, JSONProject.ProjectType.FEDERATED_LEARNING,
-                "", 5, 70, address(0)
-            );
-            projectAddress = address(newProject);
-        } else {
-            JSONProject newProject = new JSONProject(
-                msg.sender, _projectData, JSONProject.ProjectType.GENERIC,
-                "", 1, 50, address(0)
-            );
-            projectAddress = address(newProject);
         }
 
+        // Register project
         userProjects[msg.sender].push(projectAddress);
         isProject[projectAddress] = true;
         allProjects.push(projectAddress);
@@ -57,53 +44,23 @@ contract ProjectFactory {
         return projectAddress;
     }
 
-    function createDALProject(
-        string memory _projectData,
-        uint256 _maxRounds,
-        uint256 _consensusThreshold,
-        address _orchestratorAddress,
-        string memory _cwlWorkflowHash
-    ) external returns (address) {
-        require(bytes(_projectData).length > 0, "Project data cannot be empty");
-        require(_maxRounds > 0, "Max rounds must be greater than 0");
-        require(_consensusThreshold > 0 && _consensusThreshold <= 100, "Invalid consensus threshold");
-
-        JSONProject newProject = new JSONProject(
-            msg.sender, _projectData, JSONProject.ProjectType.ACTIVE_LEARNING,
-            _cwlWorkflowHash, _maxRounds, _consensusThreshold, _orchestratorAddress
-        );
-
-        address projectAddress = address(newProject);
-
-        userProjects[msg.sender].push(projectAddress);
-        isProject[projectAddress] = true;
-        allProjects.push(projectAddress);
-        isDALProject[projectAddress] = true;
-        dalProjects.push(projectAddress);
-
-        emit ProjectCreated(msg.sender, projectAddress, "active_learning", 0, block.timestamp);
-        return projectAddress;
-    }
-
     function createCustomProject(string memory _projectData) external returns (address) {
         require(bytes(_projectData).length > 0, "Project data cannot be empty");
 
-        JSONProject newProject = new JSONProject(
-            msg.sender, _projectData, JSONProject.ProjectType.GENERIC,
-            "", 1, 50, address(0)
-        );
-
+        // Create new project with simplified constructor
+        JSONProject newProject = new JSONProject(msg.sender, _projectData);
         address projectAddress = address(newProject);
 
+        // Register project
         userProjects[msg.sender].push(projectAddress);
         isProject[projectAddress] = true;
         allProjects.push(projectAddress);
 
-        emit ProjectCreated(msg.sender, projectAddress, "custom", 999999, block.timestamp);
+        emit ProjectCreated(msg.sender, projectAddress, "custom", 0, block.timestamp);
         return projectAddress;
     }
 
-    // Essential view functions only
+    // View functions remain the same
     function getUserProjects(address _user) external view returns (address[] memory) {
         return userProjects[_user];
     }
@@ -112,54 +69,27 @@ contract ProjectFactory {
         return allProjects;
     }
 
-    function getAllDALProjects() external view returns (address[] memory) {
-        return dalProjects;
-    }
-
-    function getTotalProjects() external view returns (uint256) {
+    function getProjectCount() external view returns (uint256) {
         return allProjects.length;
     }
 
-    function getTotalDALProjects() external view returns (uint256) {
+    function getUserProjectCount(address _user) external view returns (uint256) {
+        return userProjects[_user].length;
+    }
+
+    function getDALProjects() external view returns (address[] memory) {
+        return dalProjects;
+    }
+
+    function getDALProjectCount() external view returns (uint256) {
         return dalProjects.length;
     }
 
-    function isValidProject(address _projectAddress) external view returns (bool) {
+    function checkIsProject(address _projectAddress) external view returns (bool) {
         return isProject[_projectAddress];
     }
 
-    function isValidDALProject(address _projectAddress) external view returns (bool) {
+    function checkIsDALProject(address _projectAddress) external view returns (bool) {
         return isDALProject[_projectAddress];
-    }
-
-    function getProjectData(address _projectAddress) external view returns (string memory) {
-        require(isProject[_projectAddress], "Invalid project address");
-        return JSONProject(_projectAddress).getProjectData();
-    }
-
-    function getProjectStatus(address _projectAddress) external view returns (
-        bool active, uint256 created, uint256 modified, address creator
-    ) {
-        require(isProject[_projectAddress], "Invalid project address");
-        return JSONProject(_projectAddress).getProjectStatus();
-    }
-
-    function getDALProjectInfo(address _projectAddress) external view returns (
-        uint8 currentPhase, uint256 currentRound, uint256 maxRounds, uint256 consensusThreshold, address orchestratorAddress
-    ) {
-        require(isDALProject[_projectAddress], "Invalid DAL project address");
-        
-        JSONProject dalProject = JSONProject(_projectAddress);
-        return (
-            uint8(dalProject.currentPhase()),
-            dalProject.currentRound(),
-            dalProject.maxRounds(),
-            dalProject.consensusThreshold(),
-            dalProject.orchestratorAddress()
-        );
-    }
-
-    function getTemplateRegistry() external view returns (address) {
-        return address(templateRegistry);
     }
 }

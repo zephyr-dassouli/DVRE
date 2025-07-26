@@ -4,8 +4,35 @@ Debug script to test DVRE orchestration server extension loading
 """
 
 import sys
+import os
 import traceback
 import json
+
+def check_environment():
+    """Check if we're running in the container environment"""
+    print("=== Environment Check ===")
+    
+    # Check if we're in Docker container
+    in_container = os.path.exists('/.dockerenv') or os.path.exists('/app')
+    print(f"Running in container: {in_container}")
+    
+    if in_container:
+        print("Container paths:")
+        print(f"  Current directory: {os.getcwd()}")
+        print(f"  App directory exists: {os.path.exists('/app')}")
+        print(f"  Source directory exists: {os.path.exists('/app/src')}")
+        
+        # Add container paths
+        if '/app/src' not in sys.path:
+            sys.path.insert(0, '/app/src')
+        if '/app' not in sys.path:
+            sys.path.insert(0, '/app')
+    else:
+        print("⚠️  Not running in container - some tests may fail")
+        print("   This is normal when testing locally")
+    
+    print(f"Python path: {sys.path[:3]}...")  # Show first 3 paths
+    return in_container
 
 def test_imports():
     """Test if all required imports work"""
@@ -69,13 +96,23 @@ def test_handler_creation():
     
     try:
         sys.path.insert(0, '/app/src')
-        from dvre_orchestration_server.streamflow_handler import (
+        
+        # Import from modular handlers
+        from dvre_orchestration_server.workflow_handlers import (
             StreamflowSubmitHandler,
-            StreamflowStatusHandler,
-            StreamflowListWorkflowsHandler,
+            StreamflowSubmitProjectWorkflowHandler,
             validate_cwl_workflow
         )
-        print("✓ Handler classes imported successfully")
+        from dvre_orchestration_server.monitoring_handlers import (
+            StreamflowStatusHandler,
+            StreamflowListWorkflowsHandler,
+            StreamflowHomeHandler
+        )
+        from dvre_orchestration_server.al_engine_handlers import (
+            ALEngineCommandHandler
+        )
+        
+        print("✓ Handler classes imported successfully from modular architecture")
         
         # Test CWL validation
         test_cwl = {
@@ -90,6 +127,7 @@ def test_handler_creation():
             print("✗ CWL validation failed")
             return False
         
+        print("✓ All modular handlers successfully imported and tested")
         return True
     except Exception as e:
         print(f"✗ Handler creation failed: {e}")
@@ -136,17 +174,69 @@ def test_mock_app():
         traceback.print_exc()
         return False
 
+def test_dal_features():
+    """Test DAL compliance features"""
+    print("\n=== Testing DAL Compliance Features ===")
+    
+    try:
+        sys.path.insert(0, '/app/src')
+        from dvre_orchestration_server.dal_templates import DALWorkflowTemplate
+        from dvre_orchestration_server.workflow_handlers import DALTemplateInfoHandler
+        
+        # Test DAL template functionality
+        template_info = DALWorkflowTemplate.get_workflow_info()
+        if 'coordination_mode' in str(template_info):
+            print("✓ DAL templates working")
+        else:
+            print("✗ DAL templates missing coordination_mode")
+            return False
+            
+        # Test DAL workflow validation
+        test_dal_cwl = {
+            "cwlVersion": "v1.2", 
+            "class": "Workflow",
+            "steps": {
+                "al_step": {
+                    "run": "modal_run.cwl"
+                }
+            }
+        }
+        
+        if DALWorkflowTemplate.validate_dal_workflow(test_dal_cwl):
+            print("✓ DAL workflow validation working")
+        else:
+            print("✗ DAL workflow validation failed")
+            return False
+            
+        print("✓ DAL compliance features working correctly")
+        return True
+        
+    except Exception as e:
+        print(f"✗ DAL features test failed: {e}")
+        traceback.print_exc()
+        return False
+
 def main():
     """Run all diagnostic tests"""
     print("DVRE Orchestration Server Extension Diagnostics")
     print("=" * 50)
     
+    # Check environment first
+    in_container = check_environment()
+    
     all_passed = True
     
     all_passed &= test_imports()
-    all_passed &= test_extension_loading()
-    all_passed &= test_handler_creation()
-    all_passed &= test_mock_app()
+    
+    # Only run extension-specific tests if in container
+    if in_container:
+        all_passed &= test_extension_loading()
+        all_passed &= test_handler_creation()
+        all_passed &= test_mock_app()
+        all_passed &= test_dal_features()
+    else:
+        print("\n⚠️  Skipping container-specific tests (not in container)")
+        print("   Run this script inside the Docker container for full testing")
     
     print("\n" + "=" * 50)
     if all_passed:
