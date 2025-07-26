@@ -17,11 +17,25 @@ contract JSONProject {
         bool exists;
     }
     
+    // Invitation structure
+    struct Invitation {
+        address invitee;
+        string role;
+        uint256 timestamp;
+        bool exists;
+    }
+    
     // Mapping to store join requests: requester address => JoinRequest
     mapping(address => JoinRequest) public joinRequests;
     
+    // Mapping to store invitations: invitee address => Invitation
+    mapping(address => Invitation) public invitations;
+    
     // Array to keep track of all requesters for enumeration
     address[] public requesters;
+    
+    // Array to keep track of all invitees for enumeration
+    address[] public invitees;
     
     // Events
     event ProjectCreated(address indexed creator, uint256 timestamp);
@@ -31,6 +45,9 @@ contract JSONProject {
     event JoinRequestSubmitted(address indexed requester, string role, uint256 timestamp);
     event JoinRequestApproved(address indexed requester, address indexed approver, uint256 timestamp);
     event JoinRequestRejected(address indexed requester, address indexed rejector, uint256 timestamp);
+    event InvitationSent(address indexed invitee, address indexed inviter, string role, uint256 timestamp);
+    event InvitationAccepted(address indexed invitee, address indexed project, uint256 timestamp);
+    event InvitationRejected(address indexed invitee, address indexed project, uint256 timestamp);
 
     // Modifiers
     modifier onlyCreator() {
@@ -130,6 +147,81 @@ contract JSONProject {
         delete joinRequests[_requester];
         
         emit JoinRequestRejected(_requester, msg.sender, block.timestamp);
+    }
+    
+    // Send invitation to user (project creator only)
+    function sendInvitation(address _invitee, string memory _role) external onlyCreator onlyActive {
+        require(_invitee != creator, "Cannot invite project creator");
+        require(!invitations[_invitee].exists, "Invitation already exists");
+        require(bytes(_role).length > 0, "Role cannot be empty");
+        
+        // Add to invitations mapping
+        invitations[_invitee] = Invitation({
+            invitee: _invitee,
+            role: _role,
+            timestamp: block.timestamp,
+            exists: true
+        });
+        
+        // Add to invitees array for enumeration
+        invitees.push(_invitee);
+        
+        emit InvitationSent(_invitee, msg.sender, _role, block.timestamp);
+    }
+    
+    // Accept invitation (invitee only)
+    function acceptInvitation() external onlyActive {
+        require(invitations[msg.sender].exists, "Invitation does not exist");
+        
+        // Remove the invitation
+        delete invitations[msg.sender];
+        
+        // Note: The frontend should handle adding the user to participants and call updateProjectData
+        
+        emit InvitationAccepted(msg.sender, address(this), block.timestamp);
+    }
+    
+    // Reject invitation (invitee only)
+    function rejectInvitation() external {
+        require(invitations[msg.sender].exists, "Invitation does not exist");
+        
+        // Remove the invitation
+        delete invitations[msg.sender];
+        
+        emit InvitationRejected(msg.sender, address(this), block.timestamp);
+    }
+    
+    // Get invitation details
+    function getInvitation(address _invitee) external view returns (
+        address invitee,
+        string memory role,
+        uint256 timestamp,
+        bool exists
+    ) {
+        Invitation memory invitation = invitations[_invitee];
+        return (invitation.invitee, invitation.role, invitation.timestamp, invitation.exists);
+    }
+    
+    // Get all invitees
+    function getAllInvitees() external view returns (address[] memory) {
+        // Filter out processed invitations
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < invitees.length; i++) {
+            if (invitations[invitees[i]].exists) {
+                activeCount++;
+            }
+        }
+        
+        address[] memory activeInvitees = new address[](activeCount);
+        uint256 index = 0;
+        for (uint256 i = 0; i < invitees.length; i++) {
+            if (invitations[invitees[i]].exists) {
+                activeInvitees[index] = invitees[i];
+                index++;
+            }
+        }
+        
+        return activeInvitees;
     }
     
     // Update project data (replace entire JSON)

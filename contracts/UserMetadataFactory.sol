@@ -5,6 +5,7 @@ import "./UserMetadata.sol";
 
 contract UserMetadataFactory {
     mapping(address => address) public userMetadataContracts;
+    address[] public allUsers; // Track all registered users
     event UserMetadataCreated(address indexed user, address metadataContract);
 
     function registerUser(
@@ -15,6 +16,7 @@ contract UserMetadataFactory {
         require(userMetadataContracts[msg.sender] == address(0), "Already registered");
         UserMetadata metadata = new UserMetadata(msg.sender, email, name, institution);
         userMetadataContracts[msg.sender] = address(metadata);
+        allUsers.push(msg.sender); // Add user to the list
         emit UserMetadataCreated(msg.sender, address(metadata));
     }
 
@@ -26,5 +28,15 @@ contract UserMetadataFactory {
         address metadataAddr = userMetadataContracts[user];
         require(metadataAddr != address(0), "User not registered");
         return UserMetadata(metadataAddr).getMetadataJSON();
+    }
+
+    // Get all registered users
+    function getAllUsers() public view returns (address[] memory) {
+        return allUsers;
+    }
+
+    // Get total number of registered users
+    function getTotalUsers() public view returns (uint256) {
+        return allUsers.length;
     }
 }

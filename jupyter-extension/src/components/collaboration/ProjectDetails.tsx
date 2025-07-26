@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ProjectDetails as ProjectDetailsType, useProjects } from '../../hooks/useProjects';
 import { useAuth } from '../../hooks/useAuth';
+import { UserInvitationDialog } from '../userregistry/UserInvitationDialog';
 
 interface ProjectDetailsProps {
     projectAddress: string;
@@ -20,6 +21,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     const [showJsonModal, setShowJsonModal] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [editedJsonData, setEditedJsonData] = useState<string>('');
+    const [showInviteDialog, setShowInviteDialog] = useState(false);
     const { getProjectInfo, handleJoinRequest, getProjectRoles, updateProjectData } = useProjects();
     const { account } = useAuth();
 
@@ -357,20 +359,39 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                     }}>
                         Project Details
                     </h2>
-                    <button
-                        onClick={onBack}
-                        style={{
-                            padding: '6px 12px',
-                            background: 'var(--jp-layout-color2)',
-                            border: '1px solid var(--jp-border-color1)',
-                            borderRadius: '3px',
-                            cursor: 'pointer',
-                            color: 'var(--jp-ui-font-color1)',
-                            fontSize: '12px'
-                        }}
-                    >
-                        ← Back
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        {/* Invite Users Button - Only visible to project owner */}
+                        {account === details.creator && (
+                            <button
+                                onClick={() => setShowInviteDialog(true)}
+                                style={{
+                                    padding: '6px 12px',
+                                    background: 'var(--jp-brand-color1)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '3px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px'
+                                }}
+                            >
+                                Invite Users
+                            </button>
+                        )}
+                        <button
+                            onClick={onBack}
+                            style={{
+                                padding: '6px 12px',
+                                background: 'var(--jp-layout-color2)',
+                                border: '1px solid var(--jp-border-color1)',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                color: 'var(--jp-ui-font-color1)',
+                                fontSize: '12px'
+                            }}
+                        >
+                            ← Back
+                        </button>
+                    </div>
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>
@@ -678,6 +699,20 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* User Invitation Dialog */}
+            {showInviteDialog && details && (
+                <UserInvitationDialog
+                    projectAddress={projectAddress}
+                    projectName={details.objective}
+                    availableRoles={details.availableRoles}
+                    onClose={() => setShowInviteDialog(false)}
+                    onInviteSent={() => {
+                        // Refresh project details to show any changes
+                        loadDetails();
+                    }}
+                />
+            )}
         </div>
     );
 };

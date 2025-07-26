@@ -5,6 +5,7 @@ import ProjectCreationHub from './ProjectCreationHub';
 import ProjectList from './ProjectList';
 import ProjectDetails from './ProjectDetails';
 import JoinProjectDialog from './JoinProjectDialog';
+import { UserInvitationsWidget } from '../userregistry/UserInvitationsWidget';
 
 type ViewMode = 'main' | 'create' | 'details' | 'join';
 
@@ -226,9 +227,9 @@ export const CollaborationComponent: React.FC<CollaborationComponentProps> = ({
       </div>
 
       <div style={{ 
-        display: 'flex', 
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
         gap: '20px',
-        flexWrap: 'wrap'
       }}>
         <ProjectList
           projects={userProjects}
@@ -243,6 +244,16 @@ export const CollaborationComponent: React.FC<CollaborationComponentProps> = ({
           onSelectProject={handleSelectProject}
           loading={loading}
         />
+
+        {/* User Invitations Section */}
+        <div style={{
+          background: 'var(--jp-layout-color0)',
+          border: '1px solid var(--jp-border-color1)',
+          borderRadius: '4px',
+          minHeight: '200px'
+        }}>
+          <UserInvitationsWidget />
+        </div>
       </div>
     </div>
   );
