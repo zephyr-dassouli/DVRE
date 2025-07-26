@@ -50,3 +50,41 @@ node_modules
 
 # Hardhat Ignition default folder for deployments against a local node
 ignition/deployments/chain-31337
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+venv/
+env/
+.venv/
+.env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ESLint
+.eslintcache
+
+# Prettier
+.prettierignore
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Editor backups
+*.bak
+*.orig

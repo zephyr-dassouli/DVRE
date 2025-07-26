@@ -393,30 +393,107 @@ export const useProjects = () => {
         throw new Error("ProjectFactory not found");
       }
 
+      // ✅ CRITICAL FIX: Ensure templates are loaded before using them
+      if (templates.length === 0) {
+        console.log('Templates not loaded yet, loading templates first...');
+        await loadTemplates();
+      }
+
+      // Wait a moment for templates to be available
+      let template = templates.find(t => t.id === templateId);
+      
+      // If still not found, this is a fallback based on template registry knowledge
+      if (!template) {
+        console.warn(`Template ${templateId} not found in loaded templates, using fallback detection`);
+        // Based on the template registry contracts, we know:
+        // templateId 0 = Federated Learning
+        // templateId 1 = Research Collaboration  
+        // templateId 2 = Active Learning
+        if (templateId === 2) {
+          template = {
+            id: templateId,
+            name: 'Active Learning',
+            description: 'Active Learning template',
+            projectType: 'active_learning',
+            participantRoles: ['coordinator', 'contributor'],
+            fields: [],
+            exampleJSON: '',
+            isActive: true
+          };
+        } else if (templateId === 0) {
+          template = {
+            id: templateId,
+            name: 'Federated Learning',
+            description: 'Federated Learning template',
+            projectType: 'federated_learning',
+            participantRoles: ['data_owner', 'aggregator', 'coordinator'],
+            fields: [],
+            exampleJSON: '',
+            isActive: true
+          };
+        } else {
+          template = {
+            id: templateId,
+            name: 'General',
+            description: 'General template',
+            projectType: 'general',
+            participantRoles: ['member'],
+            fields: [],
+            exampleJSON: '',
+            isActive: true
+          };
+        }
+      }
+
+      const isActivelearningTemplate = template.projectType === 'active_learning';
+      
+      // Enhance project data with template type info for on-chain storage
+      const enhancedProjectData = {
+        ...projectData,
+        templateId: templateId,
+        templateType: template.projectType,
+        // Force AL projects to be detected as such
+        project_type: isActivelearningTemplate ? 'active_learning' : (projectData.project_type || template.projectType)
+      };
+
+      console.log('🔍 Template Detection:', {
+        templateId,
+        templateFound: !!templates.find(t => t.id === templateId),
+        templateType: template.projectType,
+        isActivelearningTemplate,
+        enhancedProjectData: {
+          templateType: enhancedProjectData.templateType,
+          project_type: enhancedProjectData.project_type
+        }
+      });
+
       // Ensure participants array exists
-      if (!projectData.participants) {
-        projectData.participants = [];
+      if (!enhancedProjectData.participants) {
+        enhancedProjectData.participants = [];
       }
 
       // Ensure roles array exists with default roles if not provided
-      if (!projectData.roles || !Array.isArray(projectData.roles) || projectData.roles.length === 0) {
-        projectData.roles = ['Member'];
+      if (!enhancedProjectData.roles || !Array.isArray(enhancedProjectData.roles) || enhancedProjectData.roles.length === 0) {
+        enhancedProjectData.roles = ['Member'];
       }
 
       if (account) {
         // Remove creator from participants if accidentally included
-        projectData.participants = projectData.participants.filter(
+        enhancedProjectData.participants = enhancedProjectData.participants.filter(
           (p: ProjectMember) => p.address && p.address.toLowerCase() !== account.toLowerCase()
         );
 
         // Add the creator to participants with a role (commonly "Owner")
-        projectData.participants.push({
+        enhancedProjectData.participants.push({
           address: account,
           role: "Owner" // Can be configured based on project needs
         });
       }
 
-      const projectDataString = JSON.stringify(projectData);
+      // ✅ FIXED: Pass enhanced data to smart contract
+      const projectDataString = JSON.stringify(enhancedProjectData);
+      console.log('📤 Sending to contract:', { projectDataString: projectDataString.substring(0, 200) + '...' });
+      
       const tx = await factoryContract.createProjectFromTemplate(templateId, projectDataString);
       const receipt = await tx.wait();
 
@@ -433,7 +510,14 @@ export const useProjects = () => {
 
       if (projectCreatedEvent) {
         const parsedEvent = factoryInterface.parseLog(projectCreatedEvent);
-        return parsedEvent?.args[0]; // project address
+        const projectAddress = parsedEvent?.args[1]; // project address
+
+        console.log('✅ Project created at address:', projectAddress);
+
+        // RO-Crate will be created later during project deployment phase
+        // No auto-creation during project collaboration creation
+
+        return projectAddress;
       }
 
       return null;
@@ -442,7 +526,7 @@ export const useProjects = () => {
       setError(`Failed to create project: ${err.message}`);
       return null;
     }
-  }, [account, getFactoryContract]);
+  }, [account, getFactoryContract, templates, loadTemplates]);
 
   // Create custom project
   const createCustomProject = useCallback(async (projectData: any): Promise<string | null> => {
@@ -502,13 +586,18 @@ export const useProjects = () => {
 
       if (projectCreatedEvent) {
         const parsedEvent = factoryInterface.parseLog(projectCreatedEvent);
-        return parsedEvent?.args[0]; // project address
+        const projectAddress = parsedEvent?.args[1]; // project address
+
+        // RO-Crate will be created later during project deployment phase
+        // No auto-creation during project collaboration creation
+
+        return projectAddress;
       }
 
       return null;
     } catch (err: any) {
       console.error('Failed to create custom project:', err);
-      setError(`Failed to create custom project: ${err.message}`);
+      setError(`Failed to create project: ${err.message}`);
       return null;
     }
   }, [account, getFactoryContract]);

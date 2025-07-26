@@ -1,0 +1,28 @@
+#!/usr/bin/env cwl-runner
+cwlVersion: v1.2
+class: CommandLineTool
+requirements:
+  NetworkAccess:
+    networkAccess: true
+  DockerRequirement:
+    dockerPull: ipfs/kubo:master-latest
+    dockerRunArgs: ["--entrypoint","/bin/sh"]
+
+  ShellCommandRequirement: {}
+baseCommand: ["sh","-exc"]
+arguments:
+  - position: 1
+    valueFrom: |
+      ipfs daemon --init --migrate=true --agent-version-suffix=docker &
+      sleep 5
+      ipfs get "$(inputs.hash)"
+      exec bash
+inputs:
+  hash:
+    type: string
+
+outputs:
+  fetched:
+    type: Directory
+    outputBinding:
+      glob: "$(inputs.hash)"

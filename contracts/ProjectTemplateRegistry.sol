@@ -48,6 +48,7 @@ contract ProjectTemplateRegistry {
         // Initialize with predefined templates
         _createFederatedLearningTemplate();
         _createResearchCollaborationTemplate();
+        _createActiveLearningTemplate();
     }
 
     function _createFederatedLearningTemplate() internal {
@@ -123,6 +124,40 @@ contract ProjectTemplateRegistry {
         templatesByCreator[address(this)].push(templateId);
 
         emit TemplateRegistered(templateId, "Research Collaboration", "research_collaboration", address(this), block.timestamp);
+    }
+
+    function _createActiveLearningTemplate() internal {
+        string[] memory roles = new string[](2);
+        roles[0] = "coordinator";
+        roles[1] = "contributor";
+
+        string memory exampleJSON = '{"project_id":"al-cancer-detection-01","type":"active_learning","objective":"Active learning for cancer detection model","roles":["coordinator","contributor"],"participants":[{"id":"0xABC","role":"coordinator"},{"id":"0xDEF","role":"contributor"}],"policies":{"permissions":{"coordinator":["manage_project","start_rounds","approve_participants","view_all","modify_settings"],"contributor":["vote","view_results","submit_labels"]},"voting":{"enabled":true,"threshold":0.5,"revocable_by":"coordinator"}}}';
+
+        uint256 templateId = templates.length;
+        templates.push();
+        ProjectTemplate storage template = templates[templateId];
+        
+        template.name = "Active Learning";
+        template.description = "Collaborative active learning for machine learning model training";
+        template.projectType = "active_learning";
+        template.participantRoles = roles;
+        template.exampleJSON = exampleJSON;
+        template.isActive = true;
+        template.creator = address(this);
+        template.createdAt = block.timestamp;
+
+        // Add fields - removed DAL-specific fields that will be configured in DAL dApp
+        template.fields.push(TemplateField("project_id", "string", true, ""));
+        template.fields.push(TemplateField("type", "string", true, "active_learning"));
+        template.fields.push(TemplateField("objective", "string", true, ""));
+        template.fields.push(TemplateField("roles", "array", true, '["coordinator","contributor"]'));
+        template.fields.push(TemplateField("participants", "array", false, "[]"));
+        template.fields.push(TemplateField("policies", "object", true, '{"permissions":{"coordinator":["manage_project","start_rounds","approve_participants","view_all","modify_settings"],"contributor":["vote","view_results","submit_labels"]},"voting":{"enabled":true,"threshold":0.5,"revocable_by":"coordinator"}}'));
+
+        templatesByType["active_learning"].push(templateId);
+        templatesByCreator[address(this)].push(templateId);
+
+        emit TemplateRegistered(templateId, "Active Learning", "active_learning", address(this), block.timestamp);
     }
 
     // Get template by ID

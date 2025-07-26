@@ -1,0 +1,26 @@
+#!/usr/bin/env cwl-runner
+cwlVersion: v1.2
+class: CommandLineTool
+requirements:
+  NetworkAccess:
+    networkAccess: true
+
+baseCommand: ["docker"]
+
+arguments:
+  - valueFrom: "run"
+  - valueFrom: "-d"
+  - valueFrom: "--name"
+  - valueFrom: "ipfs_node_cwl"
+  - valueFrom: "-v"
+  - valueFrom: "$(runtime.outdir)/ipfs_data:/data/ipfs"
+  - valueFrom: "ipfs/kubo:master-latest"
+  - valueFrom: "daemon"
+
+inputs: []
+outputs:
+  containerId:
+    type: string
+    outputBinding:
+      stdout: true
+

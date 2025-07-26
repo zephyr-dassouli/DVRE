@@ -11,6 +11,12 @@ jupyter_dvre/labextension
 # Version file is handled by hatchling
 jupyter_dvre/_version.py
 
+# Python virtual environments
+venv/
+env/
+.venv/
+.env/
+
 # Created by https://www.gitignore.io/api/python
 # Edit at https://www.gitignore.io/?templates=python
 
@@ -116,6 +122,20 @@ dmypy.json
 
 # OSX files
 .DS_Store
+.AppleDouble
+.LSOverride
 
 # Yarn cache
 .yarn/
+
+# Package lock files (we use yarn.lock)
+package-lock.json
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Editor backups
+*.bak
+*.orig
