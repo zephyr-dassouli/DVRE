@@ -34,11 +34,11 @@ const alProjectStoragePath = path.join(__dirname, "../artifacts/contracts/ALProj
 const alProjectStorageJson = JSON.parse(fs.readFileSync(alProjectStoragePath));
 
 const deploy = async () => {
-  console.log("🚀 Deploying new AL Project contract architecture...");
+  console.log("Deploying new AL Project contract architecture...");
   console.log("Deploying with account:", account.address);
 
   // Deploy UserMetadataFactory
-  console.log("\n👤 Deploying UserMetadataFactory...");
+  console.log("\nDeploying UserMetadataFactory...");
   const userMetadataFactoryContract = new web3.eth.Contract(userMetadataFactoryJson.abi);
   const userMetadataFactoryDeployTx = userMetadataFactoryContract.deploy({ data: userMetadataFactoryJson.bytecode });
 
@@ -52,10 +52,10 @@ const deploy = async () => {
 
   const userMetadataFactorySignedTx = await web3.eth.accounts.signTransaction(userMetadataFactoryTx, privateKey);
   const userMetadataFactoryReceipt = await web3.eth.sendSignedTransaction(userMetadataFactorySignedTx.rawTransaction);
-  console.log("✅ UserMetadataFactory deployed at:", userMetadataFactoryReceipt.contractAddress);
+  console.log("UserMetadataFactory deployed at:", userMetadataFactoryReceipt.contractAddress);
 
   // Deploy ProjectTemplateRegistry
-  console.log("\n📋 Deploying ProjectTemplateRegistry...");
+  console.log("\nDeploying ProjectTemplateRegistry...");
   const templateRegistryContract = new web3.eth.Contract(templateRegistryJson.abi);
   const templateRegistryDeployTx = templateRegistryContract.deploy({ data: templateRegistryJson.bytecode });
 
@@ -69,10 +69,10 @@ const deploy = async () => {
 
   const templateRegistrySignedTx = await web3.eth.accounts.signTransaction(templateRegistryTx, privateKey);
   const templateRegistryReceipt = await web3.eth.sendSignedTransaction(templateRegistrySignedTx.rawTransaction);
-  console.log("✅ ProjectTemplateRegistry deployed at:", templateRegistryReceipt.contractAddress);
+  console.log("ProjectTemplateRegistry deployed at:", templateRegistryReceipt.contractAddress);
 
   // Deploy simplified ProjectFactory (no more library linking needed)
-  console.log("\n🏭 Deploying ProjectFactory...");
+  console.log("\nDeploying ProjectFactory...");
   const projectFactoryContract = new web3.eth.Contract(projectFactoryJson.abi);
   const projectFactoryDeployTx = projectFactoryContract.deploy({ 
     data: projectFactoryJson.bytecode,
@@ -89,10 +89,10 @@ const deploy = async () => {
 
   const projectFactorySignedTx = await web3.eth.accounts.signTransaction(projectFactoryTx, privateKey);
   const projectFactoryReceipt = await web3.eth.sendSignedTransaction(projectFactorySignedTx.rawTransaction);
-  console.log("✅ ProjectFactory deployed at:", projectFactoryReceipt.contractAddress);
+  console.log("ProjectFactory deployed at:", projectFactoryReceipt.contractAddress);
 
   // Deploy AssetFactory
-  console.log("\n📦 Deploying AssetFactory...");
+  console.log("\nDeploying AssetFactory...");
   const assetFactoryContract = new web3.eth.Contract(assetFactoryJson.abi);
   const assetFactoryDeployTx = assetFactoryContract.deploy({ data: assetFactoryJson.bytecode });
 
@@ -106,10 +106,10 @@ const deploy = async () => {
 
   const assetFactorySignedTx = await web3.eth.accounts.signTransaction(assetFactoryTx, privateKey);
   const assetFactoryReceipt = await web3.eth.sendSignedTransaction(assetFactorySignedTx.rawTransaction);
-  console.log("✅ AssetFactory deployed at:", assetFactoryReceipt.contractAddress);
+  console.log("AssetFactory deployed at:", assetFactoryReceipt.contractAddress);
 
   // Verify initial templates
-  console.log("\n📋 Verifying initial templates...");
+  console.log("\nVerifying initial templates...");
   const templateRegistryInstance = new web3.eth.Contract(templateRegistryJson.abi, templateRegistryReceipt.contractAddress);
   const templateCount = await templateRegistryInstance.methods.getTemplateCount().call();
   console.log("Number of initial templates:", templateCount.toString());
@@ -123,55 +123,9 @@ const deploy = async () => {
     }
   }
 
-  // Test the new AL Project architecture
-  console.log("\n🧪 Testing new AL Project architecture...");
-  
-  // Create a test project using ProjectFactory
-  console.log("Creating test AL project...");
-  const projectFactoryInstance = new web3.eth.Contract(projectFactoryJson.abi, projectFactoryReceipt.contractAddress);
-  
-  const sampleProjectData = JSON.stringify({
-    project_id: "test-al-project",
-    objective: "Test Active Learning Project",
-    description: "Testing the new AL architecture",
-    type: "active_learning",
-    created_at: new Date().toISOString()
-  });
-
-  let projectAddress;
-  
-  try {
-    console.log("First trying to create a custom project...");
-    // Create custom project instead
-    const createProjectTx = await projectFactoryInstance.methods.createCustomProject(sampleProjectData).send({
-      from: account.address,
-      gas: 5000000,  // Increased gas limit
-      gasPrice: 0
-    });
-    projectAddress = createProjectTx.events.ProjectCreated.returnValues.projectAddress;
-    console.log("✅ Custom project created successfully at:", projectAddress);
-  } catch (error) {
-    console.log("❌ Custom project creation failed, trying template approach...");
-    console.log("Error:", error.message);
-    
-    if (alTemplateId !== null) {
-      console.log(`Using Active Learning template ID: ${alTemplateId}`);
-      // Create project from AL template
-      const createProjectTx = await projectFactoryInstance.methods.createProjectFromTemplate(alTemplateId, sampleProjectData).send({
-        from: account.address,
-        gas: 5000000,  // Increased gas limit
-        gasPrice: 0
-      });
-      projectAddress = createProjectTx.events.ProjectCreated.returnValues.projectAddress;
-    } else {
-      throw new Error("No Active Learning template found and custom project creation failed");
-    }
-  }
-  
-  console.log("✅ Test project created at:", projectAddress);
 
   // Deploy AL contracts for this project
-  console.log("\n🗳️  Deploying ALProjectVoting for test project...");
+  console.log("\nDeploying ALProjectVoting for test project...");
   const alVotingContract = new web3.eth.Contract(alProjectVotingJson.abi);
   const alVotingDeployTx = alVotingContract.deploy({ 
     data: alProjectVotingJson.bytecode,
@@ -188,9 +142,9 @@ const deploy = async () => {
 
   const alVotingSignedTx = await web3.eth.accounts.signTransaction(alVotingTx, privateKey);
   const alVotingReceipt = await web3.eth.sendSignedTransaction(alVotingSignedTx.rawTransaction);
-  console.log("✅ ALProjectVoting deployed at:", alVotingReceipt.contractAddress);
+  console.log("ALProjectVoting deployed at:", alVotingReceipt.contractAddress);
 
-  console.log("\n💾 Deploying ALProjectStorage for test project...");
+  console.log("\nDeploying ALProjectStorage for test project...");
   const alStorageContract = new web3.eth.Contract(alProjectStorageJson.abi);
   const alStorageDeployTx = alStorageContract.deploy({ 
     data: alProjectStorageJson.bytecode,
@@ -207,10 +161,10 @@ const deploy = async () => {
 
   const alStorageSignedTx = await web3.eth.accounts.signTransaction(alStorageTx, privateKey);
   const alStorageReceipt = await web3.eth.sendSignedTransaction(alStorageSignedTx.rawTransaction);
-  console.log("✅ ALProjectStorage deployed at:", alStorageReceipt.contractAddress);
+  console.log("ALProjectStorage deployed at:", alStorageReceipt.contractAddress);
 
   // Link AL contracts to the main project
-  console.log("\n🔗 Linking AL contracts to main project...");
+  console.log("\nLinking AL contracts to main project...");
   const jsonProjectInstance = new web3.eth.Contract(jsonProjectJson.abi, projectAddress);
   
   await jsonProjectInstance.methods.linkALContracts(
@@ -221,10 +175,10 @@ const deploy = async () => {
     gas: 200000,
     gasPrice: 0
   });
-  console.log("✅ AL contracts linked successfully");
+  console.log("AL contracts linked successfully");
 
   // Configure project metadata
-  console.log("\n⚙️  Configuring project metadata...");
+  console.log("\nConfiguring project metadata...");
   await jsonProjectInstance.methods.setProjectMetadata(
     "Test AL Project",
     "A comprehensive test of the new AL architecture",
@@ -248,20 +202,20 @@ const deploy = async () => {
     gas: 300000,
     gasPrice: 0
   });
-  console.log("✅ Project configured with AL parameters");
+  console.log("Project configured with AL parameters");
 
   // Set up test voters
-  console.log("\n👥 Setting up test voters...");
+  console.log("\nSetting up test voters...");
   
   await jsonProjectInstance.methods.setProjectVoters([account.address], [1]).send({
     from: account.address,
     gas: 200000,
     gasPrice: 0
   });
-  console.log("✅ Test voters configured");
+  console.log("Test voters configured");
 
   // Test basic functionality
-  console.log("\n🧪 Testing basic AL functionality...");
+  console.log("\nTesting basic AL functionality...");
   
   // Trigger new round
   await jsonProjectInstance.methods.triggerNextRound("Initial test round").send({
@@ -290,25 +244,25 @@ const deploy = async () => {
     gas: 200000,
     gasPrice: 0
   });
-  console.log("✅ Test vote submitted successfully");
+  console.log("Test vote submitted successfully");
 
   // Print summary
-  console.log("\n🎉 Deployment completed successfully!");
+  console.log("\nDeployment completed successfully!");
   console.log("================================================");
   console.log("CONTRACT ADDRESSES:");
-  console.log(`📄 UserMetadataFactory:      ${userMetadataFactoryReceipt.contractAddress}`);
-  console.log(`📋 ProjectTemplateRegistry:  ${templateRegistryReceipt.contractAddress}`);
-  console.log(`🏭 ProjectFactory:           ${projectFactoryReceipt.contractAddress}`);
-  console.log(`📦 AssetFactory:             ${assetFactoryReceipt.contractAddress}`);
+  console.log(`UserMetadataFactory:      ${userMetadataFactoryReceipt.contractAddress}`);
+  console.log(`ProjectTemplateRegistry:  ${templateRegistryReceipt.contractAddress}`);
+  console.log(`ProjectFactory:           ${projectFactoryReceipt.contractAddress}`);
+  console.log(`AssetFactory:             ${assetFactoryReceipt.contractAddress}`);
   console.log(`\nTEST PROJECT ADDRESSES:`);
-  console.log(`📄 JSONProject:              ${projectAddress}`);
-  console.log(`🗳️  ALProjectVoting:          ${alVotingReceipt.contractAddress}`);
-  console.log(`💾 ALProjectStorage:         ${alStorageReceipt.contractAddress}`);
+  console.log(`JSONProject:              ${projectAddress}`);
+  console.log(`ALProjectVoting:          ${alVotingReceipt.contractAddress}`);
+  console.log(`ALProjectStorage:         ${alStorageReceipt.contractAddress}`);
   console.log(`================================================`);
   console.log(`\nDeployer: ${account.address}`);
 
   // Register all factories in FactoryRegistry (frontend needs these addresses)
-  console.log("\n📝 Registering core infrastructure contracts in FactoryRegistry...");
+  console.log("\nRegistering core infrastructure contracts in FactoryRegistry...");
   const factories = [
     { name: "UserMetadataFactory", address: userMetadataFactoryReceipt.contractAddress },
     { name: "ProjectTemplateRegistry", address: templateRegistryReceipt.contractAddress },
@@ -320,10 +274,10 @@ const deploy = async () => {
 
   try {
     await registerMultipleFactories(factories);
-    console.log("\n✅ Core infrastructure contracts registered successfully in FactoryRegistry!");
-    console.log("📋 Per-project contracts are accessible through JSONProject.votingContract() and JSONProject.storageContract()");
+    console.log("\nCore infrastructure contracts registered successfully in FactoryRegistry!");
+    console.log("Per-project contracts are accessible through JSONProject.votingContract() and JSONProject.storageContract()");
   } catch (error) {
-    console.error("\n❌ Error registering factories:", error.message);
+    console.error("\nError registering factories:", error.message);
   }
 
   // Save deployment info for frontend integration
@@ -354,9 +308,9 @@ const deploy = async () => {
     }
   };
   
-  console.log("\n📋 Deployment completed!");
-  console.log("🏗️  Core infrastructure contracts are registered in FactoryRegistry");
-  console.log("🔍 Per-project contracts are discovered through each JSONProject instance");
+  console.log("\nDeployment completed!");
+  console.log("Core infrastructure contracts are registered in FactoryRegistry");
+  console.log("Per-project contracts are discovered through each JSONProject instance");
   
   return deploymentInfo;
 };
