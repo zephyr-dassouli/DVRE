@@ -3,7 +3,10 @@
  * Handles RO-Crates, CWL workflows, and templates for all dApps
  */
 
-import { projectDeploymentService, DeploymentStatus } from './ProjectDeploymentService';
+import { projectDeploymentService, DeploymentStatus } from '../components/deployment/services/ProjectDeploymentService';
+import { ethers } from 'ethers';
+import JSONProject from '../abis/JSONProject.json';
+import { RPC_URL } from '../config/contracts';
 
 export interface DVREProjectConfiguration {
   // Core project metadata
@@ -884,13 +887,12 @@ execution:
   }
 
   /**
-   * Publish configuration to IPFS and deploy to orchestration server (enhanced)
+   * Publish configuration to IPFS (simplified - no auto-deployment)
    */
   async publishToIPFS(projectId: string, userAddress: string): Promise<{
     roCrateHash: string;
     workflowHash?: string;
     bundleHash: string;
-    deployed?: boolean;
   } | null> {
     const config = this.getProjectConfiguration(projectId);
     if (!config) return null;
@@ -924,54 +926,7 @@ execution:
       
       console.log('Successfully published to IPFS:', ipfsResults);
 
-      // 🚀 NEW: Automatically deploy to orchestration server
-      let deploymentSuccess = false;
-      try {
-        console.log('🚀 Auto-deploying to orchestration server...');
-        
-        // Parse RO-Crate data for deployment
-        const parsedRoCrateData = JSON.parse(roCrateData);
-        
-        deploymentSuccess = await projectDeploymentService.deployProject(
-          projectId,
-          parsedRoCrateData,
-          ipfsResults,
-          userAddress
-        );
-
-        if (deploymentSuccess) {
-          // Update project status to 'active' after successful deployment
-          config.status = 'active';
-          config.lastModified = new Date().toISOString();
-          
-          // Get deployment status
-          const deploymentStatus = projectDeploymentService.getDeploymentStatus(projectId);
-          config.deployment = deploymentStatus || undefined;
-          
-          this.saveConfiguration(config);
-          this.emitConfigurationUpdate(projectId, config);
-          
-          console.log('✅ Project deployed successfully to orchestration server');
-        } else {
-          console.warn('⚠️ IPFS publication succeeded but deployment failed');
-          const deploymentStatus = projectDeploymentService.getDeploymentStatus(projectId);
-          config.deployment = deploymentStatus || undefined;
-          this.saveConfiguration(config);
-          this.emitConfigurationUpdate(projectId, config);
-        }
-      } catch (deploymentError) {
-        console.error('❌ Deployment failed:', deploymentError);
-        // Don't fail the entire operation - IPFS publication still succeeded
-        const deploymentStatus = projectDeploymentService.getDeploymentStatus(projectId);
-        config.deployment = deploymentStatus || undefined;
-        this.saveConfiguration(config);
-        this.emitConfigurationUpdate(projectId, config);
-      }
-      
-      return {
-        ...ipfsResults,
-        deployed: deploymentSuccess
-      };
+      return ipfsResults;
     } catch (error) {
       console.error('Failed to publish to IPFS:', error);
       return null;
@@ -1136,7 +1091,7 @@ execution:
     }));
   }
 
-  private generateROCrateJSON(config: DVREProjectConfiguration): string {
+  public generateROCrateJSON(config: DVREProjectConfiguration): string {
     // Generate complete RO-Crate JSON-LD structure
     const roCrate = {
       ...config.roCrate.metadata,
@@ -1185,6 +1140,168 @@ execution:
 
   // IPFS Upload Methods (configurable - no more mocks)
 
+  /**
+   * Generate config.json from smart contract data for AL projects
+   * This replaces hardcoded configuration with actual smart contract data
+   */
+  private async generateConfigFromSmartContract(
+    projectId: string,
+    config: DVREProjectConfiguration
+  ): Promise<any> {
+    try {
+      // If not an AL project, return basic config
+      if (!config.extensions?.dal) {
+        return {
+          project_id: projectId,
+          project_type: config.projectData?.type || 'general',
+          version: '1.0.0',
+          created_at: config.created,
+          updated_at: config.lastModified
+        };
+      }
+
+      // For AL projects, try to get data from smart contract
+      console.log('🔍 Fetching AL configuration from smart contract...');
+      
+      // Use JsonRpcProvider for read-only operations
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      
+      let smartContractData: {
+        queryStrategy?: string;
+        alScenario?: string;
+        maxIterations?: number;
+        queryBatchSize?: number;
+        labelSpace?: string[];
+        votingContract?: string | null;
+        storageContract?: string | null;
+      } = {};
+      
+      if (config.contractAddress) {
+        try {
+          // Get project contract instance
+          const projectContract = new ethers.Contract(
+            config.contractAddress,
+            JSONProject.abi,
+            provider
+          );
+
+          // Try to get AL metadata from smart contract
+          try {
+            const projectMetadata = await projectContract.getProjectMetadata();
+            smartContractData = {
+              queryStrategy: projectMetadata._queryStrategy || 'uncertainty_sampling',
+              alScenario: projectMetadata._alScenario || 'pool_based',
+              maxIterations: Number(projectMetadata._maxIteration) || 10,
+              queryBatchSize: Number(projectMetadata._queryBatchSize) || 5,
+              labelSpace: projectMetadata._labelSpace || ['positive', 'negative'],
+              votingContract: await projectContract.votingContract?.() || null,
+              storageContract: await projectContract.storageContract?.() || null
+            };
+            console.log('✅ Retrieved AL metadata from smart contract');
+          } catch (contractError) {
+            console.warn('⚠️ Could not retrieve AL metadata from contract, using configuration data');
+            // Fallback to stored configuration
+            smartContractData = {
+              queryStrategy: config.extensions.dal.queryStrategy || 'uncertainty_sampling',
+              alScenario: config.extensions.dal.AL_scenario || 'pool_based',
+              maxIterations: config.extensions.dal.max_iterations || 10,
+              queryBatchSize: config.extensions.dal.query_batch_size || 5,
+              labelSpace: config.extensions.dal.label_space || ['positive', 'negative']
+            };
+          }
+        } catch (error) {
+          console.warn('⚠️ Could not connect to smart contract, using stored configuration');
+          smartContractData = {
+            queryStrategy: config.extensions.dal.queryStrategy || 'uncertainty_sampling',
+            alScenario: config.extensions.dal.AL_scenario || 'pool_based',
+            maxIterations: config.extensions.dal.max_iterations || 10,
+            queryBatchSize: config.extensions.dal.query_batch_size || 5,
+            labelSpace: config.extensions.dal.label_space || ['positive', 'negative']
+          };
+        }
+      }
+
+      // Generate comprehensive config.json for AL projects
+      const alConfig = {
+        // Project identification
+        project_id: projectId,
+        project_type: 'active_learning',
+        version: '1.0.0',
+        
+        // Timestamps
+        created_at: config.created,
+        updated_at: config.lastModified,
+        
+        // Smart contract information
+        smart_contract: {
+          main_contract: config.contractAddress,
+          voting_contract: smartContractData.votingContract,
+          storage_contract: smartContractData.storageContract
+        },
+        
+        // Active Learning Configuration
+        active_learning: {
+          query_strategy: smartContractData.queryStrategy,
+          scenario: smartContractData.alScenario,
+          max_iterations: smartContractData.maxIterations,
+          query_batch_size: smartContractData.queryBatchSize,
+          label_space: smartContractData.labelSpace,
+          
+          // Model configuration
+          model: {
+            type: config.extensions.dal.model?.type || 'RandomForestClassifier',
+            parameters: config.extensions.dal.model?.parameters || {
+              n_estimators: 100,
+              random_state: 42
+            },
+            framework: 'scikit-learn'
+          },
+          
+          // Dataset configuration
+          datasets: {
+            training_dataset: config.extensions.dal.training_dataset || 'dataset-main',
+            labeling_dataset: config.extensions.dal.labeling_dataset || 'dataset-main',
+            format: 'csv'
+          },
+          
+          // Voting configuration
+          voting: {
+            consensus_type: config.extensions.dal.voting_consensus || 'simple_majority',
+            threshold: 0.51,
+            timeout_seconds: 3600
+          }
+        },
+        
+        // Workflow configuration
+        workflow: {
+          name: 'al_iteration.cwl',
+          type: 'cwl',
+          version: 'v1.2',
+          orchestrator_endpoint: 'http://145.100.135.97:5004'
+        },
+        
+        // IPFS configuration
+        ipfs: {
+          gateway: 'http://145.100.135.97:8081/ipfs/',
+          api_endpoint: 'http://145.100.135.97:5002'
+        }
+      };
+
+      return alConfig;
+    } catch (error) {
+      console.error('Error generating config from smart contract:', error);
+      // Fallback to basic config
+      return {
+        project_id: projectId,
+        project_type: config.extensions?.dal ? 'active_learning' : 'general',
+        version: '1.0.0',
+        created_at: config.created,
+        updated_at: config.lastModified,
+        error: 'Could not retrieve smart contract data'
+      };
+    }
+  }
+
   private async uploadToIPFS(
     projectId: string,
     roCrateData: string,
@@ -1194,10 +1311,10 @@ execution:
     workflowHash?: string;
     bundleHash: string;
   }> {
-    console.log('Starting IPFS upload for project:', projectId);
-    
     try {
-      // Upload RO-Crate metadata
+      console.log('Starting IPFS upload process...');
+      
+      // Upload main RO-Crate metadata file
       const roCrateFile: IPFSFile = {
         name: 'ro-crate-metadata.json',
         content: roCrateData,
@@ -1205,11 +1322,24 @@ execution:
       };
       
       const roCrateResult = await this.uploadFile(roCrateFile);
-      console.log('RO-Crate uploaded:', roCrateResult);
+      console.log('RO-Crate metadata uploaded:', roCrateResult);
       
-      let workflowResult: IPFSUploadResult | null = null;
-      
-      // Upload main workflow if exists
+      // Prepare bundle files
+      const bundleFiles: IPFSFile[] = [
+        // Include the main RO-Crate metadata in the bundle
+        roCrateFile
+      ];
+
+      // Generate and add config.json from smart contract data
+      console.log('🔧 Generating config.json from smart contract data...');
+      const configData = await this.generateConfigFromSmartContract(projectId, config);
+      bundleFiles.push({
+        name: 'config.json',
+        content: JSON.stringify(configData, null, 2),
+        type: 'application/json'
+      });
+
+      // Add CWL workflow files
       const workflows = Object.values(config.roCrate.workflows);
       if (workflows.length > 0) {
         const mainWorkflow = workflows[0]; // Use first workflow as main
@@ -1219,22 +1349,9 @@ execution:
           type: mainWorkflow.type === 'cwl' ? 'application/x-cwl' : 'text/plain'
         };
         
-        workflowResult = await this.uploadFile(workflowFile);
+        const workflowResult = await this.uploadFile(workflowFile);
         console.log('Workflow uploaded:', workflowResult);
-      }
-      
-      // Create project bundle with all components
-      const bundleFiles: IPFSFile[] = [
-        roCrateFile
-      ];
-      
-      // Add workflow files
-      if (workflowResult) {
-        bundleFiles.push({
-          name: `workflow.${workflows[0].type}`,
-          content: workflows[0].content,
-          type: workflows[0].type === 'cwl' ? 'application/x-cwl' : 'text/plain'
-        });
+        bundleFiles.push(workflowFile);
       }
       
       // Add dataset metadata (not actual data files - those would be uploaded separately)
@@ -1284,7 +1401,7 @@ execution:
       
       return {
         roCrateHash: roCrateResult.hash,
-        workflowHash: workflowResult?.hash,
+        workflowHash: undefined, // No single workflow hash for bundle
         bundleHash: bundleResult.hash
       };
       

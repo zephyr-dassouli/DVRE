@@ -3,7 +3,10 @@ import { ethers } from 'ethers';
 import { DVREProjectConfiguration, projectConfigurationService } from '../../services/ProjectConfigurationService';
 import { useAuth } from '../../hooks/useAuth';
 import { useProjects } from '../../hooks/useProjects';
-import WorkflowEditor from './WorkflowEditor';
+import ProjectConfigurationPanel from './ProjectConfigurationPanel';
+import ProjectInformationPanel from './ProjectInformationPanel';
+import WorkflowsPanel from './WorkflowsPanel';
+import UserList from './UserList';
 
 // Import JSONProject ABI for smart contract interaction
 import JSONProject from '../../abis/JSONProject.json';
@@ -26,7 +29,6 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'configure'>('list');
-  const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null);
 
   // Use refs to prevent infinite re-renders
   const onConfigurationChangeRef = useRef(onConfigurationChange);
@@ -164,6 +166,28 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, userProjects, projectsLoading]); // Don't include loadProjects to prevent infinite loop
 
+  // Debug helper - expose data to console for debugging
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).dvreDebugData = {
+        account,
+        userProjects,
+        projects,
+        projectsLoading,
+        error,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('🔍 DVRE Debug Data Updated:', {
+        account,
+        userProjectsCount: userProjects?.length || 0,
+        configuredProjectsCount: projects.length,
+        loading: projectsLoading,
+        error
+      });
+    }
+  }, [account, userProjects, projects, projectsLoading, error]);
+
   // Subscribe to configuration changes for selected project
   useEffect(() => {
     if (!selectedProject) return;
@@ -193,7 +217,7 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
     setView('configure');
   };
 
-  // NEW: Deploy function (replaces handlePublishToIPFS)
+  // NEW: Simplified deploy function using DeploymentOrchestrator
   const handleDeployProject = async () => {
     if (!selectedProject || !account) return;
 
@@ -203,63 +227,53 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
     try {
       console.log('🚀 Deploying project:', selectedProject.projectId);
       
-      // Step 1: Upload RO-Crate to IPFS
-      const ipfsResult = await projectConfigurationService.publishToIPFS(selectedProject.projectId, account);
+      // Use the centralized deployment orchestrator
+      const { deploymentOrchestrator } = await import('./services/DeploymentOrchestrator');
+      const result = await deploymentOrchestrator.deployProject(selectedProject.projectId, account);
+
+      // Generate success message based on deployment results
+      let deploymentMessage = `Project deployment completed!\n\n`;
       
-      if (!ipfsResult) {
-        throw new Error('Failed to upload RO-Crate to IPFS');
+      // Add step-by-step results
+      if (result.steps.alContracts === 'success') {
+        deploymentMessage += `✅ AL Smart Contracts: Deployed\n`;
+      } else if (result.steps.alContracts === 'failed') {
+        deploymentMessage += `⚠️ AL Smart Contracts: Failed\n`;
+      }
+      
+      if (result.steps.ipfsUpload === 'success') {
+        deploymentMessage += `✅ IPFS Upload: Success\n`;
+        deploymentMessage += `🔗 RO-Crate Hash: ${result.roCrateHash}\n`;
+        deploymentMessage += `📦 Bundle Hash: ${result.bundleHash}\n`;
+      } else {
+        deploymentMessage += `❌ IPFS Upload: Failed\n`;
+      }
+      
+      if (result.steps.orchestrationDeploy === 'success') {
+        deploymentMessage += `✅ Orchestration: Deployed\n`;
+        if (result.orchestrationWorkflowId) {
+          deploymentMessage += `🆔 Workflow ID: ${result.orchestrationWorkflowId}\n`;
+          deploymentMessage += `🔗 Monitor at: http://145.100.135.97:5004\n`;
+        }
+      } else if (result.steps.orchestrationDeploy === 'failed') {
+        deploymentMessage += `⚠️ Orchestration: Failed\n`;
+      }
+      
+      if (result.steps.smartContractUpdate === 'success') {
+        deploymentMessage += `✅ Smart Contract: Updated\n`;
+      } else if (result.steps.smartContractUpdate === 'failed') {
+        deploymentMessage += `⚠️ Smart Contract: Update Failed\n`;
       }
 
-      // Step 2: Store IPFS hash on smart contract
-      try {
-        if (selectedProject.contractAddress) {
-          const signer = await getSigner();
-          
-          // Get project contract instance
-          const projectContract = new ethers.Contract(
-            selectedProject.contractAddress,
-            JSONProject.abi,
-            signer
-          );
-
-          // Store RO-Crate IPFS hash on smart contract
-          const tx = await projectContract.updateIPFSHash('ro-crate', ipfsResult.roCrateHash);
-          await tx.wait();
-          
-          // Store workflow hash if available
-          if (ipfsResult.workflowHash) {
-            const workflowTx = await projectContract.updateIPFSHash('workflow', ipfsResult.workflowHash);
-            await workflowTx.wait();
-          }
-
-          // Store bundle hash
-          const bundleTx = await projectContract.updateIPFSHash('bundle', ipfsResult.bundleHash);
-          await bundleTx.wait();
-
-          console.log('✅ IPFS hashes stored on smart contract successfully!');
-        }
-      } catch (contractError) {
-        console.error('Smart contract update failed:', contractError);
-        console.warn('⚠️ IPFS upload succeeded but smart contract update failed. Continuing...');
+      // Overall status
+      if (result.success) {
+        deploymentMessage += `\n🎉 Overall Status: SUCCESS`;
+      } else {
+        deploymentMessage += `\n⚠️ Overall Status: PARTIAL (check individual steps)`;
       }
 
-      // Success message
-      let deploymentMessage = `Project deployed successfully!\n\n` +
-        `🔗 RO-Crate Hash: ${ipfsResult.roCrateHash}\n` +
-        `📦 Bundle Hash: ${ipfsResult.bundleHash}\n` +
-        `${ipfsResult.deployed ? '🚀 Orchestration: Deployed' : '⚠️ Orchestration: Failed'}`;
-      
-      // Add workflow ID if deployment succeeded
-      if (ipfsResult.deployed) {
-        // Small delay to ensure deployment status is saved
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Get updated project configuration to access deployment info
-        const updatedConfig = projectConfigurationService.getProjectConfiguration(selectedProject.projectId);
-        if (updatedConfig?.deployment?.orchestrationWorkflowId) {
-          deploymentMessage += `\n🆔 Workflow ID: ${updatedConfig.deployment.orchestrationWorkflowId}`;
-          deploymentMessage += `\n🔗 Check at: http://145.100.135.97:5004`;
-        }
+      if (result.error) {
+        deploymentMessage += `\n❌ Error: ${result.error}`;
       }
       
       alert(deploymentMessage);
@@ -274,121 +288,54 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
     }
   };
 
-  // Workflow management handlers
-  const handleAddWorkflow = () => {
-    if (!selectedProject || !account) return;
+  // REMOVED: deployALContracts function (now in DeploymentOrchestrator)
 
-    const workflowName = prompt('Enter workflow name:');
-    if (!workflowName) return;
+  // Handle user actions (approve, reject, remove)
+  const handleUserAction = async (action: string, userAddress: string) => {
+    if (!selectedProject || !account || !selectedProject.contractAddress) return;
 
-    const workflowType = 'cwl'; // Default to CWL
-
-    // Create basic CWL template
-    const basicCWLTemplate = {
-      cwlVersion: "v1.2",
-      class: "Workflow",
-      id: `${selectedProject.projectId}-workflow`,
-      label: workflowName,
-      inputs: {
-        dataset: {
-          type: "File",
-          doc: "Input dataset for processing"
-        }
-      },
-      outputs: {
-        results: {
-          type: "File",
-          outputSource: "process_step/output"
-        }
-      },
-      steps: {
-        process_step: {
-          run: "#process",
-          in: {
-            input_data: "dataset"
-          },
-          out: ["output"]
-        }
-      }
-    };
-
-    const workflow = {
-      name: workflowName,
-      description: `${workflowName} workflow for ${selectedProject.projectData?.name || 'project'}`,
-      type: workflowType as 'cwl' | 'jupyter' | 'custom',
-      content: JSON.stringify(basicCWLTemplate, null, 2),
-      inputs: Object.keys(basicCWLTemplate.inputs),
-      outputs: Object.keys(basicCWLTemplate.outputs),
-      steps: Object.keys(basicCWLTemplate.steps)
-    };
-
-    projectConfigurationService.addWorkflow(
-      selectedProject.projectId,
-      `workflow-${Date.now()}`,
-      workflow,
-      account
-    );
-  };
-
-  const handleRemoveWorkflow = (workflowId: string) => {
-    if (!selectedProject || !account) return;
-
-    const workflow = selectedProject.roCrate.workflows[workflowId];
-    if (!workflow) return;
-
-    const confirmed = confirm(`Are you sure you want to remove the workflow "${workflow.name}"?`);
-    if (confirmed) {
-      projectConfigurationService.removeWorkflow(
-        selectedProject.projectId,
-        workflowId,
-        account
+    try {
+      const signer = await getSigner();
+      const projectContract = new ethers.Contract(
+        selectedProject.contractAddress,
+        JSONProject.abi,
+        signer
       );
+
+      switch (action) {
+        case 'approve':
+          console.log('Approving join request for:', userAddress);
+          await projectContract.approveJoinRequest(userAddress);
+          break;
+        case 'reject':
+          console.log('Rejecting join request for:', userAddress);
+          await projectContract.rejectJoinRequest(userAddress);
+          break;
+        case 'remove':
+          console.log('Removing user:', userAddress);
+          // Note: This would need a removeParticipant method in the contract
+          // await projectContract.removeParticipant(userAddress);
+          console.warn('Remove user functionality not yet implemented in contract');
+          break;
+        default:
+          console.warn('Unknown user action:', action);
+      }
+
+      // Reload project data to reflect changes
+      loadProjectConfiguration(selectedProject.projectId);
+    } catch (error) {
+      console.error('Failed to perform user action:', error);
+      setError(error instanceof Error ? error.message : 'User action failed');
     }
   };
 
-  const handleExpandWorkflow = (workflowId: string) => {
-    setExpandedWorkflow(expandedWorkflow === workflowId ? null : workflowId);
-  };
-
-  const handleWorkflowSave = (workflowId: string, workflow: any) => {
-    // Workflow is auto-saved by the WorkflowEditor component
-    console.log('Workflow saved:', workflowId, workflow);
-  };
-
-  // Dataset management handlers
-  const handleAddDataset = () => {
-    if (!selectedProject || !account) return;
-
-    const datasetName = prompt('Enter dataset name:');
-    if (!datasetName) return;
-
-    const datasetFormat = prompt('Enter dataset format (csv, json, parquet, etc.):', 'csv');
-    if (!datasetFormat) return;
-
-    const datasetDescription = prompt('Enter dataset description (optional):') || '';
-
-    const dataset = {
-      name: datasetName,
-      description: datasetDescription,
-      format: datasetFormat,
-      columns: []
-    };
-
-    projectConfigurationService.addDataset(
-      selectedProject.projectId,
-      `dataset-${Date.now()}`,
-      dataset,
-      account
-    );
-  };
-
-  // Utility functions
-  const formatBytes = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  // Handle configuration changes from the panels
+  const handleConfigurationChange = (updatedConfig: any) => {
+    if (!selectedProject) return;
+    
+    // Update the selected project configuration
+    const newConfig = { ...selectedProject, ...updatedConfig };
+    setSelectedProject(newConfig);
   };
 
   const getProjectDescription = (project: DVREProjectConfiguration): string => {
@@ -641,126 +588,29 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
       {selectedProject && (
         <div className="config-content">
           {/* Project Information Section */}
+          <ProjectInformationPanel project={selectedProject} />
+
+          {/* Project Configuration Panel */}
           <div className="config-section">
-            <h4>Project Information</h4>
-            <div className="project-info">
-              <div className="info-item">
-                <strong>Contract Address:</strong> {selectedProject.contractAddress || 'Not available'}
-              </div>
-              <div className="info-item">
-                <strong>Owner:</strong> {selectedProject.owner}
-              </div>
-              <div className="info-item">
-                <strong>Created:</strong> {new Date(selectedProject.created).toLocaleString()}
-              </div>
-              <div className="info-item">
-                <strong>Last Modified:</strong> {new Date(selectedProject.lastModified).toLocaleString()}
-              </div>
-            </div>
+            <h4>Project Configuration</h4>
+            <ProjectConfigurationPanel
+              projectId={selectedProject.projectId}
+              projectConfig={selectedProject}
+              onConfigurationChange={(updatedConfig) => {
+                setSelectedProject(updatedConfig);
+                onConfigurationChangeRef.current?.(updatedConfig);
+              }}
+            />
           </div>
 
-          {/* Workflow Editor Section */}
-          <div className="config-section">
-            <div className="section-header">
-              <h4>Workflow Configuration</h4>
-              <button
-                className="add-workflow-button"
-                onClick={() => handleAddWorkflow()}
-                disabled={loading}
-              >
-                + Add Workflow
-              </button>
-            </div>
-            
-            <div className="workflows-list">
-              {Object.keys(selectedProject.roCrate.workflows).length === 0 ? (
-                <div className="empty-workflows">
-                  <p>No workflows configured yet.</p>
-                  <p>Add a CWL workflow to define how your project should be executed.</p>
-                </div>
-              ) : (
-                <div className="workflows-grid">
-                  {Object.entries(selectedProject.roCrate.workflows).map(([id, workflow]) => (
-                    <div key={id} className="workflow-card">
-                      <div className="workflow-header">
-                        <h5>{workflow.name}</h5>
-                        <span className="workflow-type">{workflow.type.toUpperCase()}</span>
-                      </div>
-                      <p className="workflow-description">
-                        {workflow.description || 'No description provided'}
-                      </p>
-                      <div className="workflow-actions">
-                        <button
-                          className="expand-workflow-button"
-                          onClick={() => handleExpandWorkflow(id)}
-                        >
-                          {expandedWorkflow === id ? 'Collapse' : 'Expand'} Editor
-                        </button>
-                        <button
-                          className="remove-workflow-button"
-                          onClick={() => handleRemoveWorkflow(id)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                      
-                      {/* Expanded Workflow Editor */}
-                      {expandedWorkflow === id && (
-                        <div className="workflow-editor-container">
-                          <WorkflowEditor
-                            projectId={selectedProject.projectId}
-                            workflowId={id}
-                            workflow={workflow}
-                            projectConfig={selectedProject}
-                            onSave={(updatedWorkflow) => handleWorkflowSave(id, updatedWorkflow)}
-                            onClose={() => setExpandedWorkflow(null)}
-                            isExpanded={true}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Workflows Panel */}
+          <WorkflowsPanel project={selectedProject} />
 
-          {/* Dataset Management Section */}
-          <div className="config-section">
-            <div className="section-header">
-              <h4>Dataset Configuration</h4>
-              <button
-                className="add-dataset-button"
-                onClick={() => handleAddDataset()}
-                disabled={loading}
-              >
-                + Add Dataset
-              </button>
-            </div>
-            
-            <div className="datasets-summary">
-              {Object.keys(selectedProject.roCrate.datasets).length === 0 ? (
-                <div className="empty-datasets">
-                  <p>No datasets configured yet.</p>
-                  <p>Add dataset metadata to document your project's data sources.</p>
-                </div>
-              ) : (
-                <div className="datasets-grid">
-                  {Object.entries(selectedProject.roCrate.datasets).map(([id, dataset]) => (
-                    <div key={id} className="dataset-card">
-                      <h5>{dataset.name}</h5>
-                      <p>{dataset.description || 'No description'}</p>
-                      <div className="dataset-meta">
-                        <span>Format: {dataset.format}</span>
-                        {dataset.size && <span>Size: {formatBytes(dataset.size)}</span>}
-                        {dataset.columns && <span>Columns: {dataset.columns.length}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          {/* User List Panel */}
+          <UserList 
+            project={selectedProject} 
+            onUserAction={handleUserAction}
+          />
 
           {/* RO-Crate JSON-LD Viewer */}
           <div className="config-section">
@@ -780,21 +630,6 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
               </pre>
             </div>
           </div>
-
-          {/* dApp Extensions Section */}
-          {selectedProject.extensions && Object.keys(selectedProject.extensions).length > 0 && (
-            <div className="config-section">
-              <h4>dApp Extensions</h4>
-              <div className="extensions-summary">
-                {Object.entries(selectedProject.extensions).map(([dAppName, extensionData]) => (
-                  <div key={dAppName} className="extension-item">
-                    <strong>{dAppName.toUpperCase()}:</strong>
-                    <pre>{JSON.stringify(extensionData, null, 2)}</pre>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* IPFS Publication Section */}
           {selectedProject.ipfs && (

@@ -268,6 +268,22 @@ export const useProjects = () => {
 
       setTemplates(loadedTemplates.filter(t => t.isActive));
       setLoading(false);
+      
+      // Debug logging for templates
+      console.log('🔍 Templates loaded:', {
+        totalTemplates: loadedTemplates.length,
+        activeTemplates: loadedTemplates.filter(t => t.isActive).length,
+        alTemplate: loadedTemplates.find(t => t.projectType === 'active_learning'),
+        allTemplates: loadedTemplates.map(t => ({ id: t.id, name: t.name, type: t.projectType, active: t.isActive }))
+      });
+      
+      // Expose to window for debugging
+      if (typeof window !== 'undefined') {
+        (window as any).dvreDebugData = {
+          ...(window as any).dvreDebugData,
+          templates: loadedTemplates.filter(t => t.isActive)
+        };
+      }
     } catch (err: any) {
       setError(`Failed to load templates: ${err.message}`);
       setLoading(false);
