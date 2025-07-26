@@ -10,9 +10,12 @@ import {
 
 import { ILauncher } from '@jupyterlab/launcher';
 import { LabIcon } from '@jupyterlab/ui-components';
+
 import { Widget } from '@lumino/widgets';
 import { AuthWidget, CollaborationWidget, GraphWidget, FederatedLearningWidget, IPFSWidget, ProjectDeploymentWidget } from './components';
 import { ExtensionDiscovery, IExtensionInfo } from './services/ExtensionDiscovery';
+import { UserRegistryReactWidget } from './widgets/UserRegistryWidget';
+
 
 // Import CSS
 import '../style/index.css';
@@ -91,6 +94,11 @@ class ExtensionInfoWidget extends Widget {
     this.node.appendChild(div);
   }
 }
+
+const userRegistryIcon = new LabIcon({
+  name: 'my-extension:user-registry',
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>'
+});
 
 const plugin: JupyterFrontEndPlugin<void> = {
   id: 'my-extension',
@@ -252,7 +260,6 @@ const plugin: JupyterFrontEndPlugin<void> = {
         app.shell.activateById(widget.id);
       }
     });
-
     // Command for project deployment (UPDATED from configuration)
     const deploymentCommand = 'my-extension:deployment';
     app.commands.addCommand(deploymentCommand, {
@@ -267,6 +274,24 @@ const plugin: JupyterFrontEndPlugin<void> = {
         widget.id = `my-deployment-${Date.now()}`;
         widget.title.closable = true;
         widget.title.icon = deploymentIcon;
+        app.shell.add(widget, 'main');
+        app.shell.activateById(widget.id);
+      }
+    });
+        
+         // Command for User Registry
+    const userRegistryCommand = 'my-extension:user-registry';
+    app.commands.addCommand(userRegistryCommand, {
+      label: 'User Registry',
+      caption: 'View all D-VRE users and their metadata',
+      icon: userRegistryIcon,
+      execute: () => {
+        const content = new UserRegistryReactWidget();
+        const widget = new MainAreaWidget({ content });
+        widget.id = `my-user-registry-${Date.now()}`;
+        widget.title.closable = true;
+        widget.title.icon = userRegistryIcon;
+        widget.title.label = 'User Registry';
         
         app.shell.add(widget, 'main');
         app.shell.activateById(widget.id);
@@ -280,6 +305,8 @@ const plugin: JupyterFrontEndPlugin<void> = {
     palette.addItem({ command: federatedLearningCommand, category: 'DVRE Core' });
     palette.addItem({ command: ipfsCommand, category: 'DVRE Core' });
     palette.addItem({ command: deploymentCommand, category: 'DVRE Core' });
+     palette.addItem({ command: userRegistryCommand, category: 'D-VRE Core' });
+
 
     // Add core commands to launcher
     if (launcher) {
@@ -318,8 +345,15 @@ const plugin: JupyterFrontEndPlugin<void> = {
         category: 'DVRE Core',
         rank: 6
       });
+     
+      launcher.add({
+        command: userRegistryCommand,
+        category: 'DVRE Core',
+        rank: 7
+      });
 
       console.log('DVRE Core: Extension added to launcher successfully!');
+      
     } else {
       console.log('DVRE Core: Launcher not available - extension only in command palette');
     }

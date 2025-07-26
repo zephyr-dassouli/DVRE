@@ -33,6 +33,7 @@ contract JSONProject {
         bool exists;
     }
     
+
     mapping(address => JoinRequest) public joinRequests;
     address[] public requesters;
     
@@ -45,6 +46,27 @@ contract JSONProject {
     
     // Round tracking
     uint256 public currentRound;
+
+    // Invitation structure
+    struct Invitation {
+        address invitee;
+        string role;
+        uint256 timestamp;
+        bool exists;
+    }
+    
+    // Mapping to store join requests: requester address => JoinRequest
+    mapping(address => JoinRequest) public joinRequests;
+    
+    // Mapping to store invitations: invitee address => Invitation
+    mapping(address => Invitation) public invitations;
+    
+    // Array to keep track of all requesters for enumeration
+    address[] public requesters;
+    
+    // Array to keep track of all invitees for enumeration
+    address[] public invitees;
+
     
     // Events
     event ProjectCreated(address indexed creator, uint256 timestamp);
@@ -58,7 +80,12 @@ contract JSONProject {
     event ParticipantAdded(address indexed participant);
     event RoundIncremented(uint256 newRound);
     event ALRoundTriggered(uint256 round, string reason, uint256 timestamp);
+     event InvitationSent(address indexed invitee, address indexed inviter, string role, uint256 timestamp);
+    event InvitationAccepted(address indexed invitee, address indexed project, uint256 timestamp);
+    event InvitationRejected(address indexed invitee, address indexed project, uint256 timestamp);
+    event MemberAdded(address indexed member, string role, uint256 timestamp);
     
+
     // Modifiers
     modifier onlyCreator() {
         require(msg.sender == creator, "Only project creator can perform this action");
@@ -252,8 +279,122 @@ contract JSONProject {
         require(success, "Failed to set voters");
     }
     
+
     function startVotingSession(string memory sampleId) external onlyCreator {
         require(votingContract != address(0), "Voting contract not set");
+       (bool success, ) = votingContract.call(
+            abi.encodeWithSignature("startVotingSession(string)", sampleId)
+        );
+        require(success, "Failed to start voting session");
+    }
+    
+
+    // Send invitation to user (project creator only)
+    function sendInvitation(address _invitee, string memory _role) external onlyCreator onlyActive {
+        require(_invitee != creator, "Cannot invite project creator");
+        require(!invitations[_invitee].exists, "Invitation already exists");
+        require(bytes(_role).length > 0, "Role cannot be empty");
+        
+        // Add to invitations mapping
+        invitations[_invitee] = Invitation({
+            invitee: _invitee,
+            role: _role,
+            timestamp: block.timestamp,
+            exists: true
+        });
+        
+        // Add to invitees array for enumeration
+        invitees.push(_invitee);
+        
+        emit InvitationSent(_invitee, msg.sender, _role, block.timestamp);
+    }
+    
+    // Accept invitation (invitee only)
+    function acceptInvitation() external onlyActive {
+        require(invitations[msg.sender].exists, "Invitation does not exist");
+        
+        // Get invitation details before deleting
+        Invitation memory invitation = invitations[msg.sender];
+        
+        // Remove the invitation
+        delete invitations[msg.sender];
+        
+        // Emit events
+        emit InvitationAccepted(msg.sender, address(this), block.timestamp);
+        emit MemberAdded(msg.sender, invitation.role, block.timestamp);
+    }
+    
+    // Update project data after invitation acceptance (can be called by anyone, but validates the data)
+    function updateProjectDataAfterAcceptance(string memory newData) external onlyActive {
+        // Basic validation - ensure the data is not empty
+        require(bytes(newData).length > 0, "Project data cannot be empty");
+        
+        // Update the project data
+        projectData = newData;
+        emit ProjectUpdated(msg.sender, block.timestamp);
+    }
+    
+    // Reject invitation (invitee only)
+    function rejectInvitation() external {
+        require(invitations[msg.sender].exists, "Invitation does not exist");
+        
+        // Remove the invitation
+        delete invitations[msg.sender];
+        
+        emit InvitationRejected(msg.sender, address(this), block.timestamp);
+    }
+    
+    // Add member to project (creator only, typically called after invitation acceptance)
+    function addMember(address member, string memory role) external onlyCreator onlyActive {
+        require(member != address(0), "Invalid address");
+        require(bytes(role).length > 0, "Role cannot be empty");
+        
+        // Note: This is a simplified approach. In a real implementation,
+        // you would parse the JSON, add the member, and update the project data
+        // For now, we just emit an event that the frontend can listen to
+        emit MemberAdded(member, role, block.timestamp);
+    }
+    
+    // Get invitation details
+    function getInvitation(address _invitee) external view returns (
+        address invitee,
+        string memory role,
+        uint256 timestamp,
+        bool exists
+    ) {
+        Invitation memory invitation = invitations[_invitee];
+        return (invitation.invitee, invitation.role, invitation.timestamp, invitation.exists);
+    }
+    
+    // Get all invitees
+    function getAllInvitees() external view returns (address[] memory) {
+        // Filter out processed invitations
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < invitees.length; i++) {
+            if (invitations[invitees[i]].exists) {
+                activeCount++;
+            }
+        }
+        
+        address[] memory activeInvitees = new address[](activeCount);
+        uint256 index = 0;
+        for (uint256 i = 0; i < invitees.length; i++) {
+            if (invitations[invitees[i]].exists) {
+                activeInvitees[index] = invitees[i];
+                index++;
+            }
+        }
+        
+        return activeInvitees;
+    }
+    
+    // Update project data (replace entire JSON)
+    function updateProjectData(string memory _newProjectData) 
+        external 
+        onlyCreator 
+        onlyActive 
+    {
+        require(bytes(_newProjectData).length > 0, "Project data cannot be empty");
         
         (bool success, ) = votingContract.call(
             abi.encodeWithSignature("startVotingSession(string)", sampleId)

@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { ethers } from 'ethers';
 import { ProjectDetails as ProjectDetailsType, useProjects } from '../../hooks/useProjects';
 import { useAuth } from '../../hooks/useAuth';
+import { useUserRegistry } from '../../hooks/useUserRegistry';
+import { UserInvitationDialog } from '../userregistry/UserInvitationDialog';
+import JSONProject from '../../abis/JSONProject.json';
+import { RPC_URL } from '../../config/contracts';
 
 interface ProjectDetailsProps {
     projectAddress: string;
@@ -20,8 +25,10 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     const [showJsonModal, setShowJsonModal] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [editedJsonData, setEditedJsonData] = useState<string>('');
+    const [showInviteDialog, setShowInviteDialog] = useState(false);
     const { getProjectInfo, handleJoinRequest, getProjectRoles, updateProjectData } = useProjects();
     const { account } = useAuth();
+    const { addMemberToProject } = useUserRegistry();
 
     // Toggle JSON viewer modal
     const toggleJsonModal = () => {
@@ -161,6 +168,51 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     useEffect(() => {
         loadDetails();
     }, [loadDetails]); // Only depend on the memoized function
+
+    // Listen for MemberAdded events to automatically add accepted members to project
+    useEffect(() => {
+        if (!projectAddress || !account || !details?.creator || details.creator.toLowerCase() !== account.toLowerCase()) {
+            return; // Only project creators should listen for these events
+        }
+
+        const setupEventListener = async () => {
+            try {
+                const provider = new ethers.JsonRpcProvider(RPC_URL);
+                const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, provider);
+
+                const memberAddedFilter = projectContract.filters.MemberAdded();
+                
+                const handleMemberAdded = async (member: string, role: string, timestamp: bigint) => {
+                    console.log('MemberAdded event detected:', { member, role, timestamp });
+                    
+                    try {
+                        // Add the member to the project data
+                        await addMemberToProject(projectAddress, member, role);
+                        
+                        // Refresh project details to show the updated membership
+                        await loadDetails();
+                    } catch (err) {
+                        console.error('Failed to handle MemberAdded event:', err);
+                    }
+                };
+
+                projectContract.on(memberAddedFilter, handleMemberAdded);
+
+                // Cleanup function
+                return () => {
+                    projectContract.off(memberAddedFilter, handleMemberAdded);
+                };
+            } catch (err) {
+                console.error('Failed to setup MemberAdded event listener:', err);
+            }
+        };
+
+        const cleanup = setupEventListener();
+        
+        return () => {
+            cleanup.then(cleanupFn => cleanupFn && cleanupFn());
+        };
+    }, [projectAddress, account, details?.creator, addMemberToProject, loadDetails]);
 
     if (loading) {
         return (
@@ -357,20 +409,39 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                     }}>
                         Project Details
                     </h2>
-                    <button
-                        onClick={onBack}
-                        style={{
-                            padding: '6px 12px',
-                            background: 'var(--jp-layout-color2)',
-                            border: '1px solid var(--jp-border-color1)',
-                            borderRadius: '3px',
-                            cursor: 'pointer',
-                            color: 'var(--jp-ui-font-color1)',
-                            fontSize: '12px'
-                        }}
-                    >
-                        ← Back
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        {/* Invite Users Button - Only visible to project owner */}
+                        {account === details.creator && (
+                            <button
+                                onClick={() => setShowInviteDialog(true)}
+                                style={{
+                                    padding: '6px 12px',
+                                    background: 'var(--jp-brand-color1)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '3px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px'
+                                }}
+                            >
+                                Invite Users
+                            </button>
+                        )}
+                        <button
+                            onClick={onBack}
+                            style={{
+                                padding: '6px 12px',
+                                background: 'var(--jp-layout-color2)',
+                                border: '1px solid var(--jp-border-color1)',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                color: 'var(--jp-ui-font-color1)',
+                                fontSize: '12px'
+                            }}
+                        >
+                            ← Back
+                        </button>
+                    </div>
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>
@@ -678,6 +749,20 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* User Invitation Dialog */}
+            {showInviteDialog && details && (
+                <UserInvitationDialog
+                    projectAddress={projectAddress}
+                    projectName={details.objective}
+                    availableRoles={details.availableRoles}
+                    onClose={() => setShowInviteDialog(false)}
+                    onInviteSent={() => {
+                        // Refresh project details to show any changes
+                        loadDetails();
+                    }}
+                />
+            )}
         </div>
     );
 };
