@@ -48,6 +48,7 @@ contract JSONProject {
     event InvitationSent(address indexed invitee, address indexed inviter, string role, uint256 timestamp);
     event InvitationAccepted(address indexed invitee, address indexed project, uint256 timestamp);
     event InvitationRejected(address indexed invitee, address indexed project, uint256 timestamp);
+    event MemberAdded(address indexed member, string role, uint256 timestamp);
 
     // Modifiers
     modifier onlyCreator() {
@@ -173,12 +174,25 @@ contract JSONProject {
     function acceptInvitation() external onlyActive {
         require(invitations[msg.sender].exists, "Invitation does not exist");
         
+        // Get invitation details before deleting
+        Invitation memory invitation = invitations[msg.sender];
+        
         // Remove the invitation
         delete invitations[msg.sender];
         
-        // Note: The frontend should handle adding the user to participants and call updateProjectData
-        
+        // Emit events
         emit InvitationAccepted(msg.sender, address(this), block.timestamp);
+        emit MemberAdded(msg.sender, invitation.role, block.timestamp);
+    }
+    
+    // Update project data after invitation acceptance (can be called by anyone, but validates the data)
+    function updateProjectDataAfterAcceptance(string memory newData) external onlyActive {
+        // Basic validation - ensure the data is not empty
+        require(bytes(newData).length > 0, "Project data cannot be empty");
+        
+        // Update the project data
+        projectData = newData;
+        emit ProjectUpdated(msg.sender, block.timestamp);
     }
     
     // Reject invitation (invitee only)
@@ -189,6 +203,17 @@ contract JSONProject {
         delete invitations[msg.sender];
         
         emit InvitationRejected(msg.sender, address(this), block.timestamp);
+    }
+    
+    // Add member to project (creator only, typically called after invitation acceptance)
+    function addMember(address member, string memory role) external onlyCreator onlyActive {
+        require(member != address(0), "Invalid address");
+        require(bytes(role).length > 0, "Role cannot be empty");
+        
+        // Note: This is a simplified approach. In a real implementation,
+        // you would parse the JSON, add the member, and update the project data
+        // For now, we just emit an event that the frontend can listen to
+        emit MemberAdded(member, role, block.timestamp);
     }
     
     // Get invitation details

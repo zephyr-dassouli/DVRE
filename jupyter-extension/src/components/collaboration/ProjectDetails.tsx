@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { ethers } from 'ethers';
 import { ProjectDetails as ProjectDetailsType, useProjects } from '../../hooks/useProjects';
 import { useAuth } from '../../hooks/useAuth';
+import { useUserRegistry } from '../../hooks/useUserRegistry';
 import { UserInvitationDialog } from '../userregistry/UserInvitationDialog';
+import JSONProject from '../../abis/JSONProject.json';
+import { RPC_URL } from '../../config/contracts';
 
 interface ProjectDetailsProps {
     projectAddress: string;
@@ -24,6 +28,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     const [showInviteDialog, setShowInviteDialog] = useState(false);
     const { getProjectInfo, handleJoinRequest, getProjectRoles, updateProjectData } = useProjects();
     const { account } = useAuth();
+    const { addMemberToProject } = useUserRegistry();
 
     // Toggle JSON viewer modal
     const toggleJsonModal = () => {
@@ -163,6 +168,51 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
     useEffect(() => {
         loadDetails();
     }, [loadDetails]); // Only depend on the memoized function
+
+    // Listen for MemberAdded events to automatically add accepted members to project
+    useEffect(() => {
+        if (!projectAddress || !account || !details?.creator || details.creator.toLowerCase() !== account.toLowerCase()) {
+            return; // Only project creators should listen for these events
+        }
+
+        const setupEventListener = async () => {
+            try {
+                const provider = new ethers.JsonRpcProvider(RPC_URL);
+                const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, provider);
+
+                const memberAddedFilter = projectContract.filters.MemberAdded();
+                
+                const handleMemberAdded = async (member: string, role: string, timestamp: bigint) => {
+                    console.log('MemberAdded event detected:', { member, role, timestamp });
+                    
+                    try {
+                        // Add the member to the project data
+                        await addMemberToProject(projectAddress, member, role);
+                        
+                        // Refresh project details to show the updated membership
+                        await loadDetails();
+                    } catch (err) {
+                        console.error('Failed to handle MemberAdded event:', err);
+                    }
+                };
+
+                projectContract.on(memberAddedFilter, handleMemberAdded);
+
+                // Cleanup function
+                return () => {
+                    projectContract.off(memberAddedFilter, handleMemberAdded);
+                };
+            } catch (err) {
+                console.error('Failed to setup MemberAdded event listener:', err);
+            }
+        };
+
+        const cleanup = setupEventListener();
+        
+        return () => {
+            cleanup.then(cleanupFn => cleanupFn && cleanupFn());
+        };
+    }, [projectAddress, account, details?.creator, addMemberToProject, loadDetails]);
 
     if (loading) {
         return (
