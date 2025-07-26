@@ -32,20 +32,6 @@ contract JSONProject {
         uint256 timestamp;
         bool exists;
     }
-    
-
-    mapping(address => JoinRequest) public joinRequests;
-    address[] public requesters;
-    
-    // Linked contracts
-    address public votingContract;
-    address public storageContract;
-    
-    // Optional participant registry
-    mapping(address => bool) public isParticipant;
-    
-    // Round tracking
-    uint256 public currentRound;
 
     // Invitation structure
     struct Invitation {
@@ -66,6 +52,16 @@ contract JSONProject {
     
     // Array to keep track of all invitees for enumeration
     address[] public invitees;
+    
+    // Linked contracts
+    address public votingContract;
+    address public storageContract;
+    
+    // Optional participant registry
+    mapping(address => bool) public isParticipant;
+    
+    // Round tracking
+    uint256 public currentRound;
 
     
     // Events
@@ -386,20 +382,6 @@ contract JSONProject {
         }
         
         return activeInvitees;
-    }
-    
-    // Update project data (replace entire JSON)
-    function updateProjectData(string memory _newProjectData) 
-        external 
-        onlyCreator 
-        onlyActive 
-    {
-        require(bytes(_newProjectData).length > 0, "Project data cannot be empty");
-        
-        (bool success, ) = votingContract.call(
-            abi.encodeWithSignature("startVotingSession(string)", sampleId)
-        );
-        require(success, "Failed to start voting session");
     }
     
     function endVotingSession(string memory sampleId) external onlyCreator {

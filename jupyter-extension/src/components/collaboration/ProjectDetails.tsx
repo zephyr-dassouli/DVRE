@@ -411,7 +411,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                     </h2>
                     <div style={{ display: 'flex', gap: '8px' }}>
                         {/* Invite Users Button - Only visible to project owner */}
-                        {account === details.creator && (
+                        {account && details.creator && account.toLowerCase() === details.creator.toLowerCase() && (
                             <button
                                 onClick={() => setShowInviteDialog(true)}
                                 style={{
@@ -633,7 +633,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                 </div>
 
                 {/* Pending Join Requests Section - Only visible to project creators */}
-                {account === details.creator && (
+                {account && details.creator && account.toLowerCase() === details.creator.toLowerCase() && (
                     <div style={{ marginTop: '24px' }}>
                         <div style={{ 
                             display: 'flex', 
