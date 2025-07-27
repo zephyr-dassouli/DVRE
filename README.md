@@ -88,7 +88,7 @@ jupyter labextension list | grep jupyter-dvre
 
 ### DAL Extension Setup (Two-Phase Active Learning)
 
-**✅ Working Method (Use this approach):**
+**Working Method (Use this approach):**
 
 ```bash
 cd dApps/dal
@@ -121,7 +121,7 @@ jupyter lab build
 jupyter labextension list | grep dal
 ```
 
-**🔧 Alternative: Use the automated script:**
+**Alternative: Use the automated script:**
 
 ```bash
 cd dApps/dal
