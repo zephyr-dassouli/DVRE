@@ -3,6 +3,8 @@
  * Handles deployment to orchestration server after RO-Crate publication
  */
 
+import { DVREProjectConfiguration } from '../../../services/ProjectConfigurationService';
+
 export interface DeploymentStatus {
   status: 'pending' | 'deploying' | 'deployed' | 'running' | 'failed';
   deployedAt?: string;
@@ -21,22 +23,12 @@ export interface DeploymentConfig {
 
 export interface OrchestrationRequest {
   project_id: string;
-  cwl_workflow: string;
-  inputs: Record<string, any>;
-  metadata: {
-    creator: string;
-    project_title: string;
-    contributors: string[];
-    smart_contract_address: string;
-    ipfs_dataset_hash?: string;
-    ipfs_model_hash?: string;
-    ipfs_rocrate_hash: string;
-    ipfs_bundle_hash: string;
-    configuration_phase: 'draft' | 'configured' | 'ready' | 'finalized';
-    project_type: string;
-    deployment_timestamp: string;
-    al_config?: any;
+  workflow_type: 'active_learning' | 'federated_learning' | 'general';
+  configuration: any;
+  ipfs_hashes: {
+    ro_crate_hash: string;
   };
+  configuration_phase: 'deployed' | 'not deployed';
 }
 
 interface OrchestrationResponse {
@@ -84,17 +76,24 @@ export class ProjectDeploymentService {
    */
   async deployProject(
     projectId: string,
-    roCrateData: any,
-    ipfsHashes: {
-      roCrateHash: string;
-      workflowHash?: string;
-      bundleHash: string;
-    },
-    userAddress: string
+    projectConfig: DVREProjectConfiguration,
+    ipfsHashes: { roCrateHash: string },
+    votingContractAddress?: string
   ): Promise<boolean> {
-    console.log(`🚀 Starting deployment for project: ${projectId}`);
-    
     try {
+      console.log('🚀 Deploying project to orchestration server:', projectId);
+      
+      // Prepare orchestration request
+      const orchestrationRequest: OrchestrationRequest = {
+        project_id: projectId,
+        workflow_type: this.getWorkflowType(projectConfig),
+        configuration: this.buildConfiguration(projectConfig, votingContractAddress),
+        ipfs_hashes: {
+          ro_crate_hash: ipfsHashes.roCrateHash
+        },
+        configuration_phase: 'deployed'
+      };
+
       // Update deployment status to 'deploying'
       this.updateDeploymentStatus(projectId, {
         status: 'deploying',
@@ -108,14 +107,6 @@ export class ProjectDeploymentService {
           throw new Error('Orchestration server is not responding');
         }
       }
-
-      // Extract CWL workflow and create orchestration request
-      const orchestrationRequest = this.createOrchestrationRequest(
-        projectId,
-        roCrateData,
-        ipfsHashes,
-        userAddress
-      );
 
       // Submit to orchestration server
       const response = await this.submitToOrchestration(orchestrationRequest);
@@ -175,54 +166,55 @@ export class ProjectDeploymentService {
   }
 
   /**
-   * Create orchestration request from RO-Crate data
+   * Determine workflow type from project configuration
    */
-  private createOrchestrationRequest(
-    projectId: string,
-    roCrateData: any,
-    ipfsHashes: { roCrateHash: string; workflowHash?: string; bundleHash: string },
-    userAddress: string
-  ): OrchestrationRequest {
-    // Extract main workflow from RO-Crate
-    const workflows = roCrateData['@graph']?.filter((item: any) => 
-      item['@type']?.includes?.('ComputationalWorkflow') || 
-      item['@id']?.endsWith?.('.cwl')
-    ) || [];
-    
-    const mainWorkflow = workflows[0];
-    if (!mainWorkflow) {
-      throw new Error('No CWL workflow found in RO-Crate');
+  private getWorkflowType(projectConfig: DVREProjectConfiguration): 'active_learning' | 'federated_learning' | 'general' {
+    if (projectConfig.extensions?.dal || projectConfig.projectData?.type === 'active_learning') {
+      return 'active_learning';
+    }
+    if (projectConfig.extensions?.federated || projectConfig.projectData?.type === 'federated_learning') {
+      return 'federated_learning';
+    }
+    return 'general';
+  }
+
+  /**
+   * Build configuration object for orchestration
+   */
+  private buildConfiguration(config: DVREProjectConfiguration, votingContractAddress?: string): any {
+    const baseConfig: any = {
+      project_name: config.projectData?.name || config.projectData?.project_id || 'Unknown Project',
+      description: config.projectData?.description || config.projectData?.objective || '',
+      owner: config.owner,
+      contract_address: config.contractAddress,
+      ro_crate_hash: config.ipfs?.roCrateHash,
+      created: config.created,
+      last_modified: config.lastModified
+    };
+
+    // Add extension-specific configurations
+    if (config.extensions?.dal) {
+      const dalConfig = config.extensions.dal;
+      const inputs: any = {
+        query_strategy: dalConfig.query_strategy || 'uncertainty_sampling',
+        AL_scenario: dalConfig.AL_scenario || 'pool_based',
+        max_iterations: dalConfig.max_iterations || 10,
+        labeling_budget: dalConfig.labeling_budget || 100,
+        validation_split: dalConfig.validation_split || 0.2,
+        training_dataset: dalConfig.training_dataset || '',
+        labeling_dataset: dalConfig.labeling_dataset || '',
+        voting_consensus: dalConfig.voting_consensus || 0.7,
+        voting_timeout: dalConfig.voting_timeout_seconds || 3600
+      };
+
+      if (votingContractAddress) {
+        inputs.voting_contract_address = votingContractAddress;
+      }
+      
+      baseConfig.inputs = inputs;
     }
 
-    // Extract project metadata
-    const rootDataEntity = roCrateData['@graph']?.find((item: any) => item['@id'] === './') || {};
-    const projectTitle = rootDataEntity.name || `Project ${projectId}`;
-
-    // Extract AL configuration if present
-    const alConfig = this.extractALConfiguration(roCrateData);
-
-    // Create inputs from RO-Crate datasets and AL config
-    const inputs = this.createWorkflowInputs(roCrateData, alConfig, ipfsHashes);
-
-    return {
-      project_id: projectId,
-      cwl_workflow: mainWorkflow.text || JSON.stringify(mainWorkflow, null, 2),
-      inputs,
-      metadata: {
-        creator: userAddress,
-        project_title: projectTitle,
-        al_config: alConfig,
-        contributors: rootDataEntity.contributor?.map((c: any) => c['@id'] || c) || [],
-        smart_contract_address: projectId, // Assuming projectId is contract address
-        ipfs_dataset_hash: this.extractDatasetHash(roCrateData),
-        ipfs_model_hash: this.extractModelHash(roCrateData),
-        ipfs_rocrate_hash: ipfsHashes.roCrateHash,
-        ipfs_bundle_hash: ipfsHashes.bundleHash,
-        configuration_phase: 'finalized' as const,
-        project_type: this.extractProjectType(roCrateData),
-        deployment_timestamp: new Date().toISOString()
-      }
-    };
+    return baseConfig;
   }
 
   /**
@@ -234,9 +226,8 @@ export class ProjectDeploymentService {
     console.log(`📡 Submitting to orchestration server: ${endpoint}`);
     console.log('📄 Request payload:', {
       project_id: request.project_id,
-      workflow_size: request.cwl_workflow.length,
-      inputs_count: Object.keys(request.inputs).length,
-      metadata: request.metadata
+      workflow_type: request.workflow_type,
+      configuration: request.configuration
     });
 
     try {
@@ -287,106 +278,6 @@ export class ProjectDeploymentService {
       console.warn('Orchestration server health check failed:', error);
       return false;
     }
-  }
-
-  /**
-   * Extract AL configuration from RO-Crate
-   */
-  private extractALConfiguration(roCrateData: any): any {
-    // Look for AL configuration in various places in the RO-Crate
-    const graphs = roCrateData['@graph'] || [];
-    
-    // Check for AL-specific metadata in root dataset
-    const rootDataset = graphs.find((item: any) => item['@id'] === './');
-    if (rootDataset?.al_config) {
-      return rootDataset.al_config;
-    }
-
-    // Check for AL workflow parameters
-    const alWorkflows = graphs.filter((item: any) => 
-      item['@type']?.includes?.('ComputationalWorkflow') && 
-      (item.name?.toLowerCase().includes('active learning') || 
-       item.description?.toLowerCase().includes('active learning'))
-    );
-
-    if (alWorkflows.length > 0) {
-      return {
-        detected_from: 'workflow',
-        workflow_name: alWorkflows[0].name,
-        workflow_description: alWorkflows[0].description
-      };
-    }
-
-    return null;
-  }
-
-  /**
-   * Create workflow inputs from RO-Crate data
-   */
-  private createWorkflowInputs(roCrateData: any, alConfig: any, ipfsHashes: any): Record<string, any> {
-    const inputs: Record<string, any> = {};
-
-    // Add IPFS hashes as inputs
-    inputs.rocrate_hash = ipfsHashes.roCrateHash;
-    inputs.bundle_hash = ipfsHashes.bundleHash;
-    if (ipfsHashes.workflowHash) {
-      inputs.workflow_hash = ipfsHashes.workflowHash;
-    }
-
-    // Extract datasets from RO-Crate
-    const datasets = roCrateData['@graph']?.filter((item: any) => item['@type'] === 'Dataset') || [];
-    if (datasets.length > 0) {
-      inputs.datasets = datasets.map((ds: any) => ({
-        id: ds['@id'],
-        name: ds.name,
-        url: ds.contentUrl,
-        format: ds.encodingFormat
-      }));
-    }
-
-    // Add AL-specific inputs if available
-    if (alConfig) {
-      inputs.al_config = alConfig;
-    }
-
-    return inputs;
-  }
-
-  /**
-   * Extract dataset hash from RO-Crate (utility)
-   */
-  private extractDatasetHash(roCrateData: any): string | undefined {
-    const datasets = roCrateData['@graph']?.filter((item: any) => item['@type'] === 'Dataset') || [];
-    return datasets[0]?.contentUrl?.split('/').pop(); // Extract hash from IPFS URL
-  }
-
-  /**
-   * Extract model hash from RO-Crate (utility)
-   */
-  private extractModelHash(roCrateData: any): string | undefined {
-    const models = roCrateData['@graph']?.filter((item: any) => 
-      item['@type']?.includes?.('SoftwareSourceCode') && 
-      item.name?.toLowerCase().includes('model')
-    ) || [];
-    return models[0]?.contentUrl?.split('/').pop(); // Extract hash from IPFS URL
-  }
-
-  /**
-   * Extract project type from RO-Crate (utility)
-   */
-  private extractProjectType(roCrateData: any): string {
-    const rootDataset = roCrateData['@graph']?.find((item: any) => item['@id'] === './');
-    
-    // Check keywords for project type
-    const keywords = rootDataset?.keywords || [];
-    if (keywords.includes('active learning') || keywords.includes('AL')) {
-      return 'active_learning';
-    }
-    if (keywords.includes('federated learning') || keywords.includes('FL')) {
-      return 'federated_learning';
-    }
-    
-    return 'general';
   }
 
   /**

@@ -4,18 +4,25 @@ export { default as ProjectConfigurationPanel } from './ProjectConfigurationPane
 export { default as ProjectInformationPanel } from './ProjectInformationPanel';
 export { default as WorkflowsPanel } from './WorkflowsPanel';
 export { default as UserList } from './UserList';
+export { default as ComputationModePanel } from './ComputationModePanel';
 
 // Re-export types
 export type { IProjectDeploymentWidget } from './ProjectDeploymentWidget';
 
-// Re-export deployment services for easy access
+/**
+ * Deployment Services - All deployment-related business logic
+ */
+
 export { 
   DeploymentOrchestrator, 
   deploymentOrchestrator,
+  type DeploymentResults
+} from './services/DeploymentOrchestrator';
+
+export { 
   ProjectDeploymentService, 
   projectDeploymentService,
-  type DeploymentResult,
   type DeploymentStatus,
   type DeploymentConfig,
   type OrchestrationRequest
-} from './services'; 
+} from './services/ProjectDeploymentService'; 

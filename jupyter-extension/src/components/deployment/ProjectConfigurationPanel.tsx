@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DVREProjectConfiguration, projectConfigurationService } from '../../services/ProjectConfigurationService';
 import { useAuth } from '../../hooks/useAuth';
+import { assetService, AssetInfo } from '../../utils/AssetService';
 
 interface ProjectConfigurationPanelProps {
   projectId: string;
@@ -14,6 +15,7 @@ interface ActiveLearningConfig {
   maxIterations: number;
   queryBatchSize: number;
   votingConsensus: string;
+  votingTimeout: number;
   trainingDataset: string;
   labelingDataset: string;
   model: string;
@@ -41,12 +43,17 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
   onConfigurationChange
 }) => {
   const { account } = useAuth();
+  
+  // Check if project is deployed (read-only mode)
+  const isDeployed = projectConfig.status === 'deployed';
+  
   const [config, setConfig] = useState<ActiveLearningConfig>({
     queryStrategy: 'uncertainty_sampling',
     alScenario: 'pool_based',
     maxIterations: 5,
     queryBatchSize: 2,
     votingConsensus: 'simple_majority',
+    votingTimeout: 300, // Default to 5 minutes
     trainingDataset: '',
     labelingDataset: '',
     model: 'logistic_regression',
@@ -54,13 +61,17 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
   });
   const [labelInput, setLabelInput] = useState('');
   const [isActivelearning, setIsActiveLearning] = useState(false);
+  const [userAssets, setUserAssets] = useState<AssetInfo[]>([]);
 
-  // Mock data for datasets and models (in real implementation, these would come from IPFS Manager)
-  const availableDatasets: Dataset[] = [
-    { id: 'dataset1', name: 'Iris Dataset', description: 'Classic iris flower classification dataset' },
-    { id: 'dataset2', name: 'Wine Quality Dataset', description: 'Wine quality classification dataset' },
-    { id: 'dataset3', name: 'Custom Dataset 1', description: 'User uploaded dataset' }
-  ];
+  // Real datasets from user's blockchain assets (filtered for datasets only)
+  const availableDatasets: Dataset[] = userAssets
+    .filter(asset => asset.assetType === 'dataset')
+    .map(asset => ({
+      id: asset.address, // Use asset address as ID
+      name: asset.name,
+      description: `Dataset: ${asset.name}`,
+      ipfsHash: asset.ipfsHash
+    }));
 
   const availableModels: Model[] = [
     { id: 'logistic_regression', name: 'Logistic Regression', type: 'sklearn', description: 'Simple linear classifier' },
@@ -110,10 +121,35 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
         alScenario: dalConfig.AL_scenario || prev.alScenario,
         maxIterations: dalConfig.max_iterations || prev.maxIterations,
         queryBatchSize: dalConfig.labeling_budget || prev.queryBatchSize,
+        votingConsensus: dalConfig.voting_consensus || prev.votingConsensus,
+        votingTimeout: dalConfig.voting_timeout_seconds || prev.votingTimeout,
         model: typeof dalConfig.model === 'string' ? dalConfig.model : dalConfig.model?.type || prev.model
       }));
     }
   }, [projectConfig, detectProjectType]);
+
+  // Load user's blockchain assets
+  useEffect(() => {
+    const loadUserAssets = async () => {
+      try {
+        const assets = await assetService.getAllAssets();
+        setUserAssets(assets);
+        console.log('Loaded user assets:', assets);
+      } catch (error) {
+        console.warn('Failed to load user assets:', error);
+      }
+    };
+
+    loadUserAssets();
+  }, []);
+
+  // Helper function to format voting timeout
+  const formatVotingTimeout = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}min`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}hr`;
+    return `${Math.floor(seconds / 86400)}d`;
+  };
 
   // Save configuration to project
   const saveConfiguration = useCallback(async (newConfig: ActiveLearningConfig) => {
@@ -134,6 +170,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
         federated: false,
         contributors: [],
         voting_consensus: newConfig.votingConsensus,
+        voting_timeout_seconds: newConfig.votingTimeout,
         training_dataset: newConfig.trainingDataset,
         labeling_dataset: newConfig.labelingDataset,
         label_space: newConfig.labelSpace
@@ -207,7 +244,31 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
     <div className="project-config-panel">
       <div className="config-header">
         <h3>Active Learning Project Configuration</h3>
-        <p>Configure your Active Learning project parameters below.</p>
+        {isDeployed ? (
+          <div className="read-only-notice" style={{
+            padding: '12px',
+            backgroundColor: '#fff3cd',
+            border: '1px solid #ffeaa7',
+            borderRadius: '4px',
+            marginTop: '8px'
+          }}>
+            <span className="read-only-badge" style={{
+              display: 'inline-block',
+              padding: '4px 8px',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              borderRadius: '4px',
+              marginRight: '8px'
+            }}>READ-ONLY</span>
+            <p style={{ margin: '8px 0 0 0', color: '#856404', fontSize: '14px' }}>
+              Project is deployed. Configuration cannot be modified.
+            </p>
+          </div>
+        ) : (
+          <p>Configure your Active Learning project parameters below.</p>
+        )}
       </div>
 
       <div className="config-sections">
@@ -222,6 +283,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                 id="query-strategy"
                 value={config.queryStrategy}
                 onChange={(e) => handleConfigChange('queryStrategy', e.target.value)}
+                disabled={isDeployed}
               >
                 <option value="uncertainty_sampling">Uncertainty Sampling</option>
                 <option value="diversity_sampling">Diversity Sampling</option>
@@ -238,6 +300,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                 id="al-scenario"
                 value={config.alScenario}
                 onChange={(e) => handleConfigChange('alScenario', e.target.value)}
+                disabled={isDeployed}
               >
                 <option value="pool_based">Pool-based</option>
                 <option value="stream_based">Stream-based</option>
@@ -250,10 +313,11 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
               <input
                 id="max-iterations"
                 type="number"
-                min="1"
+                min="0"
                 max="100"
                 value={config.maxIterations}
                 onChange={(e) => handleConfigChange('maxIterations', parseInt(e.target.value) || 5)}
+                disabled={isDeployed}
               />
               <small>Maximum number of AL iterations (0 for infinite)</small>
             </div>
@@ -267,6 +331,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                 max="1000"
                 value={config.queryBatchSize}
                 onChange={(e) => handleConfigChange('queryBatchSize', parseInt(e.target.value) || 2)}
+                disabled={isDeployed}
               />
               <small>Number of samples to label per iteration</small>
             </div>
@@ -277,6 +342,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                 id="voting-consensus"
                 value={config.votingConsensus}
                 onChange={(e) => handleConfigChange('votingConsensus', e.target.value)}
+                disabled={isDeployed}
               >
                 <option value="simple_majority">Simple Majority</option>
                 <option value="unanimous">Unanimous</option>
@@ -284,6 +350,110 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                 <option value="expert_override">Expert Override</option>
               </select>
               <small>How to resolve labeling conflicts</small>
+            </div>
+
+            <div className="config-field">
+              <label htmlFor="voting-timeout">Voting Timeout (seconds)</label>
+              <div className="voting-timeout-container" style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <input
+                  id="voting-timeout"
+                  type="number"
+                  min="60"
+                  max="86400"
+                  value={config.votingTimeout}
+                  onChange={(e) => handleConfigChange('votingTimeout', parseInt(e.target.value) || 300)}
+                  disabled={isDeployed}
+                  style={{
+                    padding: '8px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontSize: '14px'
+                  }}
+                />
+                <div className="timeout-presets" style={{
+                  display: 'flex',
+                  gap: '4px',
+                  flexWrap: 'wrap'
+                }}>
+                  <button 
+                    type="button" 
+                    onClick={() => handleConfigChange('votingTimeout', 300)}
+                    disabled={isDeployed}
+                    className={config.votingTimeout === 300 ? 'active' : ''}
+                    style={{
+                      padding: '4px 8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      background: config.votingTimeout === 300 ? '#2196f3' : 'white',
+                      color: config.votingTimeout === 300 ? 'white' : '#333',
+                      fontSize: '12px',
+                      cursor: isDeployed ? 'not-allowed' : 'pointer',
+                      opacity: isDeployed ? 0.5 : 1
+                    }}
+                  >
+                    5min
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => handleConfigChange('votingTimeout', 900)}
+                    disabled={isDeployed}
+                    className={config.votingTimeout === 900 ? 'active' : ''}
+                    style={{
+                      padding: '4px 8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      background: config.votingTimeout === 900 ? '#2196f3' : 'white',
+                      color: config.votingTimeout === 900 ? 'white' : '#333',
+                      fontSize: '12px',
+                      cursor: isDeployed ? 'not-allowed' : 'pointer',
+                      opacity: isDeployed ? 0.5 : 1
+                    }}
+                  >
+                    15min
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => handleConfigChange('votingTimeout', 3600)}
+                    disabled={isDeployed}
+                    className={config.votingTimeout === 3600 ? 'active' : ''}
+                    style={{
+                      padding: '4px 8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      background: config.votingTimeout === 3600 ? '#2196f3' : 'white',
+                      color: config.votingTimeout === 3600 ? 'white' : '#333',
+                      fontSize: '12px',
+                      cursor: isDeployed ? 'not-allowed' : 'pointer',
+                      opacity: isDeployed ? 0.5 : 1
+                    }}
+                  >
+                    1hr
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => handleConfigChange('votingTimeout', 86400)}
+                    disabled={isDeployed}
+                    className={config.votingTimeout === 86400 ? 'active' : ''}
+                    style={{
+                      padding: '4px 8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      background: config.votingTimeout === 86400 ? '#2196f3' : 'white',
+                      color: config.votingTimeout === 86400 ? 'white' : '#333',
+                      fontSize: '12px',
+                      cursor: isDeployed ? 'not-allowed' : 'pointer',
+                      opacity: isDeployed ? 0.5 : 1
+                    }}
+                  >
+                    24hr
+                  </button>
+                </div>
+              </div>
+              <small>Maximum time for annotators to reach consensus on a sample</small>
             </div>
           </div>
         </div>
@@ -299,6 +469,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                 id="training-dataset"
                 value={config.trainingDataset}
                 onChange={(e) => handleConfigChange('trainingDataset', e.target.value)}
+                disabled={isDeployed}
               >
                 <option value="">Select a dataset...</option>
                 {availableDatasets.map(dataset => (
@@ -316,6 +487,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                 id="labeling-dataset"
                 value={config.labelingDataset}
                 onChange={(e) => handleConfigChange('labelingDataset', e.target.value)}
+                disabled={isDeployed}
               >
                 <option value="">Select a dataset...</option>
                 {availableDatasets.map(dataset => (
@@ -339,6 +511,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
               id="model"
               value={config.model}
               onChange={(e) => handleConfigChange('model', e.target.value)}
+              disabled={isDeployed}
             >
               {availableModels.map(model => (
                 <option key={model.id} value={model.id}>
@@ -369,11 +542,12 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                 value={labelInput}
                 onChange={(e) => setLabelInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleAddLabel()}
+                disabled={isDeployed}
               />
               <button 
                 type="button" 
                 onClick={handleAddLabel}
-                disabled={!labelInput.trim() || config.labelSpace.includes(labelInput.trim())}
+                disabled={isDeployed || !labelInput.trim() || config.labelSpace.includes(labelInput.trim())}
               >
                 Add Label
               </button>
@@ -391,6 +565,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                         type="button" 
                         onClick={() => handleRemoveLabel(label)}
                         className="remove-label"
+                        disabled={isDeployed}
                       >
                         ×
                       </button>
@@ -412,6 +587,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
               <div><strong>Max Iterations:</strong> {config.maxIterations === 0 ? 'Infinite' : config.maxIterations}</div>
               <div><strong>Batch Size:</strong> {config.queryBatchSize}</div>
               <div><strong>Voting:</strong> {config.votingConsensus.replace(/_/g, ' ')}</div>
+              <div><strong>Voting Timeout:</strong> {formatVotingTimeout(config.votingTimeout)}</div>
               <div><strong>Model:</strong> {availableModels.find(m => m.id === config.model)?.name || config.model}</div>
               <div><strong>Labels:</strong> {config.labelSpace.length} defined</div>
             </div>

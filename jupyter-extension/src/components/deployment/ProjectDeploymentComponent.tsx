@@ -7,6 +7,7 @@ import ProjectConfigurationPanel from './ProjectConfigurationPanel';
 import ProjectInformationPanel from './ProjectInformationPanel';
 import WorkflowsPanel from './WorkflowsPanel';
 import UserList from './UserList';
+import ComputationModePanel from './ComputationModePanel';
 
 // Import JSONProject ABI for smart contract interaction
 import JSONProject from '../../abis/JSONProject.json';
@@ -29,6 +30,8 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'configure'>('list');
+  const [enhancedRoCrateMetadata, setEnhancedRoCrateMetadata] = useState<string>('');
+  const [computationMode, setComputationMode] = useState<'local' | 'remote'>('local');
 
   // Use refs to prevent infinite re-renders
   const onConfigurationChangeRef = useRef(onConfigurationChange);
@@ -198,11 +201,28 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
         setSelectedProject(updatedConfig);
         const currentOnConfigurationChange = onConfigurationChangeRef.current;
         currentOnConfigurationChange?.(updatedConfig);
+        // Reload enhanced RO-Crate when configuration changes
+        loadEnhancedRoCrateMetadata(updatedConfig);
       }
     );
 
+    // Load enhanced RO-Crate metadata for the selected project
+    loadEnhancedRoCrateMetadata(selectedProject);
+
     return unsubscribe;
   }, [selectedProject]); // Remove onConfigurationChange dependency
+
+  // Load enhanced RO-Crate metadata with real blockchain assets
+  const loadEnhancedRoCrateMetadata = async (project: DVREProjectConfiguration) => {
+    try {
+      const enhancedMetadata = await projectConfigurationService.generateEnhancedROCrateJSON(project);
+      setEnhancedRoCrateMetadata(enhancedMetadata);
+    } catch (error) {
+      console.error('Failed to load enhanced RO-Crate metadata:', error);
+      // Fallback to regular metadata
+      setEnhancedRoCrateMetadata(JSON.stringify(project.roCrate.metadata, null, 2));
+    }
+  };
 
   // Handle initial project selection
   useEffect(() => {
@@ -229,24 +249,40 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
       
       // Use the centralized deployment orchestrator
       const { deploymentOrchestrator } = await import('./services/DeploymentOrchestrator');
-      const result = await deploymentOrchestrator.deployProject(selectedProject.projectId, account);
+      const result = await deploymentOrchestrator.deployProject(selectedProject.projectId, account, computationMode);
 
       // Generate success message based on deployment results
       let deploymentMessage = `Project deployment completed!\n\n`;
       
       // Add step-by-step results
-      if (result.steps.alContracts === 'success') {
+      if (result.steps.alSmartContracts === 'success') {
         deploymentMessage += `✅ AL Smart Contracts: Deployed\n`;
-      } else if (result.steps.alContracts === 'failed') {
+        // Show AL contract addresses if they were actually deployed
+        if (result.alContractAddresses) {
+          deploymentMessage += `  📍 ALProjectVoting: ${result.alContractAddresses.voting}\n`;
+          deploymentMessage += `  📍 ALProjectStorage: ${result.alContractAddresses.storage}\n`;
+        }
+      } else if (result.steps.alSmartContracts === 'failed') {
         deploymentMessage += `⚠️ AL Smart Contracts: Failed\n`;
+      } else if (result.steps.alSmartContracts === 'skipped') {
+        deploymentMessage += `⏭️ AL Smart Contracts: Skipped (Test Mode)\n`;
+        deploymentMessage += `  ℹ️ ALProjectVoting and ALProjectStorage not deployed\n`;
+        deploymentMessage += `  ℹ️ Contract methods setALMetadata, setVotingContract unavailable\n`;
       }
       
       if (result.steps.ipfsUpload === 'success') {
         deploymentMessage += `✅ IPFS Upload: Success\n`;
         deploymentMessage += `🔗 RO-Crate Hash: ${result.roCrateHash}\n`;
-        deploymentMessage += `📦 Bundle Hash: ${result.bundleHash}\n`;
       } else {
         deploymentMessage += `❌ IPFS Upload: Failed\n`;
+      }
+
+      // Local file download results
+      if (result.steps.localFileDownload === 'success') {
+        deploymentMessage += `✅ Local Files: Downloaded (${result.downloadedFiles?.length || 0} files)\n`;
+        deploymentMessage += `📁 Local Path: ${result.localDownloadPath}\n`;
+      } else if (result.steps.localFileDownload === 'failed') {
+        deploymentMessage += `❌ Local Files: Download Failed\n`;
       }
       
       if (result.steps.orchestrationDeploy === 'success') {
@@ -257,6 +293,8 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
         }
       } else if (result.steps.orchestrationDeploy === 'failed') {
         deploymentMessage += `⚠️ Orchestration: Failed\n`;
+      } else if (result.steps.orchestrationDeploy === 'skipped') {
+        deploymentMessage += `⏭️ Orchestration: Skipped (Local mode)\n`;
       }
       
       if (result.steps.smartContractUpdate === 'success') {
@@ -265,8 +303,9 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
         deploymentMessage += `⚠️ Smart Contract: Update Failed\n`;
       }
 
-      // Overall status
-      if (result.success) {
+      // Overall status - determine success based on critical steps
+      const overallSuccess = result.steps.ipfsUpload === 'success';
+      if (overallSuccess) {
         deploymentMessage += `\n🎉 Overall Status: SUCCESS`;
       } else {
         deploymentMessage += `\n⚠️ Overall Status: PARTIAL (check individual steps)`;
@@ -329,15 +368,6 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
     }
   };
 
-  // Handle configuration changes from the panels
-  const handleConfigurationChange = (updatedConfig: any) => {
-    if (!selectedProject) return;
-    
-    // Update the selected project configuration
-    const newConfig = { ...selectedProject, ...updatedConfig };
-    setSelectedProject(newConfig);
-  };
-
   const getProjectDescription = (project: DVREProjectConfiguration): string => {
     const baseDescription = project.projectData?.description || project.projectData?.objective || 'No description provided';
     const isALProject = project.extensions?.dal !== undefined;
@@ -362,50 +392,18 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
   const handleCopyRoCrateJSON = () => {
     if (!selectedProject) return;
 
-    const roCrateJSON = JSON.stringify(selectedProject.roCrate.metadata, null, 2);
+    // Use enhanced metadata if available, otherwise fall back to regular metadata
+    const roCrateJSON = enhancedRoCrateMetadata || JSON.stringify(selectedProject.roCrate.metadata, null, 2);
     
     if (navigator.clipboard) {
       navigator.clipboard.writeText(roCrateJSON).then(() => {
-        alert('RO-Crate JSON copied to clipboard!');
+        alert('Enhanced RO-Crate JSON-LD copied to clipboard!');
       }).catch(() => {
         // Fallback for older browsers
         fallbackCopy(roCrateJSON);
       });
     } else {
       fallbackCopy(roCrateJSON);
-    }
-  };
-
-  const handleDownloadInputsYaml = () => {
-    if (!selectedProject?.extensions?.dal) return;
-
-    const inputsYaml = projectConfigurationService.generateDALInputsYaml(selectedProject.extensions.dal);
-    
-    // Create and download file
-    const blob = new Blob([inputsYaml], { type: 'application/x-yaml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${selectedProject.projectData?.name || 'project'}-inputs.yaml`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleCopyInputsYaml = () => {
-    if (!selectedProject?.extensions?.dal) return;
-
-    const inputsYaml = projectConfigurationService.generateDALInputsYaml(selectedProject.extensions.dal);
-    
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(inputsYaml).then(() => {
-        alert('inputs.yaml copied to clipboard!');
-      }).catch(() => {
-        fallbackCopy(inputsYaml);
-      });
-    } else {
-      fallbackCopy(inputsYaml);
     }
   };
 
@@ -416,7 +414,7 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
     textArea.select();
     try {
       document.execCommand('copy');
-      alert('RO-Crate JSON copied to clipboard!');
+      alert('Enhanced RO-Crate JSON-LD copied to clipboard!');
     } catch (err) {
       alert('Failed to copy to clipboard. Please copy manually from the JSON viewer.');
     }
@@ -425,17 +423,10 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'draft': return '#f59e0b';
-      case 'configured': return '#3b82f6';
-      case 'ready': return '#10b981';
-      case 'active': return '#8b5cf6';
-      case 'completed': return '#6b7280';
+      case 'deployed': return '#10b981'; // Green for deployed
+      case 'not deployed': return '#f59e0b'; // Orange for not deployed
       default: return '#6b7280';
     }
-  };
-
-  const isDALProject = () => {
-    return selectedProject?.extensions?.dal !== undefined;
   };
 
   // Show authentication message if not connected
@@ -522,21 +513,6 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
                 {getProjectDescription(project)}
               </p>
               
-              <div className="project-stats">
-                <div className="stat">
-                  <span className="stat-label">Datasets:</span>
-                  <span className="stat-value">{Object.keys(project.roCrate.datasets).length}</span>
-                </div>
-                <div className="stat">
-                  <span className="stat-label">Workflows:</span>
-                  <span className="stat-value">{Object.keys(project.roCrate.workflows).length}</span>
-                </div>
-                <div className="stat">
-                  <span className="stat-label">Models:</span>
-                  <span className="stat-value">{Object.keys(project.roCrate.models).length}</span>
-                </div>
-              </div>
-              
               <div className="project-footer">
                 <span className="last-modified">
                   Modified: {new Date(project.lastModified).toLocaleDateString()}
@@ -565,9 +541,9 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
         <div className="config-actions">
           <span 
             className="status-badge"
-            style={{ backgroundColor: getStatusColor(selectedProject?.status || 'draft') }}
+            style={{ backgroundColor: getStatusColor(selectedProject?.status || 'not deployed') }}
           >
-            {selectedProject?.status || 'draft'}
+            {selectedProject?.status || 'not deployed'}
           </span>
           <button 
             className="deploy-button"
@@ -590,6 +566,12 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
           {/* Project Information Section */}
           <ProjectInformationPanel project={selectedProject} />
 
+          {/* Project Users Panel */}
+          <UserList 
+            project={selectedProject} 
+            onUserAction={handleUserAction}
+          />
+
           {/* Project Configuration Panel */}
           <div className="config-section">
             <h4>Project Configuration</h4>
@@ -603,19 +585,22 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
             />
           </div>
 
+          {/* Computation Mode Panel */}
+          <ComputationModePanel 
+            project={selectedProject} 
+            computationMode={computationMode}
+            onModeChange={(mode) => {
+              setComputationMode(mode);
+            }}
+          />
+
           {/* Workflows Panel */}
           <WorkflowsPanel project={selectedProject} />
-
-          {/* User List Panel */}
-          <UserList 
-            project={selectedProject} 
-            onUserAction={handleUserAction}
-          />
 
           {/* RO-Crate JSON-LD Viewer */}
           <div className="config-section">
             <div className="section-header">
-              <h4>RO-Crate JSON-LD</h4>
+              <h4>RO-Crate JSON-LD Metadata</h4>
               <button
                 className="copy-json-button"
                 onClick={() => handleCopyRoCrateJSON()}
@@ -626,7 +611,7 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
             
             <div className="json-viewer">
               <pre className="json-content">
-                {JSON.stringify(selectedProject.roCrate.metadata, null, 2)}
+                {enhancedRoCrateMetadata || JSON.stringify(selectedProject.roCrate.metadata, null, 2)}
               </pre>
             </div>
           </div>
@@ -643,47 +628,6 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
                   <strong>RO-Crate Hash:</strong> 
                   <code>{selectedProject.ipfs.roCrateHash}</code>
                 </div>
-                {selectedProject.ipfs.workflowHash && (
-                  <div className="info-item">
-                    <strong>Workflow Hash:</strong> 
-                    <code>{selectedProject.ipfs.workflowHash}</code>
-                  </div>
-                )}
-                <div className="info-item">
-                  <strong>Bundle Hash:</strong> 
-                  <code>{selectedProject.ipfs.bundleHash}</code>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* DAL Inputs YAML Section */}
-          {isDALProject() && (
-            <div className="config-section">
-              <h4>DAL Inputs (inputs.yaml)</h4>
-              <div className="dal-inputs-summary">
-                <p>This section displays the inputs.yaml file for your DAL project. You can copy the content or download it.</p>
-                <div className="dal-actions">
-                  <button
-                    className="copy-inputs-button"
-                    onClick={handleCopyInputsYaml}
-                    disabled={loading}
-                  >
-                    {loading ? 'Copying...' : 'Copy inputs.yaml'}
-                  </button>
-                  <button
-                    className="download-inputs-button"
-                    onClick={handleDownloadInputsYaml}
-                    disabled={loading}
-                  >
-                    {loading ? 'Downloading...' : 'Download inputs.yaml'}
-                  </button>
-                </div>
-              </div>
-              <div className="json-viewer">
-                <pre className="json-content">
-                  {projectConfigurationService.generateDALInputsYaml(selectedProject.extensions.dal)}
-                </pre>
               </div>
             </div>
           )}

@@ -5,7 +5,7 @@
 export { 
   DeploymentOrchestrator, 
   deploymentOrchestrator,
-  type DeploymentResult
+  type DeploymentResults
 } from './DeploymentOrchestrator';
 
 export { 

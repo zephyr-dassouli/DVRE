@@ -69,12 +69,14 @@ For other projects not using a template → user needs to build it on UI (future
 ROCrate should contain these 3 or 4 files:
 
 ```
-ro-crates/
-└── project_abc/
-    ├── ro-crate-metadata.json   # Main metadata file
-    ├── al_iteration.cwl         # CWL tool (wraps modAL)
-    ├── config.json              # Project-wide config (model, query strategy)
-    └── README.md                # Optional human summary
+ro-crate-dal-project/
+├── ro-crate-metadata.json
+├── workflows/
+│   └── al_iteration.cwl
+├── inputs/
+│   └── inputs.json
+├── config/
+│   └── config.json
 ```
 
 ## Deployment Process - ⚠️ TO BE IMPLEMENTED
@@ -128,7 +130,9 @@ ro-crates/
    - Join request handling UI
 
 4. **Complete Deployment Process**
-   - Smart contract updates (`JSONProject`, `ALProjectVoting`, `ALProjectStorage`)
-   - ROCrate creation and IPFS storage
-   - Workflow orchestration
-   - Final contract updates with hashes
+   - the Main Project Smart Contract (JSONProject) gets updated.
+   - the 2 helper ALProjectVoting and ALProjectStorage get created and linked to the main project contract.
+   - a config.json file that goes inside the RO-Crate, gets created based on the smart contract data (the ones the user just updated)
+   - system uploads RO-Crate to IPFS and generates its root CID
+   - system sends the cwl workflow file (in case of Active Learning it is al_iteration.cwl) to the orchestrator, orchestrator assigns the workflow to the right executor (in case of Active Learning it is the coordinator’s AL-Engine)
+   - RO-Crate IPFS CID is put onto project smart contract

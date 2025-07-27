@@ -130,20 +130,6 @@ const ProjectInformationPanel: React.FC<ProjectInformationPanelProps> = ({ proje
           </div>
         </div>
 
-        {/* Additional project stats */}
-        <div className="info-row">
-          <div className="info-label">
-            <strong>Resources:</strong>
-          </div>
-          <div className="info-value">
-            <span className="resource-count">
-              {Object.keys(project.roCrate.datasets).length} datasets, {' '}
-              {Object.keys(project.roCrate.workflows).length} workflows, {' '}
-              {Object.keys(project.roCrate.models).length} models
-            </span>
-          </div>
-        </div>
-
         {/* IPFS Publication Status */}
         {project.ipfs && (
           <div className="info-row">
@@ -200,11 +186,8 @@ const getProjectTypeLabel = (project: DVREProjectConfiguration): string => {
 
 const getStatusColor = (status: string): string => {
   switch (status) {
-    case 'draft': return '#f59e0b';
-    case 'configured': return '#3b82f6';
-    case 'ready': return '#10b981';
-    case 'active': return '#8b5cf6';
-    case 'completed': return '#6b7280';
+    case 'deployed': return '#10b981'; // Green for deployed
+    case 'not deployed': return '#f59e0b'; // Orange for not deployed
     default: return '#6b7280';
   }
 };

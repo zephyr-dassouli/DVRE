@@ -3,12 +3,15 @@
 ## RO-Crate Structure
 
 ```
-ro-crates/
-└── project_abc/
-    ├── ro-crate-metadata.json   # Main metadata file
-    ├── al_iteration.cwl         # CWL tool (wraps modAL)
-    ├── config.json              # Project-wide config (model, query strategy, AL params)
-    └── README.md                # Optional human summary
+ro-crate-dal-project/
+├── ro-crate-metadata.json
+├── workflows/
+│   └── al_iteration.cwl
+├── inputs/
+│   └── inputs.json
+├── config/
+│   └── config.json
+
 ```
 
 ## System Components Interaction

@@ -24,29 +24,33 @@ interface JoinRequest {
 const UserList: React.FC<UserListProps> = ({ project, onUserAction }) => {
   const { account } = useAuth();
   const [activeTab, setActiveTab] = useState<'members' | 'requests'>('members');
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
   // Mock data - in real implementation, this would come from the project's smart contract
   const members: ProjectMember[] = [
     {
-      address: project.contractAddress || '',
-      role: 'Owner',
+      address: project.owner || '',
+      role: 'Coordinator',
       joinedAt: project.created,
       isOwner: true
     },
-    // Add participants from project data if available
-    ...(project.projectData?.participants || []).map((p: any) => ({
-      address: p.address || p.participant,
-      role: p.role || 'Member',
-      joinedAt: p.joinedAt || Date.now()
-    }))
+    // Add participants from project data if available (excluding owner to avoid duplicates)
+    ...(project.projectData?.participants || [])
+      .filter((p: any) => {
+        const participantAddress = p.address || p.participant;
+        return participantAddress?.toLowerCase() !== project.owner?.toLowerCase();
+      })
+      .map((p: any) => ({
+        address: p.address || p.participant,
+        role: p.role || 'Contributor',
+        joinedAt: p.joinedAt || Date.now()
+      }))
   ];
 
   const joinRequests: JoinRequest[] = [
     // Mock pending requests - would come from contract
   ];
 
-  const isProjectOwner = project.contractAddress?.toLowerCase() === account?.toLowerCase();
+  const isProjectOwner = project.owner?.toLowerCase() === account?.toLowerCase();
   const userCount = members.length;
   const pendingCount = joinRequests.length;
 
