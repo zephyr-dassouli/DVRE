@@ -390,6 +390,15 @@ export class DeploymentOrchestrator {
         const queryBatchSize = dalConfig.queryBatchSize || 5;
         const labelSpace = dalConfig.labelSpace || ['positive', 'negative'];
         
+        console.log('🔍 AL Metadata values to set:', {
+          queryStrategy,
+          alScenario,
+          maxIterations,
+          queryBatchSize,
+          labelSpace
+        });
+        
+        console.log('📡 Calling setALMetadata on contract:', config.contractAddress);
         const metadataTx = await projectContract.setALMetadata(
           queryStrategy,
           alScenario,
@@ -397,10 +406,31 @@ export class DeploymentOrchestrator {
           queryBatchSize,
           labelSpace
         );
-        await metadataTx.wait();
-        console.log('✅ AL metadata set successfully');
+        
+        console.log('⏳ Waiting for setALMetadata transaction:', metadataTx.hash);
+        const receipt = await metadataTx.wait();
+        console.log('✅ AL metadata set successfully! Gas used:', receipt.gasUsed.toString());
+        
+        // Verify the metadata was actually set
+        try {
+          const verifyMetadata = await projectContract.getProjectMetadata();
+          console.log('🔍 Verification - AL metadata now on contract:', {
+            queryStrategy: verifyMetadata._queryStrategy,
+            alScenario: verifyMetadata._alScenario,
+            maxIterations: verifyMetadata._maxIteration.toString(),
+            queryBatchSize: verifyMetadata._queryBatchSize.toString(),
+            labelSpace: verifyMetadata._labelSpace
+          });
+        } catch (verifyError) {
+          console.warn('⚠️ Could not verify AL metadata was set:', verifyError);
+        }
+        
       } catch (error) {
-        console.warn('⚠️ Failed to set AL metadata (may already be set):', error);
+        console.error('❌ Failed to set AL metadata:', error);
+        if (error instanceof Error) {
+          console.error('🔍 Error message:', error.message);
+        }
+        throw error; // Re-throw to fail the deployment instead of continuing silently
       }
 
       const result = {
