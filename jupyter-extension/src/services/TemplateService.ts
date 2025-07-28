@@ -88,7 +88,8 @@ export class TemplateService {
       },
       max_iterations: dalParameters?.maxIterations || 10,
       labeling_budget: dalParameters?.labelingBudget || 100,
-      validation_split: dalParameters?.validationSplit || 0.2
+      validation_split: dalParameters?.validationSplit || 0.2,
+      labelSpace: dalParameters?.labelSpace || ['positive', 'negative']
     };
 
     // Create base configuration

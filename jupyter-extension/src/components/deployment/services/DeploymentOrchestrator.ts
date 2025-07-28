@@ -334,8 +334,8 @@ export class DeploymentOrchestrator {
       // Step 1: Deploy ALProjectVoting contract
       console.log('📊 Step 1: Deploying ALProjectVoting contract...');
       
-      const votingConsensus = dalConfig.voting_consensus || 'simple_majority';
-      const votingTimeout = dalConfig.voting_timeout_seconds || 3600;
+      const votingConsensus = dalConfig.votingConsensus || 'simple_majority';
+      const votingTimeout = dalConfig.votingTimeout || 3600;
       
       // Import AL contract ABIs (these should exist in the compiled artifacts)
       const ALProjectVotingABI = (await import('../../../abis/ALProjectVoting.json')).default;
@@ -384,11 +384,11 @@ export class DeploymentOrchestrator {
       // Step 4: Set AL metadata (if not already set)
       console.log('📋 Step 4: Setting AL metadata...');
       try {
-        const queryStrategy = dalConfig.query_strategy || 'uncertainty_sampling';
-        const alScenario = dalConfig.al_scenario || 'pool_based';
-        const maxIterations = dalConfig.max_iterations || 10;
-        const queryBatchSize = dalConfig.query_batch_size || 5;
-        const labelSpace = dalConfig.label_space || ['positive', 'negative'];
+        const queryStrategy = dalConfig.queryStrategy || 'uncertainty_sampling';
+        const alScenario = dalConfig.alScenario || 'pool_based';
+        const maxIterations = dalConfig.maxIterations || 10;
+        const queryBatchSize = dalConfig.queryBatchSize || 5;
+        const labelSpace = dalConfig.labelSpace || ['positive', 'negative'];
         
         const metadataTx = await projectContract.setALMetadata(
           queryStrategy,

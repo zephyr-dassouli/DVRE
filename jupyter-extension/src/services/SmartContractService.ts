@@ -78,25 +78,34 @@ export class SmartContractService {
             console.log('✅ Retrieved AL metadata from smart contract');
           } catch (contractError) {
             console.warn('⚠️ Could not retrieve AL metadata from contract, using configuration data');
-            // Fallback to stored configuration
+            // Fallback to stored configuration - using correct field names
             smartContractData = {
               queryStrategy: config.extensions.dal.queryStrategy || 'uncertainty_sampling',
-              alScenario: config.extensions.dal.AL_scenario || 'pool_based',
-              maxIterations: config.extensions.dal.max_iterations || 10,
-              queryBatchSize: config.extensions.dal.query_batch_size || 5,
-              labelSpace: config.extensions.dal.label_space || ['positive', 'negative']
+              alScenario: config.extensions.dal.alScenario || 'pool_based',
+              maxIterations: config.extensions.dal.maxIterations || 10,
+              queryBatchSize: config.extensions.dal.queryBatchSize || 5,
+              labelSpace: config.extensions.dal.labelSpace || ['positive', 'negative']
             };
           }
         } catch (error) {
           console.warn('⚠️ Could not connect to smart contract, using stored configuration');
           smartContractData = {
             queryStrategy: config.extensions.dal.queryStrategy || 'uncertainty_sampling',
-            alScenario: config.extensions.dal.AL_scenario || 'pool_based',
-            maxIterations: config.extensions.dal.max_iterations || 10,
-            queryBatchSize: config.extensions.dal.query_batch_size || 5,
-            labelSpace: config.extensions.dal.label_space || ['positive', 'negative']
+            alScenario: config.extensions.dal.alScenario || 'pool_based',
+            maxIterations: config.extensions.dal.maxIterations || 10,
+            queryBatchSize: config.extensions.dal.queryBatchSize || 5,
+            labelSpace: config.extensions.dal.labelSpace || ['positive', 'negative']
           };
         }
+      } else {
+        console.warn('⚠️ Could not connect to smart contract, using stored configuration');
+        smartContractData = {
+          queryStrategy: config.extensions.dal.queryStrategy || 'uncertainty_sampling',
+          alScenario: config.extensions.dal.alScenario || 'pool_based',
+          maxIterations: config.extensions.dal.maxIterations || 10,
+          queryBatchSize: config.extensions.dal.queryBatchSize || 5,
+          labelSpace: config.extensions.dal.labelSpace || ['positive', 'negative']
+        };
       }
 
       // Generate comprehensive config.json for AL projects
@@ -125,29 +134,32 @@ export class SmartContractService {
           query_batch_size: smartContractData.queryBatchSize,
           label_space: smartContractData.labelSpace,
           
-          // Model configuration
+          // Model configuration - using actual saved values
           model: {
-            type: config.extensions.dal.model?.type || 'RandomForestClassifier',
+            type: config.extensions.dal.model?.type || 'logistic_regression',
             parameters: config.extensions.dal.model?.parameters || {
-              n_estimators: 100,
+              max_iter: 1000,
               random_state: 42
             },
             framework: 'scikit-learn'
           },
           
-          // Dataset configuration
+          // Dataset configuration - using actual saved values
           datasets: {
-            training_dataset: config.extensions.dal.training_dataset || 'dataset-main',
-            labeling_dataset: config.extensions.dal.labeling_dataset || 'dataset-main',
+            training_dataset: config.extensions.dal.trainingDataset || 'dataset-main',
+            labeling_dataset: config.extensions.dal.labelingDataset || 'dataset-main',
             format: 'csv'
           },
           
-          // Voting configuration
+          // Voting configuration - using actual saved values
           voting: {
-            consensus_type: config.extensions.dal.voting_consensus || 'simple_majority',
+            consensus_type: config.extensions.dal.votingConsensus || 'simple_majority',
             threshold: 0.51,
-            timeout_seconds: 3600
-          }
+            timeout_seconds: config.extensions.dal.votingTimeout || 3600
+          },
+          
+          // Additional AL parameters
+          validation_split: config.extensions.dal.validation_split || 0.2
         },
         
         // Workflow configuration

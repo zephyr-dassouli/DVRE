@@ -242,9 +242,9 @@ export class ROCrateService {
             "text": JSON.stringify(config.extensions.dal, null, 2),
             "activelearning": {
               "queryStrategy": config.extensions.dal.queryStrategy,
-              "scenario": config.extensions.dal.AL_scenario,
-              "maxIterations": config.extensions.dal.max_iterations,
-              "labelingBudget": config.extensions.dal.labeling_budget,
+              "scenario": config.extensions.dal.alScenario,
+              "maxIterations": config.extensions.dal.maxIterations,
+              "labelingBudget": config.extensions.dal.queryBatchSize,
               "model": config.extensions.dal.model
             }
           }] : [])
@@ -271,10 +271,10 @@ export class ROCrateService {
     
     return {
       // Core AL configuration
-      query_strategy: dalConfig.query_strategy || 'uncertainty_sampling',
-      AL_scenario: dalConfig.AL_scenario || 'pool_based',
-      max_iterations: dalConfig.max_iterations || 10,
-      labeling_budget: dalConfig.labeling_budget || 100,
+      query_strategy: dalConfig.queryStrategy || 'uncertainty_sampling',
+      AL_scenario: dalConfig.alScenario || 'pool_based',
+      max_iterations: dalConfig.maxIterations || 10,
+      labeling_budget: dalConfig.queryBatchSize || 100,
       validation_split: dalConfig.validation_split || 0.2,
       
       // Model configuration
@@ -288,15 +288,15 @@ export class ROCrateService {
       },
       
       // Dataset references
-      training_dataset: dalConfig.training_dataset || '',
-      labeling_dataset: dalConfig.labeling_dataset || '',
+      training_dataset: dalConfig.trainingDataset || '',
+      labeling_dataset: dalConfig.labelingDataset || '',
       
       // Voting configuration
-      voting_consensus: dalConfig.voting_consensus || 0.7,
-      voting_timeout_seconds: dalConfig.voting_timeout_seconds || 3600,
+      voting_consensus: dalConfig.votingConsensus || 0.7,
+      voting_timeout_seconds: dalConfig.votingTimeout || 3600,
       
       // Label space
-      label_space: dalConfig.label_space || ['positive', 'negative'],
+      label_space: dalConfig.labelSpace || ['positive', 'negative'],
       
       // Runtime configuration
       execution: {

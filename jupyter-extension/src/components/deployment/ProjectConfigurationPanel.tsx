@@ -118,11 +118,11 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
       setConfig(prev => ({
         ...prev,
         queryStrategy: dalConfig.queryStrategy || prev.queryStrategy,
-        alScenario: dalConfig.AL_scenario || prev.alScenario,
-        maxIterations: dalConfig.max_iterations || prev.maxIterations,
-        queryBatchSize: dalConfig.labeling_budget || prev.queryBatchSize,
-        votingConsensus: dalConfig.voting_consensus || prev.votingConsensus,
-        votingTimeout: dalConfig.voting_timeout_seconds || prev.votingTimeout,
+        alScenario: dalConfig.alScenario || prev.alScenario,
+        maxIterations: dalConfig.maxIterations || prev.maxIterations,
+        queryBatchSize: dalConfig.queryBatchSize || prev.queryBatchSize,
+        votingConsensus: dalConfig.votingConsensus || prev.votingConsensus,
+        votingTimeout: dalConfig.votingTimeout || prev.votingTimeout,
         model: typeof dalConfig.model === 'string' ? dalConfig.model : dalConfig.model?.type || prev.model
       }));
     }
@@ -159,21 +159,21 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
       // Convert to DAL extension format
       const dalConfig = {
         queryStrategy: newConfig.queryStrategy,
-        AL_scenario: newConfig.alScenario,
+        alScenario: newConfig.alScenario,
         model: {
           type: newConfig.model,
           parameters: getModelParameters(newConfig.model)
         },
-        max_iterations: newConfig.maxIterations,
-        labeling_budget: newConfig.queryBatchSize,
+        maxIterations: newConfig.maxIterations,
+        queryBatchSize: newConfig.queryBatchSize,
         validation_split: 0.2,
         federated: false,
         contributors: [],
-        voting_consensus: newConfig.votingConsensus,
-        voting_timeout_seconds: newConfig.votingTimeout,
-        training_dataset: newConfig.trainingDataset,
-        labeling_dataset: newConfig.labelingDataset,
-        label_space: newConfig.labelSpace
+        votingConsensus: newConfig.votingConsensus,
+        votingTimeout: newConfig.votingTimeout,
+        trainingDataset: newConfig.trainingDataset,
+        labelingDataset: newConfig.labelingDataset,
+        labelSpace: newConfig.labelSpace
       };
 
       // Update project configuration

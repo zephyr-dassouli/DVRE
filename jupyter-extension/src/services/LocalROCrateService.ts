@@ -329,19 +329,50 @@ config:
    * Generate AL-specific config.json content (fallback)
    */
   private generateALConfigFallback(config: DVREProjectConfiguration): any {
+    const dalConfig = config.extensions?.dal || {};
+    
     return {
-      al_scenario: 'pool_based',
-      query_strategy: 'uncertainty_sampling',
-      model_type: 'SVC',
-      training_args: {
+      al_scenario: dalConfig.alScenario || 'pool_based',
+      query_strategy: dalConfig.queryStrategy || 'uncertainty_sampling',
+      model_type: this.mapModelType(dalConfig.model?.type || 'logistic_regression'),
+      training_args: dalConfig.model?.parameters || {
         max_iter: 1000,
         random_state: 42,
       },
-      label_space: ['positive', 'negative'],
-      query_batch_size: 2,
-      validation_split: 0.2,
-      max_iterations: 10
+      label_space: dalConfig.labelSpace || ['positive', 'negative'],
+      query_batch_size: dalConfig.queryBatchSize || 2,
+      validation_split: dalConfig.validation_split || 0.2,
+      max_iterations: dalConfig.maxIterations || 10,
+      
+      // Additional fields for completeness
+      voting_consensus: dalConfig.votingConsensus || 'simple_majority',
+      voting_timeout_seconds: dalConfig.votingTimeout || 3600,
+      training_dataset: dalConfig.trainingDataset || '',
+      labeling_dataset: dalConfig.labelingDataset || ''
     };
+  }
+
+  /**
+   * Map model type from AL config to format expected by AL-Engine
+   */
+  private mapModelType(modelType: string): string {
+    switch (modelType?.toLowerCase()) {
+      case 'logistic_regression':
+      case 'logisticregression':
+        return 'LogisticRegression';
+      case 'svc':
+      case 'svm':
+      case 'support_vector_machine':
+        return 'SVC';
+      case 'random_forest':
+      case 'randomforest':
+      case 'randomforestclassifier':
+        return 'RandomForestClassifier';
+      case 'neural_network':
+        return 'MLPClassifier';
+      default:
+        return 'LogisticRegression'; // Default fallback
+    }
   }
 
   /**
@@ -349,39 +380,32 @@ config:
    * according to ro-crate-content.md specification
    */
   private transformToALEngineFormat(comprehensiveConfig: any): any {
+    console.log('🔍 Transforming config:', JSON.stringify(comprehensiveConfig, null, 2));
+    
     const al = comprehensiveConfig.active_learning || {};
     
-    // Map model type from AL config to format expected by AL-Engine
-    const mapModelType = (modelType: string): string => {
-      switch (modelType?.toLowerCase()) {
-        case 'logistic_regression':
-        case 'logisticregression':
-          return 'LogisticRegression';
-        case 'svc':
-        case 'svm':
-          return 'SVC';
-        case 'randomforest':
-        case 'randomforestclassifier':
-          return 'RandomForestClassifier';
-        default:
-          return 'LogisticRegression'; // Default fallback
-      }
-    };
-
-    return {
+    const result = {
       al_scenario: al.scenario || 'pool_based',
       query_strategy: al.query_strategy || 'uncertainty_sampling',
-      model_type: mapModelType(al.model?.type),
-      training_args: {
-        max_iter: al.model?.parameters?.max_iter || 1000,
-        random_state: al.model?.parameters?.random_state || 42,
-        ...(al.model?.parameters || {})
+      model_type: this.mapModelType(al.model?.type),
+      training_args: al.model?.parameters || {
+        max_iter: 1000,
+        random_state: 42
       },
-      label_space: al.label_space || ['positive', 'negative'],
+      label_space: al.label_space || [],
       query_batch_size: al.query_batch_size || 2,
       validation_split: al.validation_split || 0.2,
-      max_iterations: al.max_iterations || 10
+      max_iterations: al.max_iterations || 10,
+      
+      // Additional fields for completeness
+      voting_consensus: al.voting?.consensus_type || 'simple_majority',
+      voting_timeout_seconds: al.voting?.timeout_seconds || 3600,
+      training_dataset: al.datasets?.training_dataset || '',
+      labeling_dataset: al.datasets?.labeling_dataset || ''
     };
+
+    console.log('🔄 Transformed result:', JSON.stringify(result, null, 2));
+    return result;
   }
 
   /**
@@ -505,4 +529,4 @@ config:
 }
 
 // Export singleton instance
-export const localROCrateService = LocalROCrateService.getInstance(); 
+export const localROCrateService = LocalROCrateService.getInstance();

@@ -98,6 +98,7 @@ export interface DALTemplateParameters {
   maxIterations?: number;
   labelingBudget?: number;
   validationSplit?: number;
+  labelSpace?: string[];
   workflowInputs?: string[];
   workflowOutputs?: string[];
 }
