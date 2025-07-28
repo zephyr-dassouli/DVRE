@@ -44,8 +44,18 @@
 }
 
 /* JupyterLab Widget Compatibility */
-.lm-Widget .dal-container {
+.jp-DALWidget {
+  overflow-y: auto;
   height: 100%;
+}
+
+.jp-DALWidget-body {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.lm-Widget .dal-container {
+  min-height: 100%;
   max-height: none;
   overflow-y: auto;
   padding: 16px;
