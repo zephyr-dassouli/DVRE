@@ -12,27 +12,6 @@ import { localFileDownloadService } from '../../../services/LocalFileDownloadSer
 import { ethers } from 'ethers';
 import JSONProject from '../../../abis/JSONProject.json';
 
-// AL Contract ABIs and Bytecode - TODO: Replace with real compiled bytecode
-const ALProjectVotingABI = [
-  "constructor(address _jsonProject, string memory _votingConsensus, uint256 _votingTimeoutSeconds)",
-  "function vote(bytes32 labelHash, uint8 label) external",
-  "function getVotingResults(bytes32 labelHash) external view returns (uint8[], uint256[])",
-  "function setVotingTimeout(uint256 _seconds) external",
-  "function projectContract() external view returns (address)"
-];
-
-const ALProjectStorageABI = [
-  "constructor(address _jsonProject)",
-  "function storeLabels(bytes32[] calldata hashes, uint8[] calldata labels) external",
-  "function getLabel(bytes32 hash) external view returns (uint8)",
-  "function getLabelCount() external view returns (uint256)",
-  "function projectContract() external view returns (address)"
-];
-
-// TODO: Replace with real compiled bytecode from: npx hardhat compile
-const ALProjectVotingBytecode = "0x608060405234801561001057600080fd5b50"; // Placeholder - needs real bytecode
-const ALProjectStorageBytecode = "0x608060405234801561001057600080fd5b50"; // Placeholder - needs real bytecode
-
 /**
  * Deployment results interface
  */
@@ -283,7 +262,7 @@ export class DeploymentOrchestrator {
   }
 
   /**
-   * Deploy AL smart contracts (extracted from component)
+   * Deploy AL smart contracts separately and link them to JSONProject
    */
   private async deployALSmartContracts(
     config: DVREProjectConfiguration, 
@@ -299,144 +278,99 @@ export class DeploymentOrchestrator {
       throw new Error('DAL configuration not found for AL project');
     }
 
-    console.log('🚀 Starting REAL AL smart contract deployment...');
+    console.log('🚀 Deploying AL contracts separately and linking to JSONProject...');
     
     try {
       // Get blockchain connection
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
       
-      // Connect to main project contract
+      // Step 1: Deploy ALProjectVoting contract
+      console.log('📊 Step 1: Deploying ALProjectVoting contract...');
+      
+      const votingConsensus = dalConfig.voting_consensus || 'simple_majority';
+      const votingTimeout = dalConfig.voting_timeout_seconds || 3600;
+      
+      // Import AL contract ABIs (these should exist in the compiled artifacts)
+      const ALProjectVotingABI = (await import('../../../abis/ALProjectVoting.json')).default;
+      const ALProjectStorageABI = (await import('../../../abis/ALProjectStorage.json')).default;
+      
+      const votingContractFactory = new ethers.ContractFactory(
+        ALProjectVotingABI.abi,
+        ALProjectVotingABI.bytecode,
+        signer
+      );
+      
+      const deployedVotingContract = await votingContractFactory.deploy(
+        config.contractAddress,  // _jsonProject
+        votingConsensus,         // _votingConsensus
+        votingTimeout           // _votingTimeoutSeconds
+      );
+      await deployedVotingContract.waitForDeployment();
+      
+      const votingContractAddress = await deployedVotingContract.getAddress();
+      console.log('✅ ALProjectVoting deployed at:', votingContractAddress);
+
+      // Step 2: Deploy ALProjectStorage contract
+      console.log('🗄️ Step 2: Deploying ALProjectStorage contract...');
+      
+      const storageContractFactory = new ethers.ContractFactory(
+        ALProjectStorageABI.abi,
+        ALProjectStorageABI.bytecode,
+        signer
+      );
+      
+      const deployedStorageContract = await storageContractFactory.deploy(config.contractAddress);
+      await deployedStorageContract.waitForDeployment();
+      
+      const storageContractAddress = await deployedStorageContract.getAddress();
+      console.log('✅ ALProjectStorage deployed at:', storageContractAddress);
+
+      // Step 3: Link contracts to JSONProject
+      console.log('🔗 Step 3: Linking AL contracts to JSONProject...');
+      
       const projectContract = new ethers.Contract(config.contractAddress, JSONProject.abi, signer);
       
-      console.log('📋 Step 1: Updating AL metadata on main contract...');
-      
-      // Update AL metadata on main contract (if method exists)
+      const linkTx = await projectContract.linkALContracts(votingContractAddress, storageContractAddress);
+      await linkTx.wait();
+      console.log('✅ AL contracts linked successfully');
+
+      // Step 4: Set AL metadata (if not already set)
+      console.log('📋 Step 4: Setting AL metadata...');
       try {
-        const votingTimeout = dalConfig.voting_timeout_seconds || 3600; // Default 1 hour
+        const queryStrategy = dalConfig.query_strategy || 'uncertainty_sampling';
+        const alScenario = dalConfig.al_scenario || 'pool_based';
         const maxIterations = dalConfig.max_iterations || 10;
-        const consensusThreshold = dalConfig.consensus || '0.7';
+        const queryBatchSize = dalConfig.query_batch_size || 5;
+        const labelSpace = dalConfig.label_space || ['positive', 'negative'];
         
-        // Check if setALMetadata method exists
-        const setALMetadataFunction = projectContract.interface.getFunction('setALMetadata');
-        if (setALMetadataFunction) {
-          const tx = await projectContract.setALMetadata(
-            consensusThreshold,
-            maxIterations,
-            votingTimeout.toString()
-          );
-          await tx.wait();
-          console.log('✅ AL metadata updated on main contract');
-        } else {
-          console.log('⚠️ setALMetadata method not found on main contract - skipping');
-        }
-      } catch (error) {
-        console.warn('⚠️ Failed to update AL metadata:', error);
-      }
-
-      console.log('📋 Step 2: Deploying ALProjectVoting contract...');
-      
-      let votingContractAddress: string | undefined;
-      let storageContractAddress: string | undefined;
-      
-      // Deploy ALProjectVoting contract
-      try {
-        if (ALProjectVotingBytecode === "0x608060405234801561001057600080fd5b50") {
-          throw new Error('Placeholder bytecode detected - need real compiled bytecode');
-        }
-        
-        const votingContractFactory = new ethers.ContractFactory(
-          ALProjectVotingABI,
-          ALProjectVotingBytecode,
-          signer
+        const metadataTx = await projectContract.setALMetadata(
+          queryStrategy,
+          alScenario,
+          maxIterations,
+          queryBatchSize,
+          labelSpace
         );
-        
-        const votingTimeout = dalConfig.voting_timeout_seconds || 3600;
-        const votingConsensus = dalConfig.voting_consensus || "simple_majority";
-        const deployedVotingContract = await votingContractFactory.deploy(
-          config.contractAddress,  // _jsonProject
-          votingConsensus,         // _votingConsensus
-          votingTimeout           // _votingTimeoutSeconds
-        );
-        await deployedVotingContract.waitForDeployment();
-        
-        votingContractAddress = await deployedVotingContract.getAddress();
-        console.log('✅ ALProjectVoting deployed at:', votingContractAddress);
+        await metadataTx.wait();
+        console.log('✅ AL metadata set successfully');
       } catch (error) {
-        console.error('❌ Failed to deploy ALProjectVoting:', error);
-        console.log('💡 To enable real deployment, provide actual compiled bytecode for ALProjectVoting');
+        console.warn('⚠️ Failed to set AL metadata (may already be set):', error);
       }
 
-      console.log('📋 Step 3: Deploying ALProjectStorage contract...');
-      
-      // Deploy ALProjectStorage contract
-      try {
-        if (ALProjectStorageBytecode === "0x608060405234801561001057600080fd5b50") {
-          throw new Error('Placeholder bytecode detected - need real compiled bytecode');
-        }
-        
-        const storageContractFactory = new ethers.ContractFactory(
-          ALProjectStorageABI,
-          ALProjectStorageBytecode,
-          signer
-        );
-        
-        const deployedStorageContract = await storageContractFactory.deploy(config.contractAddress);
-        await deployedStorageContract.waitForDeployment();
-        
-        storageContractAddress = await deployedStorageContract.getAddress();
-        console.log('✅ ALProjectStorage deployed at:', storageContractAddress);
-      } catch (error) {
-        console.error('❌ Failed to deploy ALProjectStorage:', error);
-        console.log('💡 To enable real deployment, provide actual compiled bytecode for ALProjectStorage');
-      }
-
-      console.log('📋 Step 4: Linking AL contracts to main contract using linkALContracts...');
-      
-      // Use the ProjectFactory pattern: linkALContracts(voting, storage) - both at once
-      if (votingContractAddress && storageContractAddress) {
-        try {
-          const linkALContractsFunction = projectContract.interface.getFunction('linkALContracts');
-          if (linkALContractsFunction) {
-            const tx = await projectContract.linkALContracts(votingContractAddress, storageContractAddress);
-            await tx.wait();
-            console.log('✅ AL contracts linked to main contract:', {
-              voting: votingContractAddress,
-              storage: storageContractAddress
-            });
-          } else {
-            console.log('⚠️ linkALContracts method not found on main contract');
-          }
-        } catch (error) {
-          console.warn('⚠️ Failed to link AL contracts:', error);
-        }
-      } else {
-        console.log('⚠️ Cannot link AL contracts - one or both deployments failed');
-        console.log('  Voting address:', votingContractAddress || 'FAILED');
-        console.log('  Storage address:', storageContractAddress || 'FAILED');
-      }
-
-      // Return deployed contract addresses
       const result = {
         voting: votingContractAddress,
         storage: storageContractAddress
       };
       
-      if (votingContractAddress && storageContractAddress) {
-        console.log('🎉 AL smart contract deployment completed successfully!');
-      } else {
-        console.log('⚠️ AL smart contract deployment partially completed');
-        console.log('💡 Some contracts failed to deploy - check bytecode and main contract methods');
-      }
+      console.log('🎉 AL smart contract deployment completed successfully!');
+      console.log('📊 Voting contract:', votingContractAddress);
+      console.log('🗄️ Storage contract:', storageContractAddress);
       
       return result;
       
     } catch (error) {
       console.error('❌ AL smart contract deployment failed:', error);
-      console.log('💡 Common issues:');
-      console.log('  - Placeholder bytecode (need real compiled contracts)');
-      console.log('  - Missing methods on main JSONProject contract');
-      console.log('  - Insufficient gas or network issues');
+      console.log('💡 This approach deploys AL contracts separately and links them to JSONProject');
       throw error;
     }
   }

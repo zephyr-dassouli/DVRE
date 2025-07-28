@@ -123,7 +123,11 @@ const deploy = async () => {
     }
   }
 
-
+  // AL contract deployment and testing commented out
+  // The AL contracts will be deployed separately via DeploymentOrchestrator
+  // when users create AL projects through the frontend
+  
+  /*
   // Deploy AL contracts for this project
   console.log("\nDeploying ALProjectVoting for test project...");
   const alVotingContract = new web3.eth.Contract(alProjectVotingJson.abi);
@@ -245,6 +249,7 @@ const deploy = async () => {
     gasPrice: 0
   });
   console.log("Test vote submitted successfully");
+  */
 
   // Print summary
   console.log("\nDeployment completed successfully!");
@@ -254,12 +259,10 @@ const deploy = async () => {
   console.log(`ProjectTemplateRegistry:  ${templateRegistryReceipt.contractAddress}`);
   console.log(`ProjectFactory:           ${projectFactoryReceipt.contractAddress}`);
   console.log(`AssetFactory:             ${assetFactoryReceipt.contractAddress}`);
-  console.log(`\nTEST PROJECT ADDRESSES:`);
-  console.log(`JSONProject:              ${projectAddress}`);
-  console.log(`ALProjectVoting:          ${alVotingReceipt.contractAddress}`);
-  console.log(`ALProjectStorage:         ${alStorageReceipt.contractAddress}`);
-  console.log(`================================================`);
+  console.log("================================================");
   console.log(`\nDeployer: ${account.address}`);
+  console.log(`\nNOTE: AL contracts (ALProjectVoting, ALProjectStorage) will be`);
+  console.log(`deployed automatically when users create AL projects via the frontend.`);
 
   // Register all factories in FactoryRegistry (frontend needs these addresses)
   console.log("\nRegistering core infrastructure contracts in FactoryRegistry...");
@@ -291,26 +294,16 @@ const deploy = async () => {
       ProjectFactory: projectFactoryReceipt.contractAddress,
       AssetFactory: assetFactoryReceipt.contractAddress
     },
-    // Test instance for verification (per-project contracts like these are 
-    // discovered via JSONProject.votingContract() and JSONProject.storageContract())
-    testProjectExample: {
-      JSONProject: projectAddress,
-      ALProjectVoting: alVotingReceipt.contractAddress,
-      ALProjectStorage: alStorageReceipt.contractAddress,
-      note: "Each JSONProject creates its own voting and storage contracts. Access them via the JSONProject's votingContract() and storageContract() methods."
-    },
-    configuration: {
-      votingTimeout: 3600,
-      consensusThreshold: 51,
-      maxIterations: 10,
-      queryBatchSize: 50,
-      labelSpace: ["positive", "negative", "neutral"]
+    note: "AL contracts (ALProjectVoting, ALProjectStorage) are deployed separately when users create AL projects via the frontend DeploymentOrchestrator.",
+    alContractDeployment: {
+      method: "DeploymentOrchestrator",
+      description: "AL contracts are deployed on-demand per project through the frontend interface."
     }
   };
   
   console.log("\nDeployment completed!");
   console.log("Core infrastructure contracts are registered in FactoryRegistry");
-  console.log("Per-project contracts are discovered through each JSONProject instance");
+  console.log("AL contracts will be deployed per-project through the frontend");
   
   return deploymentInfo;
 };

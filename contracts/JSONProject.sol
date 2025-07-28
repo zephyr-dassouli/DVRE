@@ -1,6 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+// AL Contract Interfaces (no imports needed - just interfaces)
+interface IALProjectVoting {
+    function startVotingSession(string memory sampleId) external;
+    function endVotingSession(string memory sampleId) external;
+    function setVoters(address[] memory _voters, uint256[] memory _weights) external;
+    function projectContract() external view returns (address);
+}
+
+interface IALProjectStorage {
+    function storeFinalLabel(
+        string memory sampleId,
+        string memory label,
+        uint256 round,
+        string memory justification,
+        string memory ipfsHash
+    ) external;
+    function getLabel(string memory sampleId) external view returns (string memory);
+    function projectContract() external view returns (address);
+}
+
 contract JSONProject {
     // Core ownership and status
     address public creator;
@@ -14,7 +34,6 @@ contract JSONProject {
     string public description;
     string public projectType;
     string public rocrateHash;
-    string public workflowId;
     uint256 public startTime;
     uint256 public endTime;
     
@@ -72,7 +91,7 @@ contract JSONProject {
     event JoinRequestSubmitted(address indexed requester, string role, uint256 timestamp);
     event JoinRequestApproved(address indexed requester, address indexed approver, uint256 timestamp);
     event JoinRequestRejected(address indexed requester, address indexed rejector, uint256 timestamp);
-    event LinkedContractsSet(address votingContract, address storageContract);
+    event ALContractsDeployed(address votingContract, address storageContract);
     event ParticipantAdded(address indexed participant);
     event RoundIncremented(uint256 newRound);
     event ALRoundTriggered(uint256 round, string reason, uint256 timestamp);
@@ -84,18 +103,18 @@ contract JSONProject {
 
     // Modifiers
     modifier onlyCreator() {
-        require(msg.sender == creator, "Only project creator can perform this action");
+        require(msg.sender == creator, "Only creator");
         _;
     }
     
     modifier onlyActive() {
-        require(isActive, "Project is not active");
+        require(isActive, "Inactive");
         _;
     }
     
     // Constructor
     constructor(address _creator, string memory _projectData) {
-        require(bytes(_projectData).length > 0, "Project data cannot be empty");
+        require(bytes(_projectData).length > 0, "Empty data");
         creator = _creator;
         projectData = _projectData;
         createdAt = block.timestamp;
@@ -109,14 +128,12 @@ contract JSONProject {
         string memory _title,
         string memory _description,
         string memory _projectType,
-        string memory _rocrateHash,
-        string memory _workflowId
+        string memory _rocrateHash
     ) external onlyCreator {
         title = _title;
         description = _description;
         projectType = _projectType;
         rocrateHash = _rocrateHash;
-        workflowId = _workflowId;
         lastModified = block.timestamp;
     }
     
@@ -127,8 +144,8 @@ contract JSONProject {
         uint256 _queryBatchSize,
         string[] memory _labelSpace
     ) external onlyCreator {
-        require(_maxIteration > 0, "Max iteration must be greater than 0");
-        require(_queryBatchSize > 0, "Query batch size must be greater than 0");
+        require(_maxIteration > 0, "Invalid max iteration");
+        require(_queryBatchSize > 0, "Invalid batch size");
         
         queryStrategy = _queryStrategy;
         alScenario = _alScenario;
@@ -139,13 +156,13 @@ contract JSONProject {
     }
     
     function setStartAndEndTime(uint256 _start, uint256 _end) external onlyCreator {
-        require(_start < _end, "Start time must be before end time");
+        require(_start < _end, "Invalid time range");
         startTime = _start;
         endTime = _end;
     }
     
     function updateProjectData(string memory _newProjectData) external onlyCreator onlyActive {
-        require(bytes(_newProjectData).length > 0, "Project data cannot be empty");
+        require(bytes(_newProjectData).length > 0, "Empty data");
         projectData = _newProjectData;
         lastModified = block.timestamp;
         emit ProjectUpdated(msg.sender, block.timestamp);
@@ -153,9 +170,9 @@ contract JSONProject {
     
     // --- Join Requests ---
     function submitJoinRequest(string memory _role) external onlyActive {
-        require(msg.sender != creator, "Project creator cannot submit join request");
-        require(!joinRequests[msg.sender].exists, "Join request already exists");
-        require(bytes(_role).length > 0, "Role cannot be empty");
+        require(msg.sender != creator, "Creator cannot join");
+        require(!joinRequests[msg.sender].exists, "Request exists");
+        require(bytes(_role).length > 0, "Empty role");
         
         joinRequests[msg.sender] = JoinRequest({
             requester: msg.sender,
@@ -169,7 +186,7 @@ contract JSONProject {
     }
     
     function approveJoinRequest(address _requester) external onlyCreator {
-        require(joinRequests[_requester].exists, "Join request does not exist");
+        require(joinRequests[_requester].exists, "No request");
         delete joinRequests[_requester];
         // Add as participant
         isParticipant[_requester] = true;
@@ -178,7 +195,7 @@ contract JSONProject {
     }
     
     function rejectJoinRequest(address _requester) external onlyCreator {
-        require(joinRequests[_requester].exists, "Join request does not exist");
+        require(joinRequests[_requester].exists, "No request");
         delete joinRequests[_requester];
         emit JoinRequestRejected(_requester, msg.sender, block.timestamp);
     }
@@ -214,14 +231,14 @@ contract JSONProject {
     
     // --- Project Status ---
     function deactivateProject() external onlyCreator {
-        require(isActive, "Project is already inactive");
+        require(isActive, "Already inactive");
         isActive = false;
         lastModified = block.timestamp;
         emit ProjectDeactivated(msg.sender, block.timestamp);
     }
     
     function reactivateProject() external onlyCreator {
-        require(!isActive, "Project is already active");
+        require(!isActive, "Already active");
         isActive = true;
         lastModified = block.timestamp;
         emit ProjectReactivated(msg.sender, block.timestamp);
@@ -233,14 +250,14 @@ contract JSONProject {
     
     // --- Participant Registry ---
     function addParticipant(address _participant) external onlyCreator {
-        require(!isParticipant[_participant], "Already a participant");
+        require(!isParticipant[_participant], "Already participant");
         isParticipant[_participant] = true;
         emit ParticipantAdded(_participant);
     }
     
     // --- Round Tracking ---
     function incrementRound() external {
-        require(msg.sender == votingContract, "Only voting contract");
+        require(msg.sender == votingContract, "Only voting");
         currentRound += 1;
         emit RoundIncremented(currentRound);
     }
@@ -255,142 +272,36 @@ contract JSONProject {
     // --- Linked Contracts ---
     function linkALContracts(address _voting, address _storage) external onlyCreator {
         require(_voting != address(0) && _storage != address(0), "Invalid addresses");
-        require(votingContract == address(0), "AL contracts already linked");
-        require(storageContract == address(0), "AL contracts already linked");
+        require(votingContract == address(0), "Already linked");
+        require(storageContract == address(0), "Already linked");
         
         votingContract = _voting;
         storageContract = _storage;
         
-        emit LinkedContractsSet(_voting, _storage);
+        lastModified = block.timestamp;
+        emit ProjectUpdated(msg.sender, block.timestamp);
     }
     
     // --- Voting Management ---
     function setProjectVoters(address[] memory _voters, uint256[] memory _weights) external onlyCreator {
         require(votingContract != address(0), "Voting contract not set");
         
-        // Call the voting contract's setVoters function
-        (bool success, ) = votingContract.call(
-            abi.encodeWithSignature("setVoters(address[],uint256[])", _voters, _weights)
-        );
-        require(success, "Failed to set voters");
+        // Call via interface instead of direct call
+        IALProjectVoting(votingContract).setVoters(_voters, _weights);
     }
-    
 
     function startVotingSession(string memory sampleId) external onlyCreator {
         require(votingContract != address(0), "Voting contract not set");
-       (bool success, ) = votingContract.call(
-            abi.encodeWithSignature("startVotingSession(string)", sampleId)
-        );
-        require(success, "Failed to start voting session");
+        
+        // Call via interface
+        IALProjectVoting(votingContract).startVotingSession(sampleId);
     }
-    
 
-    // Send invitation to user (project creator only)
-    function sendInvitation(address _invitee, string memory _role) external onlyCreator onlyActive {
-        require(_invitee != creator, "Cannot invite project creator");
-        require(!invitations[_invitee].exists, "Invitation already exists");
-        require(bytes(_role).length > 0, "Role cannot be empty");
-        
-        // Add to invitations mapping
-        invitations[_invitee] = Invitation({
-            invitee: _invitee,
-            role: _role,
-            timestamp: block.timestamp,
-            exists: true
-        });
-        
-        // Add to invitees array for enumeration
-        invitees.push(_invitee);
-        
-        emit InvitationSent(_invitee, msg.sender, _role, block.timestamp);
-    }
-    
-    // Accept invitation (invitee only)
-    function acceptInvitation() external onlyActive {
-        require(invitations[msg.sender].exists, "Invitation does not exist");
-        
-        // Get invitation details before deleting
-        Invitation memory invitation = invitations[msg.sender];
-        
-        // Remove the invitation
-        delete invitations[msg.sender];
-        
-        // Emit events
-        emit InvitationAccepted(msg.sender, address(this), block.timestamp);
-        emit MemberAdded(msg.sender, invitation.role, block.timestamp);
-    }
-    
-    // Update project data after invitation acceptance (can be called by anyone, but validates the data)
-    function updateProjectDataAfterAcceptance(string memory newData) external onlyActive {
-        // Basic validation - ensure the data is not empty
-        require(bytes(newData).length > 0, "Project data cannot be empty");
-        
-        // Update the project data
-        projectData = newData;
-        emit ProjectUpdated(msg.sender, block.timestamp);
-    }
-    
-    // Reject invitation (invitee only)
-    function rejectInvitation() external {
-        require(invitations[msg.sender].exists, "Invitation does not exist");
-        
-        // Remove the invitation
-        delete invitations[msg.sender];
-        
-        emit InvitationRejected(msg.sender, address(this), block.timestamp);
-    }
-    
-    // Add member to project (creator only, typically called after invitation acceptance)
-    function addMember(address member, string memory role) external onlyCreator onlyActive {
-        require(member != address(0), "Invalid address");
-        require(bytes(role).length > 0, "Role cannot be empty");
-        
-        // Note: This is a simplified approach. In a real implementation,
-        // you would parse the JSON, add the member, and update the project data
-        // For now, we just emit an event that the frontend can listen to
-        emit MemberAdded(member, role, block.timestamp);
-    }
-    
-    // Get invitation details
-    function getInvitation(address _invitee) external view returns (
-        address invitee,
-        string memory role,
-        uint256 timestamp,
-        bool exists
-    ) {
-        Invitation memory invitation = invitations[_invitee];
-        return (invitation.invitee, invitation.role, invitation.timestamp, invitation.exists);
-    }
-    
-    // Get all invitees
-    function getAllInvitees() external view returns (address[] memory) {
-        // Filter out processed invitations
-        uint256 activeCount = 0;
-        for (uint256 i = 0; i < invitees.length; i++) {
-            if (invitations[invitees[i]].exists) {
-                activeCount++;
-            }
-        }
-        
-        address[] memory activeInvitees = new address[](activeCount);
-        uint256 index = 0;
-        for (uint256 i = 0; i < invitees.length; i++) {
-            if (invitations[invitees[i]].exists) {
-                activeInvitees[index] = invitees[i];
-                index++;
-            }
-        }
-        
-        return activeInvitees;
-    }
-    
     function endVotingSession(string memory sampleId) external onlyCreator {
         require(votingContract != address(0), "Voting contract not set");
         
-        (bool success, ) = votingContract.call(
-            abi.encodeWithSignature("endVotingSession(string)", sampleId)
-        );
-        require(success, "Failed to end voting session");
+        // Call via interface
+        IALProjectVoting(votingContract).endVotingSession(sampleId);
     }
     
     function storeFinalLabel(
@@ -402,13 +313,8 @@ contract JSONProject {
     ) external onlyCreator {
         require(storageContract != address(0), "Storage contract not set");
         
-        (bool success, ) = storageContract.call(
-            abi.encodeWithSignature(
-                "storeFinalLabel(string,string,uint256,string,string)",
-                sampleId, label, round, justification, ipfsHash
-            )
-        );
-        require(success, "Failed to store final label");
+        // Call via interface
+        IALProjectStorage(storageContract).storeFinalLabel(sampleId, label, round, justification, ipfsHash);
     }
     
     function hasALContracts() external view returns (bool) {
@@ -476,7 +382,6 @@ contract JSONProject {
         address _owner,
         string memory _projectType,
         string memory _rocrateHash,
-        string memory _workflowId,
         uint256 _start,
         uint256 _end,
         string memory _queryStrategy,
@@ -491,7 +396,6 @@ contract JSONProject {
             creator,
             projectType,
             rocrateHash,
-            workflowId,
             startTime,
             endTime,
             queryStrategy,
