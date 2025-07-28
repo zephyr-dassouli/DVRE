@@ -8,6 +8,13 @@ export const config = {
     healthUrl: 'http://dvre03.lab.uvalight.net:5002/health'
   },
   
+  // Orchestrator Configuration
+  orchestrator: {
+    endpoint: 'http://145.100.135.97:5004/streamflow/submit-project-workflow',
+    baseUrl: 'http://145.100.135.97:5004',
+    timeout: 30000
+  },
+  
   // Blockchain Configuration
   blockchain: {
     // Set this to the deployed AssetFactory contract address

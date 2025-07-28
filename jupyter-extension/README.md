@@ -1,77 +1,52 @@
-# jupyter_dvre
+# DVRE Jupyter Extension
 
-[![Github Actions Status](/workflows/Build/badge.svg)](/actions/workflows/build.yml)
+A comprehensive JupyterLab extension for Decentralized Verifiable Research Environment (DVRE) that enables collaborative research with blockchain integration.
 
-A jupyter DVRE extension
+## Features
 
-## Requirements
+- **Project Collaboration**: Create and manage collaborative research projects
+- **Decentralized Active Learning (DAL)**: Participate in active learning projects with voting mechanisms
+- **Authentication**: Web3 wallet integration for decentralized identity
+- **IPFS Integration**: Decentralized file storage and sharing
+- **Smart Contract Integration**: Ethereum-based project management
+- **Graph Visualization**: Project relationship and collaboration networks
+- **Federated Learning**: Distributed machine learning capabilities
 
-- JupyterLab >= 4.0.0
-
-## Install
-
-To install the extension, execute:
+## Installation
 
 ```bash
-pip install jupyter_dvre
+pip install -e .
 ```
 
-## Uninstall
-
-To remove the extension, execute:
+## Development
 
 ```bash
-pip uninstall jupyter_dvre
-```
+# Build the extension
+yarn build
 
-## Contributing
+# Install in development mode
+pip install -e .
 
-### Development install
-
-Note: You will need NodeJS to build the extension package.
-
-The `jlpm` command is JupyterLab's pinned version of
-[yarn](https://yarnpkg.com/) that is installed with JupyterLab. You may use
-`yarn` or `npm` in lieu of `jlpm` below.
-
-```bash
-# Clone the repo to your local environment
-# Change directory to the jupyter_dvre directory
-# Install package in development mode
-pip install -e "."
-# Link your development version of the extension with JupyterLab
-jupyter labextension develop . --overwrite
-# Rebuild extension Typescript source after making changes
-jlpm build
-```
-
-You can watch the source directory and run JupyterLab at the same time in different terminals to watch for changes in the extension's source and automatically rebuild the extension.
-
-```bash
-# Watch the source directory in one terminal, automatically rebuilding when needed
-jlpm watch
-# Run JupyterLab in another terminal
+# Start JupyterLab
 jupyter lab
 ```
 
-With the watch command running, every saved change will immediately be built locally and available in your running JupyterLab. Refresh JupyterLab to load the change in your browser (you may need to wait several seconds for the extension to be rebuilt).
+## Components
 
-By default, the `jlpm build` command generates the source maps for this extension to make it easier to debug using the browser dev tools. To also generate source maps for the JupyterLab core extensions, you can run the following command:
+### Active Learning (DAL)
+- Project landing page with filtering
+- Comprehensive project management interface
+- Real-time voting on sample labels
+- Model performance tracking
+- User contribution dashboard
+- Complete voting history
 
-```bash
-jupyter lab build --minimize=False
-```
+### Project Deployment
+- RO-Crate metadata management
+- Orchestration server integration
+- Workflow configuration
+- IPFS deployment
 
-### Development uninstall
+## License
 
-```bash
-pip uninstall jupyter_dvre
-```
-
-In development mode, you will also need to remove the symlink created by `jupyter labextension develop`
-command. To find its location, you can run `jupyter labextension list` to figure out where the `labextensions`
-folder is located. Then you can remove the symlink named `jupyter-dvre` within that folder.
-
-### Packaging the extension
-
-See [RELEASE](RELEASE.md)
+MIT 

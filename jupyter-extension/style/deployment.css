@@ -1230,3 +1230,188 @@
 .publish-button:disabled {
   animation: pulse 1.5s ease-in-out infinite;
 } 
+
+/* Computation Mode Panel Styles */
+.computation-mode-panel {
+  margin-top: 15px;
+}
+
+.mode-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.mode-option {
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 8px;
+  padding: 0;
+  transition: all 0.2s ease;
+}
+
+.mode-option:hover:not(.disabled) {
+  border-color: var(--jp-brand-color1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.mode-option.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mode-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.mode-option.disabled .mode-label {
+  cursor: not-allowed;
+}
+
+.mode-label input[type="radio"] {
+  margin: 0;
+  margin-top: 2px;
+}
+
+.mode-content {
+  flex: 1;
+}
+
+.mode-content strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--jp-ui-font-color1);
+  font-size: 14px;
+}
+
+.mode-content p {
+  margin: 0 0 10px 0;
+  color: var(--jp-ui-font-color2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.mode-content ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--jp-ui-font-color2);
+  font-size: 12px;
+}
+
+.mode-content li {
+  margin-bottom: 4px;
+}
+
+/* Local Mode Configuration */
+.local-mode-config {
+  margin-top: 20px;
+  padding: 15px;
+  background: var(--jp-layout-color1);
+  border-radius: 8px;
+  border: 1px solid var(--jp-border-color2);
+}
+
+.local-info,
+.download-section,
+.local-requirements {
+  margin-bottom: 20px;
+}
+
+.local-info:last-child,
+.download-section:last-child,
+.local-requirements:last-child {
+  margin-bottom: 0;
+}
+
+.local-info h5,
+.download-section h5,
+.local-requirements h5 {
+  margin: 0 0 10px 0;
+  color: var(--jp-ui-font-color1);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.local-info p,
+.download-section p {
+  margin: 0 0 8px 0;
+  color: var(--jp-ui-font-color2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.local-info code {
+  background: var(--jp-layout-color2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--jp-code-font-family);
+  font-size: 11px;
+  color: var(--jp-ui-font-color1);
+}
+
+/* Download Section */
+.download-button {
+  background: var(--jp-brand-color1);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+  margin-top: 8px;
+}
+
+.download-button:hover:not(:disabled) {
+  background: var(--jp-brand-color0);
+}
+
+.download-button:disabled {
+  background: var(--jp-ui-font-color3);
+  cursor: not-allowed;
+}
+
+.download-status {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.download-status.info {
+  background: var(--jp-info-color3);
+  color: var(--jp-info-color1);
+  border: 1px solid var(--jp-info-color2);
+}
+
+.download-status.success {
+  background: var(--jp-success-color3);
+  color: var(--jp-success-color1);
+  border: 1px solid var(--jp-success-color2);
+}
+
+.download-status.error {
+  background: var(--jp-error-color3);
+  color: var(--jp-error-color1);
+  border: 1px solid var(--jp-error-color2);
+}
+
+/* Requirements List */
+.local-requirements ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--jp-ui-font-color2);
+  font-size: 12px;
+}
+
+.local-requirements li {
+  margin-bottom: 6px;
+  line-height: 1.3;
+} 
