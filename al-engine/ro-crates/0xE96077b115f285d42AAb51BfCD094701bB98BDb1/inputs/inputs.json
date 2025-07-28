@@ -1,0 +1,28 @@
+{
+  "query_strategy": "uncertainty_sampling",
+  "AL_scenario": "single_annotator",
+  "max_iterations": 6,
+  "labeling_budget": 2,
+  "validation_split": 0.2,
+  "model": {
+    "type": "logistic_regression",
+    "parameters": {
+      "max_iter": 1000,
+      "random_state": 42
+    },
+    "framework": "scikit-learn"
+  },
+  "training_dataset": "",
+  "labeling_dataset": "",
+  "voting_consensus": "simple_majority",
+  "voting_timeout_seconds": 300,
+  "label_space": [],
+  "execution": {
+    "backend": "local",
+    "resources": {
+      "cpu": 2,
+      "memory": "4Gi",
+      "gpu": 0
+    }
+  }
+}

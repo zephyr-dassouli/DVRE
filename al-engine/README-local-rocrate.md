@@ -1,69 +1,62 @@
-# Local RO-Crate Saver for AL-Engine
+# Local RO-Crate Saver Service
 
-This service saves RO-Crate bundles locally to the `al-engine/project-files` directory for the AL-Engine to access.
+This service saves RO-Crate bundles locally to the `al-engine/ro-crates` directory for the AL-Engine to access.
 
-## Overview
+## How it works
 
-When you deploy a project in DVRE, two things happen:
-1. **IPFS Upload**: The RO-Crate is uploaded to IPFS (already implemented)
-2. **Local Save**: The same RO-Crate is saved locally to `al-engine/project-files` (new feature)
-
-This ensures the AL-Engine has direct access to project files without needing to download from IPFS.
-
-## Architecture
-
-```
-DVRE Deployment Flow:
-1. User clicks "Deploy" in Project Deployment
-2. RO-Crate is created with project configuration
-3. RO-Crate is uploaded to IPFS ✅
-4. RO-Crate is saved locally to al-engine/project-files ✅ (NEW)
-5. Smart contracts are updated
-6. AL-Engine can access files directly from project-files/
-```
+1. **IPFS Upload**: RO-Crate is uploaded to IPFS for decentralized access ✅ (existing)
+2. **Local Save**: The same RO-Crate is saved locally to `al-engine/ro-crates` (new feature)
 
 ## File Structure
 
-After deployment, projects are saved with this structure:
-
 ```
-al-engine/project-files/
-├── 0x1234...ProjectAddress1/
-│   ├── ro-crate-metadata.json          # Main RO-Crate metadata
-│   ├── config/
-│   │   ├── config.json                 # Project configuration for AL-Engine
-│   │   ├── extensions-config.json      # Extension configurations
-│   │   └── models/
-│   │       └── model-config.json       # Model configurations
-│   ├── workflows/
-│   │   └── active_learning.cwl         # CWL workflow files
-│   ├── inputs/
-│   │   ├── inputs.json                 # AL input configuration
-│   │   └── datasets/
-│   │       └── dataset-metadata.json   # Dataset metadata (not actual data)
-│   └── project-manifest.json           # Project summary and file listing
-└── 0x5678...ProjectAddress2/
-    └── ... (same structure)
+al-engine/
+├── ro-crates/                     ← RO-Crate bundles
+│   └── 0x1234.../                 ← Project ID (contract address)
+│       ├── config/
+│       │   └── config.json        ← AL configuration
+│       ├── inputs/
+│       │   └── inputs.json        ← Dataset information
+│       ├── metadata/
+│       │   └── ro-crate-metadata.json ← RO-Crate JSON-LD
+│       └── project-manifest.json  ← Project metadata
+└── local-rocrate-saver.js         ← This service
 ```
 
-## Starting the Backend Service
+## Complete Workflow
 
-The local RO-Crate saving requires a Node.js backend service to handle file system operations.
+1. User deploys project in JupyterLab ✅
+2. RO-Crate is uploaded to IPFS ✅ (existing)
+3. Smart contracts are updated ✅ (existing)
+4. RO-Crate is saved locally to al-engine/ro-crates ✅ (NEW)
+5. Deployment completes ✅
+6. AL-Engine can access files directly from ro-crates/
 
-### 1. Start the Service
+## File Structure Example
+
+```
+al-engine/ro-crates/
+└── 0x1234567890abcdef/
+    ├── config/
+    │   └── config.json
+    ├── inputs/
+    │   └── inputs.json
+    ├── metadata/
+    │   └── ro-crate-metadata.json
+    └── project-manifest.json
+```
+
+## Starting the Service
 
 ```bash
 cd al-engine
 node local-rocrate-saver.js
 ```
 
-This starts an HTTP server on `http://localhost:3001` that handles file saving.
-
-### 2. Server Output
-
+Expected output:
 ```
 🚀 Local RO-Crate Saver running on http://localhost:3001
-📂 Project files directory: /path/to/al-engine/project-files
+📂 Project files directory: /path/to/al-engine/ro-crates
 Available endpoints:
   POST /save-rocrate - Save RO-Crate bundle
   GET /projects - List all projects
@@ -73,176 +66,130 @@ Available endpoints:
 
 ## API Endpoints
 
-### Save RO-Crate Bundle
-```bash
-POST http://localhost:3001/save-rocrate
-Content-Type: application/json
+### POST /save-rocrate
+Save RO-Crate bundle with all files.
 
+**Request Body:**
+```json
 {
-  "projectId": "0x1234...ProjectAddress",
-  "bundleData": {
-    "files": [
-      {
-        "name": "ro-crate-metadata.json",
-        "content": "...",
-        "type": "application/json"
-      }
-    ],
-    "metadata": {
-      "project_path": "../al-engine/project-files/0x1234...",
-      "created_at": "2025-07-28T12:34:56.789Z"
+  "projectId": "0x1234...",
+  "files": [
+    {
+      "path": "config/config.json",
+      "content": "{...}",
+      "size": 1234
     }
+  ],
+  "metadata": {
+    "ipfsHash": "QmXXX...",
+    "timestamp": "2024-01-01T00:00:00Z"
   }
 }
 ```
 
-### List Projects
-```bash
-GET http://localhost:3001/projects
+**Response:**
+```json
+{
+  "success": true,
+  "project_id": "0x1234...",
+  "project_path": "../al-engine/ro-crates/0x1234...",
+  "saved_files": [
+    "config/config.json",
+    "inputs/inputs.json",
+    "metadata/ro-crate-metadata.json"
+  ],
+  "total_files": 3,
+  "total_size": 15234
+}
 ```
 
-### Check Project Exists
-```bash
-GET http://localhost:3001/projects/0x1234...ProjectAddress
-```
+### GET /projects
+List all saved projects.
 
-### Remove Project
-```bash
-DELETE http://localhost:3001/projects/0x1234...ProjectAddress
-```
+### GET /projects/:id
+Check if a specific project exists.
+
+### DELETE /projects/:id
+Remove a project directory.
 
 ## CLI Usage
 
-The service also provides command-line utilities:
+From `al-engine/` directory:
 
 ```bash
-# Start server (default)
-node local-rocrate-saver.js
-node local-rocrate-saver.js server
+# List all projects
+ls -la ro-crates/
 
-# List saved projects
-node local-rocrate-saver.js list
+# Access a specific project
+cd ro-crates/0x1234567890abcdef
 
-# Remove a project
-node local-rocrate-saver.js remove 0x1234...ProjectAddress
+# View AL configuration
+cat config/config.json
+
+# View dataset information
+cat inputs/inputs.json
+
+# Run AL iteration (example)
+cd ../..  # Back to al-engine root
+python main.py --project-id 0x1234567890abcdef --config-path ./ro-crates/0x1234567890abcdef/config/config.json
+
+# Or use relative path in your scripts:
+config_path = f"./ro-crates/{project_id}/config/config.json"
 ```
-
-## Usage in DVRE
-
-### 1. Start the Backend Service
-Before deploying projects, make sure the backend service is running:
-
-```bash
-cd al-engine
-node local-rocrate-saver.js
-```
-
-### 2. Deploy Project
-In JupyterLab:
-1. Go to **Project Deployment**
-2. Select an Active Learning project
-3. Click **Deploy**
-
-You'll see output like:
-```
-✅ AL Smart Contracts: Deployed
-✅ IPFS Upload: Success
-🔗 RO-Crate Hash: QmXXX...
-✅ Local RO-Crate Save: Success
-📂 Local Path: ../al-engine/project-files/0x1234...
-```
-
-### 3. Verify Files Saved
-
-Check the project files:
-```bash
-cd al-engine
-node local-rocrate-saver.js list
-```
-
-Or manually check:
-```bash
-ls -la project-files/
-```
-
-## Integration with AL-Engine
-
-The AL-Engine can now access project files directly:
 
 ```python
-# In AL-Engine
-import json
-import os
+# Example AL-Engine usage:
+config_path = f"./ro-crates/{project_id}/config/config.json"
+dataset_path = f"./ro-crates/{project_id}/inputs/inputs.json"
 
-def load_project_config(project_id):
-    """Load project configuration from local files"""
-    config_path = f"./project-files/{project_id}/config/config.json"
+# Load configuration
+with open(config_path, 'r') as f:
+    config = json.load(f)
     
-    if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            return json.load(f)
-    else:
-        print(f"Project {project_id} not found locally")
-        return None
-
-def get_al_config(project_id):
-    """Get Active Learning configuration"""
-    inputs_path = f"./project-files/{project_id}/inputs/inputs.json"
-    
-    if os.path.exists(inputs_path):
-        with open(inputs_path, 'r') as f:
-            return json.load(f)
-    else:
-        return None
+# Load dataset information  
+with open(inputs_path, 'r') as f:
+    inputs = json.load(f)
 ```
 
-## Fallback Behavior
+## Integration with DVRE
 
-If the backend service is not running:
-- The deployment will still succeed (IPFS upload continues)
-- Local save step will show "Failed" but won't block deployment
-- Console will show "Backend service not available, simulating save operation"
-- AL-Engine won't have local access to files (would need IPFS retrieval)
+1. **LocalROCrateService.ts** (Frontend) prepares the RO-Crate data
+2. **local-rocrate-saver.js** (Backend) receives HTTP POST and writes files
+3. **AL-Engine** accesses files directly from `ro-crates/`
+
+## File Permissions
+
+The service creates files with standard permissions. Make sure the AL-Engine has read access to the `ro-crates/` directory.
 
 ## Troubleshooting
 
-### Service Won't Start
+### Service not starting
+- Check if port 3001 is available
+- Ensure Node.js is installed
+- Check file permissions in `al-engine/` directory
+
+### Files not saving
+- Verify the service is running on port 3001
+- Check browser developer console for CORS errors
+- Ensure `ro-crates/` directory exists
+
+### AL-Engine can't access files
+- Check file paths in your AL scripts
+- Verify `ro-crates/` directory exists
+- Ensure proper file permissions
+
+### Testing the service
 ```bash
-# Check if port 3001 is already in use
-lsof -i :3001
+# Test if service is running
+curl http://localhost:3001/projects
 
-# Kill existing process
-kill -9 <PID>
-
-# Try starting again
-node local-rocrate-saver.js
+# Check specific project
+curl http://localhost:3001/projects/0x1234567890abcdef
 ```
 
-### Permission Errors
+## Directory listing example:
 ```bash
-# Make sure the script is executable
-chmod +x local-rocrate-saver.js
-
-# Check directory permissions
-ls -la project-files/
-```
-
-### CORS Errors
-The service includes CORS headers for development. If you encounter CORS issues:
-- Make sure you're accessing from `localhost`
-- Check browser console for specific error messages
-
-## Development Notes
-
-- The service uses Node.js built-in modules (no external dependencies)
-- Files are saved as UTF-8 text (suitable for JSON/CWL/metadata)
-- Binary files would need special handling (not implemented yet)
-- The service creates directories recursively as needed
-- Project manifest includes file listing and metadata for easy discovery
-
-## Next Steps
-
-1. **Start the backend service**: `node local-rocrate-saver.js`
-2. **Deploy an AL project** in DVRE to test the functionality
-3. **Verify files are saved** using `node local-rocrate-saver.js list`
-4. **Update AL-Engine** to read from the local project files 
+ls -la ro-crates/
+# drwxr-xr-x  3 user  staff   96 Jan  1 12:00 0x1234567890abcdef
+# drwxr-xr-x  3 user  staff   96 Jan  1 12:01 0x9876543210fedcba
+``` 

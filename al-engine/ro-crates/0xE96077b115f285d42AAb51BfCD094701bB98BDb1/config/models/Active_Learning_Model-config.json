@@ -1,0 +1,10 @@
+{
+  "id": "dal-model",
+  "name": "Active Learning Model",
+  "algorithm": "logistic_regression",
+  "parameters": {
+    "max_iter": 1000,
+    "random_state": 42
+  },
+  "framework": "scikit-learn"
+}

@@ -130,7 +130,7 @@ export class DeploymentOrchestrator {
             // Get the RO-Crate data that was uploaded to IPFS
             const roCrateData = roCrateService.generateROCrateJSON(config);
             
-            // Save locally to al-engine/project-files
+            // Save locally to al-engine/ro-crates
             const localSaveResult = await localROCrateService.saveROCrateLocally(
               projectId, 
               roCrateData, 
@@ -161,29 +161,35 @@ export class DeploymentOrchestrator {
         console.error('❌ IPFS upload failed');
       }
 
-      // 3. Local File Download (if Local computation mode)
+      // 3. Local File Download (if Local computation mode and RO-Crate save failed)
       if (computationMode === 'local' && result.roCrateHash) {
-        console.log('📥 Step 3: Downloading files for local computation...');
-        try {
-          const downloadResult = await localFileDownloadService.downloadProjectFilesForLocal(
-            config,
-            result.roCrateHash
-          );
-          
-          if (downloadResult.success) {
-            result.steps.localFileDownload = 'success';
-            result.localDownloadPath = downloadResult.localPath;
-            result.downloadedFiles = downloadResult.downloadedFiles;
-            console.log('✅ Local file download successful');
-            console.log(`📁 Files downloaded to: ${downloadResult.localPath}`);
-            console.log(`📋 Downloaded files: ${downloadResult.downloadedFiles.join(', ')}`);
-          } else {
+        // Skip local file download if RO-Crate save was successful
+        if (result.steps.localROCrateSave === 'success') {
+          result.steps.localFileDownload = 'skipped';
+          console.log('⏭️ Skipping local file download (RO-Crate already saved locally)');
+        } else {
+          console.log('📥 Step 3: Downloading files for local computation (fallback)...');
+          try {
+            const downloadResult = await localFileDownloadService.downloadProjectFilesForLocal(
+              config,
+              result.roCrateHash
+            );
+            
+            if (downloadResult.success) {
+              result.steps.localFileDownload = 'success';
+              result.localDownloadPath = downloadResult.localPath;
+              result.downloadedFiles = downloadResult.downloadedFiles;
+              console.log('✅ Local file download successful');
+              console.log(`📁 Files downloaded to: ${downloadResult.localPath}`);
+              console.log(`📋 Downloaded files: ${downloadResult.downloadedFiles.join(', ')}`);
+            } else {
+              result.steps.localFileDownload = 'failed';
+              console.error('❌ Local file download failed:', downloadResult.error);
+            }
+          } catch (error) {
             result.steps.localFileDownload = 'failed';
-            console.error('❌ Local file download failed:', downloadResult.error);
+            console.error('❌ Local file download failed:', error);
           }
-        } catch (error) {
-          result.steps.localFileDownload = 'failed';
-          console.error('❌ Local file download failed:', error);
         }
       } else if (computationMode === 'local') {
         result.steps.localFileDownload = 'failed';

@@ -296,6 +296,8 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
         deploymentMessage += `📁 Local Path: ${result.localDownloadPath}\n`;
       } else if (result.steps.localFileDownload === 'failed') {
         deploymentMessage += `❌ Local Files: Download Failed\n`;
+      } else if (result.steps.localFileDownload === 'skipped') {
+        deploymentMessage += `⏭️ Local Files: Skipped (RO-Crate format used instead)\n`;
       }
       
       if (result.steps.orchestrationDeploy === 'success') {

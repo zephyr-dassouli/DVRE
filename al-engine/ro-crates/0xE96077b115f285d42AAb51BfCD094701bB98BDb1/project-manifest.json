@@ -1,0 +1,16 @@
+{
+  "project_id": "0xE96077b115f285d42AAb51BfCD094701bB98BDb1",
+  "created_at": "2025-07-28T12:57:16.088Z",
+  "local_path": "/Users/duongvuhai/Desktop/Thesis/DVRE/al-engine/ro-crates/0xE96077b115f285d42AAb51BfCD094701bB98BDb1",
+  "files": [
+    "ro-crate-metadata.json",
+    "config/config.json",
+    "workflows/al_iteration.cwl.cwl",
+    "inputs/inputs.json",
+    "inputs/datasets/Training_Dataset-metadata.json",
+    "config/models/Active_Learning_Model-config.json",
+    "config/extensions-config.json"
+  ],
+  "total_files": 7,
+  "project_path": "../al-engine/ro-crates/0xE96077b115f285d42AAb51BfCD094701bB98BDb1"
+}

@@ -7,7 +7,7 @@ const http = require('http');
 
 class LocalROCrateSaver {
   constructor() {
-    this.projectFilesDir = path.join(__dirname, 'project-files');
+    this.projectFilesDir = path.join(__dirname, 'ro-crates');
     this.port = 3001; // Different from JupyterLab's port
   }
 

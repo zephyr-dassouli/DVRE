@@ -12,7 +12,7 @@ export interface LocalROCrateSaveResult {
 
 export class LocalROCrateService {
   private static instance: LocalROCrateService;
-  private readonly LOCAL_ROCRATE_ROOT = '../al-engine/project-files';
+  private readonly LOCAL_ROCRATE_ROOT = '../al-engine/ro-crates';
 
   private constructor() {}
 
@@ -24,7 +24,13 @@ export class LocalROCrateService {
   }
 
   /**
-   * Save RO-Crate bundle locally to al-engine/project-files
+   * Save RO-Crate bundle locally to al-engine/ro-crates
+   * This mirrors the IPFS upload functionality but saves locally for AL-Engine access
+   * 
+   * @param projectId - The project identifier (contract address)
+   * @param roCrateData - The RO-Crate JSON-LD metadata
+   * @param config - The project configuration
+   * @returns Promise with save results
    */
   async saveROCrateLocally(
     projectId: string,
@@ -296,7 +302,7 @@ export class LocalROCrateService {
    * List all locally saved projects
    */
   async listLocalProjects(): Promise<string[]> {
-    // TODO: In real implementation, this would list directories in project-files
+    // TODO: In real implementation, this would list directories in ro-crates
     console.log(`📋 Would list projects in: ${this.LOCAL_ROCRATE_ROOT}`);
     return []; // Placeholder
   }

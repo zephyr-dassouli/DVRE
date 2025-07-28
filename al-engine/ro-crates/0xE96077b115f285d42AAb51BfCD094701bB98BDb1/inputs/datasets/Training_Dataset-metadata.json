@@ -1,0 +1,8 @@
+{
+  "id": "dataset-main",
+  "name": "Training Dataset",
+  "description": "Training and labeling dataset for active learning",
+  "format": "csv",
+  "columns": [],
+  "size": 0
+}

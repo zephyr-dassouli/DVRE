@@ -1,0 +1,89 @@
+{
+  "@context": "https://w3id.org/ro/crate/1.1/context",
+  "@graph": [
+    {
+      "@type": "CreativeWork",
+      "@id": "ro-crate-metadata.json",
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.1"
+      },
+      "about": {
+        "@id": "./"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "@id": "./",
+      "name": "123123",
+      "description": "123123",
+      "creator": {
+        "@type": "Person",
+        "@id": "0x7387059e7dc85391f0bf04ecc349d0d955636282",
+        "name": "0x7387059e7dc85391f0bf04ecc349d0d955636282",
+        "identifier": "0x7387059e7dc85391f0bf04ecc349d0d955636282"
+      },
+      "dateCreated": "2025-07-28T12:56:18.252Z",
+      "dateModified": "2025-07-28T12:56:18.253Z",
+      "hasPart": [],
+      "keywords": [
+        "DVRE",
+        "research",
+        "collaboration"
+      ],
+      "license": {
+        "@id": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "DVRE Platform"
+      }
+    },
+    {
+      "@type": "Dataset",
+      "@id": "dataset-main",
+      "name": "Training Dataset",
+      "description": "Training and labeling dataset for active learning",
+      "encodingFormat": "csv",
+      "contentSize": 0,
+      "variableMeasured": []
+    },
+    {
+      "@type": [
+        "File",
+        "SoftwareSourceCode",
+        "ComputationalWorkflow"
+      ],
+      "@id": "dal-workflow",
+      "name": "al_iteration.cwl",
+      "description": "Active Learning iteration workflow using modAL and scikit-learn",
+      "programmingLanguage": "CWL",
+      "text": "{\n  \"cwlVersion\": \"v1.2\",\n  \"class\": \"CommandLineTool\",\n  \"label\": \"Active Learning Iteration (Train + Query)\",\n  \"doc\": \"One-step AL iteration using modAL and scikit-learn\",\n  \"baseCommand\": \"python3\",\n  \"arguments\": [\n    \"al_iteration.py\"\n  ],\n  \"inputs\": {\n    \"labeled_data\": {\n      \"type\": \"File\",\n      \"inputBinding\": {\n        \"prefix\": \"--labeled_data\"\n      }\n    },\n    \"labeled_labels\": {\n      \"type\": \"File\",\n      \"inputBinding\": {\n        \"prefix\": \"--labeled_labels\"\n      }\n    },\n    \"unlabeled_data\": {\n      \"type\": \"File\",\n      \"inputBinding\": {\n        \"prefix\": \"--unlabeled_data\"\n      }\n    },\n    \"model_in\": {\n      \"type\": \"File?\",\n      \"inputBinding\": {\n        \"prefix\": \"--model_in\"\n      }\n    },\n    \"config\": {\n      \"type\": \"File\",\n      \"inputBinding\": {\n        \"prefix\": \"--config\"\n      }\n    }\n  },\n  \"outputs\": {\n    \"model_out\": {\n      \"type\": \"File\",\n      \"outputBinding\": {\n        \"glob\": \"model_out.pkl\"\n      }\n    },\n    \"query_indices\": {\n      \"type\": \"File\",\n      \"outputBinding\": {\n        \"glob\": \"query_indices.npy\"\n      }\n    }\n  },\n  \"requirements\": {\n    \"DockerRequirement\": {\n      \"dockerPull\": \"python:3.9-slim\"\n    }\n  },\n  \"metadata\": {\n    \"queryStrategy\": \"uncertainty_sampling\",\n    \"scenario\": \"single_annotator\",\n    \"maxIterations\": 10,\n    \"votingTimeout\": 3600\n  }\n}",
+      "input": [
+        "labeled_data",
+        "labeled_labels",
+        "unlabeled_data",
+        "model_in",
+        "config"
+      ],
+      "output": [
+        "model_out",
+        "query_indices"
+      ]
+    },
+    {
+      "@type": [
+        "File",
+        "SoftwareSourceCode"
+      ],
+      "@id": "dal-model",
+      "name": "Active Learning Model",
+      "description": "logistic_regression model",
+      "programmingLanguage": "scikit-learn",
+      "runtimePlatform": "scikit-learn",
+      "codeRepository": "logistic_regression"
+    }
+  ],
+  "conformsTo": {
+    "@id": "https://w3id.org/ro/crate/1.1"
+  }
+}
