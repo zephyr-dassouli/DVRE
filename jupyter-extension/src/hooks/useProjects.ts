@@ -703,6 +703,11 @@ export const useProjects = () => {
     }
   }, [account]);
 
+  // Reload user projects (force re-fetch from blockchain)
+  const reloadUserProjects = async () => {
+    await loadProjects();
+  };
+
   // Initialize data on mount
   useEffect(() => {
     if (account) {
@@ -730,6 +735,7 @@ export const useProjects = () => {
     createCustomProject,
     updateProjectData,
     getProjectRoles,
+    reloadUserProjects,
 
     // Utility
     clearError: () => setError(null)

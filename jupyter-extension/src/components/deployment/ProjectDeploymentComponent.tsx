@@ -24,7 +24,7 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
   onConfigurationChange
 }) => {
   const { account } = useAuth(); // Get current user's wallet address
-  const { userProjects, loading: projectsLoading } = useProjects(); // Load blockchain projects
+  const { userProjects, loading: projectsLoading, reloadUserProjects } = useProjects(); // Load blockchain projects
   const [projects, setProjects] = useState<DVREProjectConfiguration[]>([]);
   const [selectedProject, setSelectedProject] = useState<DVREProjectConfiguration | null>(null);
   const [loading, setLoading] = useState(false);
@@ -473,7 +473,10 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
           </span>
           <button 
             className="refresh-button"
-            onClick={loadProjects}
+            onClick={async () => {
+              await reloadUserProjects();
+              await loadProjects();
+            }}
             disabled={isLoading}
           >
             {isLoading ? 'Loading...' : 'Refresh'}
@@ -659,4 +662,4 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
   );
 };
 
-export default ProjectDeploymentComponent; 
+export default ProjectDeploymentComponent;
