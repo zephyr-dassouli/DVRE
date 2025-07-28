@@ -9,7 +9,7 @@ scikit-learn>=1.0.0
 joblib>=1.1.0
 
 # Active learning library
-modAL>=0.4.1
+modAL-python>=0.4.1
 
 # Workflow management
 cwltool>=3.1.0

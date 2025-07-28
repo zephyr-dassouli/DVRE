@@ -277,6 +277,19 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
         deploymentMessage += `❌ IPFS Upload: Failed\n`;
       }
 
+      if (result.steps.localROCrateSave === 'success') {
+        deploymentMessage += `✅ Local RO-Crate Save: Success\n`;
+        deploymentMessage += `📂 Local Path: ${result.localROCratePath}\n`;
+      } else if (result.steps.localROCrateSave === 'failed') {
+        deploymentMessage += `⚠️ Local RO-Crate Save: Failed\n`;
+      } else {
+        if (computationMode === 'remote') {
+          deploymentMessage += `⏭️ Local RO-Crate Save: Skipped (Remote/Infra Sharing mode)\n`;
+        } else {
+          deploymentMessage += `⏭️ Local RO-Crate Save: Skipped\n`;
+        }
+      }
+
       // Local file download results
       if (result.steps.localFileDownload === 'success') {
         deploymentMessage += `✅ Local Files: Downloaded (${result.downloadedFiles?.length || 0} files)\n`;

@@ -19,12 +19,14 @@ export interface DeploymentResults {
   steps: {
     alSmartContracts: 'success' | 'failed' | 'skipped';
     ipfsUpload: 'success' | 'failed';
+    localROCrateSave: 'success' | 'failed' | 'skipped';
     orchestrationDeploy: 'success' | 'failed' | 'skipped';
     smartContractUpdate: 'success' | 'failed';
     localFileDownload: 'success' | 'failed' | 'skipped';
   };
   roCrateHash?: string;
   orchestrationWorkflowId?: string;
+  localROCratePath?: string;
   localDownloadPath?: string;
   downloadedFiles?: string[];
   alContractAddresses?: {
@@ -59,6 +61,7 @@ export class DeploymentOrchestrator {
       steps: {
         alSmartContracts: 'skipped',
         ipfsUpload: 'failed',
+        localROCrateSave: 'skipped',
         orchestrationDeploy: 'failed',
         smartContractUpdate: 'failed',
         localFileDownload: 'skipped'
@@ -116,6 +119,43 @@ export class DeploymentOrchestrator {
         result.roCrateHash = ipfsResult.roCrateHash;
         result.steps.ipfsUpload = 'success';
         console.log('✅ IPFS upload successful');
+
+        // 2.5. Local RO-Crate Save (ONLY for local computation mode - AL-Engine access)
+        if (computationMode === 'local') {
+          console.log('💾 Step 2.5: Saving RO-Crate locally for AL-Engine...');
+          try {
+            const { localROCrateService } = await import('../../../services/LocalROCrateService');
+            const { roCrateService } = await import('../../../services/ROCrateService');
+            
+            // Get the RO-Crate data that was uploaded to IPFS
+            const roCrateData = roCrateService.generateROCrateJSON(config);
+            
+            // Save locally to al-engine/project-files
+            const localSaveResult = await localROCrateService.saveROCrateLocally(
+              projectId, 
+              roCrateData, 
+              config
+            );
+            
+            if (localSaveResult.success) {
+              console.log('✅ RO-Crate saved locally for AL-Engine');
+              console.log(`📂 Saved to: ${localSaveResult.projectPath}`);
+              console.log(`📄 Files: ${localSaveResult.savedFiles.length}`);
+              result.steps.localROCrateSave = 'success';
+              result.localROCratePath = localSaveResult.projectPath;
+            } else {
+              console.warn('⚠️ Failed to save RO-Crate locally:', localSaveResult.error);
+              result.steps.localROCrateSave = 'failed';
+            }
+          } catch (error) {
+            console.warn('⚠️ Failed to save RO-Crate locally:', error);
+            result.steps.localROCrateSave = 'failed';
+          }
+        } else {
+          // Remote mode - skip local RO-Crate save
+          result.steps.localROCrateSave = 'skipped';
+          console.log('⏭️ Skipping local RO-Crate save (Remote/Infra Sharing mode)');
+        }
       } else {
         result.steps.ipfsUpload = 'failed';
         console.error('❌ IPFS upload failed');
