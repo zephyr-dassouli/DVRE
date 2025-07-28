@@ -4,9 +4,7 @@ export { CollaborationWidget } from './collaboration/CollaborationWidget';
 export { GraphWidget } from './graph/GraphWidget';
 export { FederatedLearningWidget } from './federatedlearning/FederatedLearningWidget';
 export { IPFSWidget } from './ipfs/IPFSWidget';
-
-// Export the new Project Deployment components
 export { ProjectDeploymentComponent, ProjectDeploymentWidget } from './deployment';
 
-// DAL components are now completely separate extensions
-// They will be discovered and loaded via ExtensionDiscovery
+export * from './dal';
+export { DALWidget } from './dal/DALWidget';

@@ -95,7 +95,7 @@ contract JSONProject {
     event ParticipantAdded(address indexed participant);
     event RoundIncremented(uint256 newRound);
     event ALRoundTriggered(uint256 round, string reason, uint256 timestamp);
-     event InvitationSent(address indexed invitee, address indexed inviter, string role, uint256 timestamp);
+    event InvitationSent(address indexed invitee, address indexed inviter, string role, uint256 timestamp);
     event InvitationAccepted(address indexed invitee, address indexed project, uint256 timestamp);
     event InvitationRejected(address indexed invitee, address indexed project, uint256 timestamp);
     event MemberAdded(address indexed member, string role, uint256 timestamp);

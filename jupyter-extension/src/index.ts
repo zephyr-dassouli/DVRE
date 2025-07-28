@@ -11,9 +11,9 @@ import {
 import { ILauncher } from '@jupyterlab/launcher';
 import { LabIcon } from '@jupyterlab/ui-components';
 
-import { Widget } from '@lumino/widgets';
-import { AuthWidget, CollaborationWidget, GraphWidget, FederatedLearningWidget, IPFSWidget, ProjectDeploymentWidget } from './components';
-import { ExtensionDiscovery, IExtensionInfo } from './services/ExtensionDiscovery';
+// import { Widget } from '@lumino/widgets'; // DISABLED - no longer needed without ExtensionInfoWidget
+import { AuthWidget, CollaborationWidget, GraphWidget, FederatedLearningWidget, IPFSWidget, ProjectDeploymentWidget, DALWidget } from './components';
+// import { ExtensionDiscovery, IExtensionInfo } from './services/ExtensionDiscovery'; // DISABLED - no longer using extension discovery
 import { UserRegistryReactWidget } from './widgets/UserRegistryWidget';
 
 
@@ -24,6 +24,11 @@ import '../style/index.css';
 const authIcon = new LabIcon({
   name: 'my-extension:auth',
   svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>'
+});
+
+const dalIcon = new LabIcon({
+  name: 'my-extension:dal',
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="3" cy="4" r="1.5" fill="currentColor"/><circle cx="8" cy="2" r="1.5" fill="currentColor"/><circle cx="13" cy="4" r="1.5" fill="currentColor"/><circle cx="2" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="14" cy="8" r="1.5" fill="currentColor"/><circle cx="3" cy="12" r="1.5" fill="currentColor"/><circle cx="8" cy="14" r="1.5" fill="currentColor"/><circle cx="13" cy="12" r="1.5" fill="currentColor"/><path d="M3 5.5L8 3.5M8 3.5L13 5.5M2 9.5L8 9.5M8 9.5L14 9.5M3 10.5L8 12.5M8 12.5L13 10.5" stroke="currentColor" stroke-width="0.8" fill="none" opacity="0.7"/></svg>'
 });
 
 const collaborationIcon = new LabIcon({
@@ -51,15 +56,16 @@ const deploymentIcon = new LabIcon({
   svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M8 11.5L10.5 9H9V6.5H7V9H5.5L8 11.5z" fill="currentColor"/></svg>'
 });
 
-// Dynamic icon for discovered extensions
+/*
+// Dynamic icon for discovered extensions - DISABLED
 const createExtensionIcon = (name: string) => new LabIcon({
   name: `dvre-extension:${name}`,
   svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4v8M4 8h8" stroke="currentColor" stroke-width="1.5"/><path d="M6 6l4 4M10 6l-4 4" stroke="currentColor" stroke-width="1" opacity="0.7"/></svg>'
 });
 
-// Extension Info Widget class
+// Extension Info Widget class - DISABLED
 class ExtensionInfoWidget extends Widget {
-  constructor(extensionInfo: IExtensionInfo) {
+  constructor(extensionInfo: any) {
     super();
     this.addClass('dvre-extension-info');
     
@@ -94,6 +100,7 @@ class ExtensionInfoWidget extends Widget {
     this.node.appendChild(div);
   }
 }
+*/
 
 const userRegistryIcon = new LabIcon({
   name: 'my-extension:user-registry',
@@ -113,6 +120,10 @@ const plugin: JupyterFrontEndPlugin<void> = {
   ) => {
     console.log('DVRE Core is activated!');
 
+    /* 
+    // Extension Discovery Service - DISABLED
+    // No longer needed since DAL is integrated directly into the main extension
+    
     // Initialize extension discovery
     const extensionDiscovery = new ExtensionDiscovery();
     
@@ -170,6 +181,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
     }).catch(error => {
       console.warn('DVRE Core: Failed to discover extensions:', error);
     });
+    */
 
     // Command for authentication
     const authCommand = 'my-extension:auth';
@@ -278,7 +290,24 @@ const plugin: JupyterFrontEndPlugin<void> = {
         app.shell.activateById(widget.id);
       }
     });
-        
+
+    // Command for DAL (Decentralized Active Learning)
+    const dalCommand = 'my-extension:dal';
+    app.commands.addCommand(dalCommand, {
+      label: 'Decentralized Active Learning',
+      caption: 'Manage and participate in decentralized active learning projects',
+      icon: dalIcon,
+      execute: () => {
+        const content = new DALWidget();
+        const widget = new MainAreaWidget({ content });
+        widget.id = `my-dal-${Date.now()}`;
+        widget.title.closable = true;
+        widget.title.icon = dalIcon;
+        app.shell.add(widget, 'main');
+        app.shell.activateById(widget.id);
+      }
+    });
+
          // Command for User Registry
     const userRegistryCommand = 'my-extension:user-registry';
     app.commands.addCommand(userRegistryCommand, {
@@ -305,6 +334,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
     palette.addItem({ command: federatedLearningCommand, category: 'DVRE Core' });
     palette.addItem({ command: ipfsCommand, category: 'DVRE Core' });
     palette.addItem({ command: deploymentCommand, category: 'DVRE Core' });
+    palette.addItem({ command: dalCommand, category: 'DVRE Core' });
      palette.addItem({ command: userRegistryCommand, category: 'D-VRE Core' });
 
 
@@ -329,27 +359,34 @@ const plugin: JupyterFrontEndPlugin<void> = {
       });
 
       launcher.add({
-        command: federatedLearningCommand,
+        command: ipfsCommand,
         category: 'DVRE Core',
         rank: 4
       });
 
       launcher.add({
-        command: ipfsCommand,
+        command: deploymentCommand,
         category: 'DVRE Core',
         rank: 5
       });
-
-      launcher.add({
-        command: deploymentCommand,
-        category: 'DVRE Core',
-        rank: 6
-      });
-     
+      
       launcher.add({
         command: userRegistryCommand,
         category: 'DVRE Core',
-        rank: 7
+        rank: 6
+      });
+
+      // dApps category
+      launcher.add({
+        command: federatedLearningCommand,
+        category: 'DVRE dApps',
+        rank: 1
+      });
+
+      launcher.add({
+        command: dalCommand,
+        category: 'DVRE dApps',
+        rank: 2
       });
 
       console.log('DVRE Core: Extension added to launcher successfully!');
@@ -358,10 +395,10 @@ const plugin: JupyterFrontEndPlugin<void> = {
       console.log('DVRE Core: Launcher not available - extension only in command palette');
     }
 
-    // Add extension registry to the application for other extensions to use
+    // Extension registry (discovery disabled - all dApps are now integrated directly)
     const extensionRegistry = {
-      getDiscoveredExtensions: () => discoveredExtensions,
-      refreshExtensions: () => extensionDiscovery.discoverExtensions()
+      getDiscoveredExtensions: () => [], // Extension discovery disabled
+      refreshExtensions: () => Promise.resolve([]) // Extension discovery disabled
     };
 
     // Store in app context for other extensions to access
