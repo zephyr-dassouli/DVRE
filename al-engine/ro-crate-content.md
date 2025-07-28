@@ -95,7 +95,7 @@ else:
     - This just defines a *placeholder* for an input file. The actual input file:
 
 ### **2. inputs.yml**
-- <rocrate-hash> should be replaced by actual rocrate hash
+- <contract-address> should be replaced by actual contract adress
 
 ```yaml
 # inputs.yml - Runtime input mapping for al_iteration.cwl
@@ -103,27 +103,27 @@ else:
 # Labeled training data (required)
 labeled_data:
   class: File
-  path: al-engine/ro-crates/<rocrate-hash>/inputs/datasets/labeled_samples.npy
+  path: al-engine/ro-crates/<contract-address>/inputs/datasets/labeled_samples.npy
 
 # Labels for the labeled data (required)
 labeled_labels:
   class: File
-  path: al-engine/ro-crates/<rocrate-hash>/inputs/datasets/labeled_targets.npy
+  path: al-engine/ro-crates/<contract-address>/inputs/datasets/labeled_targets.npy
 
 # Unlabeled data pool for querying (required)
 unlabeled_data:
   class: File
-  path: al-engine/ro-crates/<rocrate-hash>/inputs/datasets/unlabeled_samples.npy
+  path: al-engine/ro-crates/<contract-address>/inputs/datasets/unlabeled_samples.npy
 
 # Pre-trained model from previous iteration (optional - only for rounds > 1)
 model_in:
   class: File
-  path: al-engine/ro-crates/<rocrate-hash>/config/model/model_round_2.pkl
+  path: al-engine/ro-crates/<contract-address>/config/model/model_round_2.pkl
 
 # Configuration file with AL parameters (required)
 config:
   class: File
-  path: al-engine/ro-crates/<rocrate-hash>/config/config.json
+  path: al-engine/ro-crates/<contract-address>/config/config.json
 ```
 
 ### **3. Config.json**

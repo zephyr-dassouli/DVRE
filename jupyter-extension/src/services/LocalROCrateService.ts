@@ -110,12 +110,27 @@ export class LocalROCrateService {
       });
 
       // 3. Generate config.json (AL-specific configuration)
-      const alConfigContent = this.generateALConfig(config);
-      bundleFiles.push({
-        name: 'config.json',
-        content: JSON.stringify(alConfigContent, null, 2),
-        type: 'application/json'
-      });
+      try {
+        const { smartContractService } = await import('./SmartContractService');
+        const comprehensiveConfig = await smartContractService.generateConfigFromSmartContract(projectId, config);
+        
+        // Transform comprehensive config to AL-Engine format
+        const alConfigContent = this.transformToALEngineFormat(comprehensiveConfig);
+        bundleFiles.push({
+          name: 'config.json',
+          content: JSON.stringify(alConfigContent, null, 2),
+          type: 'application/json'
+        });
+      } catch (error) {
+        console.warn('Failed to generate AL config from smart contract:', error);
+        // Fallback to basic config
+        const alConfigContent = this.generateALConfigFallback(config);
+        bundleFiles.push({
+          name: 'config.json',
+          content: JSON.stringify(alConfigContent, null, 2),
+          type: 'application/json'
+        });
+      }
 
       // 4. Generate placeholder dataset files (for AL-Engine structure)
       bundleFiles.push({
@@ -311,24 +326,61 @@ config:
   }
 
   /**
-   * Generate AL-specific config.json content
+   * Generate AL-specific config.json content (fallback)
    */
-  private generateALConfig(config: DVREProjectConfiguration): any {
-    const dalConfig = config.extensions?.dal || {};
-    
+  private generateALConfigFallback(config: DVREProjectConfiguration): any {
     return {
-      al_scenario: dalConfig.AL_scenario || 'pool_based',
-      query_strategy: dalConfig.queryStrategy || 'uncertainty_sampling',
-      model_type: dalConfig.model?.algorithm === 'logistic_regression' ? 'LogisticRegression' : 'SVC',
+      al_scenario: 'pool_based',
+      query_strategy: 'uncertainty_sampling',
+      model_type: 'SVC',
       training_args: {
         max_iter: 1000,
         random_state: 42,
-        ...(dalConfig.model?.parameters || {})
       },
-      label_space: dalConfig.labelSpace || ['positive', 'negative'],
-      query_batch_size: dalConfig.labelingBudget || dalConfig.query_batch_size || 2,
+      label_space: ['positive', 'negative'],
+      query_batch_size: 2,
       validation_split: 0.2,
-      max_iterations: dalConfig.maxIterations || 10
+      max_iterations: 10
+    };
+  }
+
+  /**
+   * Transform the comprehensive SmartContractService output into the flat format expected by the AL-Engine
+   * according to ro-crate-content.md specification
+   */
+  private transformToALEngineFormat(comprehensiveConfig: any): any {
+    const al = comprehensiveConfig.active_learning || {};
+    
+    // Map model type from AL config to format expected by AL-Engine
+    const mapModelType = (modelType: string): string => {
+      switch (modelType?.toLowerCase()) {
+        case 'logistic_regression':
+        case 'logisticregression':
+          return 'LogisticRegression';
+        case 'svc':
+        case 'svm':
+          return 'SVC';
+        case 'randomforest':
+        case 'randomforestclassifier':
+          return 'RandomForestClassifier';
+        default:
+          return 'LogisticRegression'; // Default fallback
+      }
+    };
+
+    return {
+      al_scenario: al.scenario || 'pool_based',
+      query_strategy: al.query_strategy || 'uncertainty_sampling',
+      model_type: mapModelType(al.model?.type),
+      training_args: {
+        max_iter: al.model?.parameters?.max_iter || 1000,
+        random_state: al.model?.parameters?.random_state || 42,
+        ...(al.model?.parameters || {})
+      },
+      label_space: al.label_space || ['positive', 'negative'],
+      query_batch_size: al.query_batch_size || 2,
+      validation_split: al.validation_split || 0.2,
+      max_iterations: al.max_iterations || 10
     };
   }
 
