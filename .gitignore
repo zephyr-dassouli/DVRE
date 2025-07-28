@@ -61,6 +61,9 @@ env/
 .venv/
 .env/
 
+# AL-Engine
+al-engine/ro-crates/
+
 # Jupyter
 .ipynb_checkpoints/
 
