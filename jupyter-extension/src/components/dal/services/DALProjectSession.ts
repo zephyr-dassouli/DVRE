@@ -10,6 +10,7 @@
 
 import { EventEmitter } from 'events';
 import { alContractService } from './ALContractService';
+import { config } from '../../../config';
 
 export interface ALEngineStatus {
   project_id: string;
@@ -81,7 +82,7 @@ export class DALProjectSession extends EventEmitter {
   constructor(projectId: string, userAddress: string, alEnginePort: number = 5050) {
     super();
     
-    this.alEngineBaseUrl = `http://localhost:${alEnginePort}`;
+    this.alEngineBaseUrl = config.alEngine.apiUrl || `http://localhost:${alEnginePort}`;
     this.userAddress = userAddress;
     this.state = {
       projectId,

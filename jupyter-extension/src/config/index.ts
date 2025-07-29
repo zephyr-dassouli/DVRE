@@ -15,6 +15,29 @@ export const config = {
     timeout: 30000
   },
   
+  // AL-Engine Configuration
+  alEngine: {
+    // Python environment paths
+    pythonExecutable: process.env.DVRE_PYTHON_PATH || '/Users/duongvuhai/Desktop/Thesis/DVRE/venv/bin/python3',
+    
+    // AL-Engine source paths
+    sourceDirectory: process.env.DVRE_AL_ENGINE_PATH || '/Users/duongvuhai/Desktop/Thesis/DVRE/al-engine',
+    scriptPath: process.env.DVRE_AL_ENGINE_SCRIPT || '/Users/duongvuhai/Desktop/Thesis/DVRE/al-engine/src/al_iteration.py',
+    
+    // RO-Crate paths
+    roCrateRoot: process.env.DVRE_ROCRATE_ROOT || '../al-engine/ro-crates',
+    
+    // API configuration
+    apiUrl: process.env.DVRE_AL_ENGINE_API || 'http://localhost:5050',
+    healthEndpoint: '/health',
+    iterationEndpoint: '/start_iteration',
+    statusEndpoint: '/status',
+    
+    // Execution settings
+    timeout: 300000, // 5 minutes
+    retries: 3
+  },
+  
   // Blockchain Configuration
   blockchain: {
     // Set this to the deployed AssetFactory contract address

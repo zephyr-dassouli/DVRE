@@ -65,6 +65,22 @@ class ALEngineServer:
     def setup_routes(self):
         """Setup Flask API routes"""
         
+        # Add CORS support for cross-origin requests from JupyterLab
+        @self.app.after_request
+        def after_request(response):
+            """Add CORS headers to all responses"""
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            return response
+        
+        # Handle preflight OPTIONS requests
+        @self.app.route('/<path:path>', methods=['OPTIONS'])
+        def handle_options(path):
+            """Handle preflight requests for all routes"""
+            return '', 200
+        
         @self.app.route('/health', methods=['GET'])
         def health_check():
             """Health check endpoint"""

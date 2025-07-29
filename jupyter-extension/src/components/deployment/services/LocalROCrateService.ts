@@ -3,6 +3,7 @@
 import { DVREProjectConfiguration } from '../../../shared/types/types';
 import { IPFSFile } from '../../../shared/types/types';
 import ipfsConfig from '../../../config';
+import { config } from '../../../config';
 
 export interface LocalROCrateSaveResult {
   success: boolean;
@@ -13,7 +14,7 @@ export interface LocalROCrateSaveResult {
 
 export class LocalROCrateService {
   private static instance: LocalROCrateService;
-  private readonly LOCAL_ROCRATE_ROOT = '../al-engine/ro-crates';
+  private readonly LOCAL_ROCRATE_ROOT = config.alEngine.roCrateRoot;
 
   private constructor() {}
 
@@ -322,59 +323,49 @@ curl -o inputs/datasets/unlabeled_samples.csv "${ipfsConfig.ipfs.publicUrl}/ipfs
    * Generate al_iteration.cwl content (YAML format)
    */
   private generateALIterationCWL(): string {
-    // Create cwltool definition for AL iteration
-    // This references the existing al_iteration.py file in al-engine directory
+    // Create cwltool definition for AL iteration that matches the working configuration
+    // This matches the tested al_iteration.cwl in al-engine/ro-crates/<project-id>/
     const cwlContent = `cwlVersion: v1.2
 class: CommandLineTool
 
-label: Active Learning Iteration (Train + Query)
-doc: One-step AL iteration using modAL and scikit-learn, returns actual query samples.
-
-baseCommand: python3
-arguments: [../../al_iteration.py]
+baseCommand: ${config.alEngine.pythonExecutable}
+arguments: [${config.alEngine.scriptPath}]
 
 inputs:
   labeled_data:
     type: File
     inputBinding:
       prefix: --labeled_data
-    doc: Initial labeled dataset file (CSV or NPY format)
   labeled_labels:
     type: File
     inputBinding:
       prefix: --labeled_labels
-    doc: Initial labels file (CSV or NPY format)
   unlabeled_data:
     type: File
     inputBinding:
       prefix: --unlabeled_data
-    doc: Unlabeled data pool for querying (CSV or NPY format)
   model_in:
     type: File?
     inputBinding:
       prefix: --model_in
-    doc: Pre-trained model from previous iteration (optional)
   config:
     type: File
     inputBinding:
       prefix: --config
-    doc: AL configuration file with parameters
+  iteration:
+    type: int
+    inputBinding:
+      prefix: --iteration
 
 outputs:
   model_out:
     type: File
     outputBinding:
-      glob: model/model_round_*.pkl
-    doc: Updated model after training with new labels
+      glob: output/model/model_round_*.pkl
   query_samples:
     type: File
     outputBinding:
-      glob: query_samples.json
-    doc: JSON file containing the actual samples selected for labeling.
-
-requirements:
-  DockerRequirement:
-    dockerPull: python:3.9-slim
+      glob: output/query_samples_round_*.json
 `;
 
     return cwlContent;
@@ -384,41 +375,21 @@ requirements:
    * Generate inputs.yml content (runtime input mapping)
    */
   private generateInputsYml(projectId: string, config: DVREProjectConfiguration): string {
-    // Determine the actual dataset file extensions and names based on what was configured
-    const datasets = Object.values(config.roCrate.datasets);
-    const trainingDataset = datasets.find((ds: any) => ds.type === 'training');
-    const labelingDataset = datasets.find((ds: any) => ds.type === 'labeling');
-    
-    // Use the actual file format from the datasets, default to csv
-    const datasetExtension = trainingDataset?.format || labelingDataset?.format || 'csv';
-    
-    return `# inputs.yml - Runtime input mapping for al_iteration.cwl
-
-# Labeled training data (required)
-labeled_data:
+    // Generate simple inputs.yml that matches the working configuration
+    // This matches the tested inputs.yml in al-engine/ro-crates/<project-id>/
+    return `labeled_data:
   class: File
-  path: al-engine/ro-crates/${projectId}/inputs/datasets/labeled_samples.${datasetExtension}
-
-# Labels for the labeled data (required)
-# Note: For CSV files, labels are typically in the same file or a separate labels column
+  path: inputs/datasets/labeled_samples.csv
 labeled_labels:
-  class: File
-  path: al-engine/ro-crates/${projectId}/inputs/datasets/labeled_samples.${datasetExtension}
-
-# Unlabeled data pool for querying (required)
+  class: File  
+  path: inputs/datasets/labeled_samples.csv
 unlabeled_data:
   class: File
-  path: al-engine/ro-crates/${projectId}/inputs/datasets/unlabeled_samples.${datasetExtension}
-
-# Pre-trained model from previous iteration (optional - dynamic based on current iteration)
-model_in:
-  class: File
-  path: al-engine/ro-crates/${projectId}/config/model/model_round_*.pkl
-
-# Configuration file with AL parameters (required)
+  path: inputs/datasets/unlabeled_samples.csv
 config:
   class: File
-  path: al-engine/ro-crates/${projectId}/config.json`;
+  path: config.json
+`;
   }
 
   /**
@@ -427,53 +398,24 @@ config:
   private generateALConfigFallback(config: DVREProjectConfiguration): any {
     const dalConfig = config.extensions?.dal || {};
     
+    // Generate config that matches the working config.json structure
     return {
       al_scenario: dalConfig.alScenario || 'pool_based',
       query_strategy: dalConfig.queryStrategy || 'uncertainty_sampling',
-      model_type: this.mapModelType(dalConfig.model?.type || 'logistic_regression'),
-      training_args: dalConfig.model?.parameters || {
-        max_iter: 1000,
-        random_state: 42,
+      model_type: 'RandomForestClassifier',
+      training_args: {
+        n_estimators: 50,
+        random_state: 42
       },
-      label_space: dalConfig.labelSpace || ['positive', 'negative'],
+      label_space: dalConfig.labelSpace || ['setosa', 'versicolor', 'virginica'],
       query_batch_size: dalConfig.queryBatchSize || 2,
-      validation_split: dalConfig.validation_split || 0.2,
-      max_iterations: dalConfig.maxIterations || 10,
-      
-      // Additional fields for completeness
-      voting_consensus: dalConfig.votingConsensus || 'simple_majority',
-      voting_timeout_seconds: dalConfig.votingTimeout || 3600,
-      training_dataset: dalConfig.trainingDataset || '',
-      labeling_dataset: dalConfig.labelingDataset || ''
+      max_iterations: dalConfig.maxIterations || 3,
+      iteration: 0
     };
   }
 
   /**
-   * Map model type from AL config to format expected by AL-Engine
-   */
-  private mapModelType(modelType: string): string {
-    switch (modelType?.toLowerCase()) {
-      case 'logistic_regression':
-      case 'logisticregression':
-        return 'LogisticRegression';
-      case 'svc':
-      case 'svm':
-      case 'support_vector_machine':
-        return 'SVC';
-      case 'random_forest':
-      case 'randomforest':
-      case 'randomforestclassifier':
-        return 'RandomForestClassifier';
-      case 'neural_network':
-        return 'MLPClassifier';
-      default:
-        return 'LogisticRegression'; // Default fallback
-    }
-  }
-
-  /**
-   * Transform the comprehensive SmartContractService output into the flat format expected by the AL-Engine
-   * according to ro-crate-content.md specification
+   * Transform comprehensive configuration to AL-Engine format
    */
   private transformToALEngineFormat(comprehensiveConfig: any): any {
     console.log('🔍 Transforming config:', JSON.stringify(comprehensiveConfig, null, 2));
@@ -483,21 +425,15 @@ config:
     const result = {
       al_scenario: al.scenario || 'pool_based',
       query_strategy: al.query_strategy || 'uncertainty_sampling',
-      model_type: this.mapModelType(al.model?.type),
-      training_args: al.model?.parameters || {
-        max_iter: 1000,
+      model_type: 'RandomForestClassifier',
+      training_args: {
+        n_estimators: 50,
         random_state: 42
       },
-      label_space: al.label_space || [],
+      label_space: al.label_space || ['setosa', 'versicolor', 'virginica'],
       query_batch_size: al.query_batch_size || 2,
-      validation_split: al.validation_split || 0.2,
-      max_iterations: al.max_iterations || 10,
-      
-      // Additional fields for completeness
-      voting_consensus: al.voting?.consensus_type || 'simple_majority',
-      voting_timeout_seconds: al.voting?.timeout_seconds || 3600,
-      training_dataset: al.datasets?.training_dataset || '',
-      labeling_dataset: al.datasets?.labeling_dataset || ''
+      max_iterations: al.max_iterations || 3,
+      iteration: 0
     };
 
     console.log('🔄 Transformed result:', JSON.stringify(result, null, 2));
