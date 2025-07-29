@@ -1,12 +1,11 @@
 /**
- * Deployment Orchestrator - Centralized deployment logic
- * Coordinates all aspects of project deployment to remove redundancy
+ * Deployment Orchestrator - Coordinates deployment across all services
  */
 
-import { projectConfigurationService, DVREProjectConfiguration } from '../../../services/ProjectConfigurationService';
-import { projectDeploymentService } from './index';
-import { SmartContractService } from '../../../services/SmartContractService';
-import { localFileDownloadService } from '../../../services/LocalFileDownloadService';
+import { projectConfigurationService, DVREProjectConfiguration } from './ProjectConfigurationService';
+import { ProjectDeploymentService } from './ProjectDeploymentService';
+import { SmartContractService } from './SmartContractService';
+import { localFileDownloadService } from './LocalFileDownloadService';
 
 // Import blockchain dependencies  
 import { ethers } from 'ethers';
@@ -124,13 +123,15 @@ export class DeploymentOrchestrator {
         if (computationMode === 'local') {
           console.log('💾 Step 2.5: Saving RO-Crate locally for AL-Engine...');
           try {
-            const { localROCrateService } = await import('../../../services/LocalROCrateService');
-            const { roCrateService } = await import('../../../services/ROCrateService');
+            // Step 3: Save RO-Crate bundle locally for AL-Engine access
+            console.log('💾 Step 3: Saving RO-Crate bundle locally...');
+            const { localROCrateService } = await import('./LocalROCrateService');
+            const { roCrateService } = await import('./ROCrateService');
             
             // Get the RO-Crate data that was uploaded to IPFS
             const roCrateData = roCrateService.generateROCrateJSON(config);
             
-            // Save locally to al-engine/ro-crates
+            // Save locally to al-engine/ro-crates (now includes actual dataset downloads)
             const localSaveResult = await localROCrateService.saveROCrateLocally(
               projectId, 
               roCrateData, 
@@ -138,7 +139,7 @@ export class DeploymentOrchestrator {
             );
             
             if (localSaveResult.success) {
-              console.log('✅ RO-Crate saved locally for AL-Engine');
+              console.log('✅ RO-Crate saved locally for AL-Engine (including actual CSV datasets)');
               console.log(`📂 Saved to: ${localSaveResult.projectPath}`);
               console.log(`📄 Files: ${localSaveResult.savedFiles.length}`);
               result.steps.localROCrateSave = 'success';
@@ -207,7 +208,7 @@ export class DeploymentOrchestrator {
         if (roCrateHash) {
           try {
             // Use WorkflowService to submit workflow to orchestrator
-            const { workflowService } = await import('../../../services/WorkflowService');
+            const { workflowService } = await import('./WorkflowService');
             
             const workflowConfig = {
               projectId,
@@ -466,14 +467,14 @@ export class DeploymentOrchestrator {
    * Get deployment status for a project
    */
   getDeploymentStatus(projectId: string) {
-    return projectDeploymentService.getDeploymentStatus(projectId);
+    return ProjectDeploymentService.getInstance().getDeploymentStatus(projectId);
   }
 
   /**
    * Check if project is deployed
    */
   isProjectDeployed(projectId: string): boolean {
-    return projectDeploymentService.isProjectDeployed(projectId);
+    return ProjectDeploymentService.getInstance().isProjectDeployed(projectId);
   }
 
   /**

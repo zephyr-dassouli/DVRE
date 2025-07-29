@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useProjects, ProjectInfo } from './useProjects';
 import { useAuth } from './useAuth';
-import { projectConfigurationService } from '../services/ProjectConfigurationService';
+import { projectConfigurationService } from '../components/deployment/services/ProjectConfigurationService';
 import { ethers } from 'ethers';
 import { RPC_URL } from '../config/contracts';
 import JSONProject from '../abis/JSONProject.json';
@@ -19,6 +19,7 @@ export interface DALProjectInfo extends ProjectInfo {
     queryBatchSize: number;
     votingConsensus: string;
     votingTimeout: number;
+    labelSpace: string[];
   };
   currentIteration: number;
   totalSamplesLabeled: number;
@@ -129,10 +130,11 @@ export const useDALProject = (projectAddress?: string) => {
       // Check deployment status from smart contract
       let isDeployed = false;
       let deploymentStatus: 'deployed' | 'running' | 'failed' | 'deploying' | 'pending' = 'pending';
+      let alConfiguration: any = undefined;
       
       try {
         // Get provider and create contract instance
-        const provider = new ethers.JsonRpcProvider(RPC_URL); // Use your RPC URL
+        const provider = new ethers.JsonRpcProvider(RPC_URL);
         const projectContract = new ethers.Contract(project.address, JSONProject.abi, provider);
 
         // Check if AL contracts are deployed
@@ -149,6 +151,79 @@ export const useDALProject = (projectAddress?: string) => {
           // This shouldn't happen for AL projects, but handle gracefully
           isDeployed = false;
           deploymentStatus = 'pending';
+        }
+
+        // Fetch AL configuration directly from smart contract
+        console.log('📋 Fetching AL metadata from smart contract:', project.address);
+        try {
+          const metadata = await projectContract.getProjectMetadata();
+          console.log('✅ Retrieved AL metadata from smart contract:', metadata);
+          
+          // Extract AL configuration from smart contract metadata
+          alConfiguration = {
+            queryStrategy: metadata._queryStrategy || 'uncertainty_sampling',
+            scenario: metadata._alScenario || 'pool_based', 
+            model: { 
+              type: 'logistic_regression', // Default model type
+              parameters: {} 
+            },
+            maxIterations: Number(metadata._maxIteration) || 10,
+            queryBatchSize: Number(metadata._queryBatchSize) || 10,
+            votingConsensus: 'simple_majority', // Default consensus type
+            votingTimeout: 3600, // Default timeout
+            labelSpace: metadata._labelSpace && metadata._labelSpace.length > 0 
+              ? metadata._labelSpace 
+              : ['positive', 'negative']
+          };
+
+          // If AL contracts are deployed, try to get additional voting configuration
+          if (hasALContracts) {
+            try {
+              const votingAddress = await projectContract.votingContract();
+              if (votingAddress && votingAddress !== '0x0000000000000000000000000000000000000000') {
+                console.log('🗳️ Fetching voting configuration from AL contract:', votingAddress);
+                
+                // Import ALProjectVoting ABI
+                const ALProjectVoting = await import('../abis/ALProjectVoting.json');
+                const votingContract = new ethers.Contract(votingAddress, ALProjectVoting.default.abi, provider);
+                
+                // Try to get voting timeout and consensus settings if available
+                // Note: These methods might not exist in all contract versions
+                try {
+                  const voterList = await votingContract.getVoterList();
+                  console.log('👥 Found voters:', voterList.length);
+                  
+                  // Additional voting config could be retrieved here if methods exist
+                  // alConfiguration.votingConsensus = await votingContract.getConsensusType();
+                  // alConfiguration.votingTimeout = await votingContract.getVotingTimeout();
+                } catch (votingConfigError) {
+                  console.log('ℹ️ Additional voting config not available:', (votingConfigError as Error).message);
+                }
+              }
+            } catch (votingContractError) {
+              console.log('ℹ️ Could not fetch voting contract details:', (votingContractError as Error).message);
+            }
+          }
+
+          console.log('🔧 Parsed AL configuration from smart contract:', alConfiguration);
+        } catch (metadataError) {
+          console.warn('Could not fetch AL metadata from smart contract:', metadataError);
+          
+          // Fallback to local configuration if smart contract metadata fails
+          const dalConfig = config?.extensions?.dal;
+          if (dalConfig) {
+            alConfiguration = {
+              queryStrategy: dalConfig.queryStrategy || 'uncertainty_sampling',
+              scenario: dalConfig.alScenario || 'pool_based',
+              model: dalConfig.model || { type: 'logistic_regression', parameters: {} },
+              maxIterations: dalConfig.maxIterations || 10,
+              queryBatchSize: dalConfig.queryBatchSize || 10,
+              votingConsensus: dalConfig.votingConsensus || 'simple_majority',
+              votingTimeout: dalConfig.votingTimeout || 3600,
+              labelSpace: dalConfig.labelSpace || ['positive', 'negative']
+            };
+            console.log('📁 Using fallback AL configuration from local storage:', alConfiguration);
+          }
         }
         
       } catch (deploymentError) {
@@ -168,9 +243,17 @@ export const useDALProject = (projectAddress?: string) => {
         }
       }
 
-      // Extract DAL configuration from project config
-      const dalConfig = config?.extensions?.dal;
+      // Remove the old local config extraction since we're getting it from smart contract now
+      // const dalConfig = config?.extensions?.dal;
       
+      // Debug logging to understand what configuration is available
+      console.log('🔍 DAL Project enrichment for:', {
+        projectId: project.projectId,
+        projectAddress: project.address,
+        hasSmartContractALConfig: !!alConfiguration,
+        alConfigFields: alConfiguration ? Object.keys(alConfiguration) : []
+      });
+
       // In real implementation, these would come from the AL engine, smart contract events, or external services
       // For now, we'll leave them undefined until real data sources are connected
       const currentIteration = 0; // TODO: Get from AL engine or smart contract events
@@ -178,15 +261,7 @@ export const useDALProject = (projectAddress?: string) => {
 
       const dalProject: DALProjectInfo = {
         ...project,
-        alConfiguration: dalConfig ? {
-          queryStrategy: dalConfig.queryStrategy || 'uncertainty_sampling',
-          scenario: dalConfig.AL_scenario || 'pool_based',
-          model: dalConfig.model || { type: 'logistic_regression', parameters: {} },
-          maxIterations: dalConfig.max_iterations || 10,
-          queryBatchSize: dalConfig.labeling_budget || 10,
-          votingConsensus: dalConfig.voting_consensus || 'simple_majority',
-          votingTimeout: dalConfig.voting_timeout_seconds || 3600
-        } : undefined,
+        alConfiguration,
         currentIteration,
         totalSamplesLabeled,
         // Real model performance and voting data would come from AL contracts/services
@@ -249,16 +324,32 @@ export const useDALProject = (projectAddress?: string) => {
 
     try {
       setLoading(true);
-      // TODO: Implement real smart contract integration
-      // This should call the AL orchestrator or smart contract to trigger new iteration
+      setError(null);
+      
+      console.log('🚀 Triggering next AL iteration from useDALProject');
+      
+      // Import ALContractService
+      const { alContractService } = await import('../components/dal/services/ALContractService');
+      
+      // Start iteration using the contract service
+      const success = await alContractService.startNextIteration(projectAddress, account);
+      
+      if (success) {
+        // Reload project data to reflect changes
+        await loadProjectDetails(projectAddress);
+        console.log('✅ AL iteration started successfully');
+      } else {
+        throw new Error('Failed to start AL iteration');
+      }
       
     } catch (err) {
-      console.error('Failed to start next iteration:', err);
+      console.error('❌ Failed to start next iteration:', err);
       setError(err instanceof Error ? err.message : 'Failed to start next iteration');
+      throw err;
     } finally {
       setLoading(false);
     }
-  }, [account, currentProject]);
+  }, [account, currentProject, loadProjectDetails]);
 
   // End project (coordinator only)
   const endProject = useCallback(async (projectAddress: string) => {
@@ -266,16 +357,32 @@ export const useDALProject = (projectAddress?: string) => {
 
     try {
       setLoading(true);
-      // TODO: Implement real smart contract integration
-      // This should call smart contract to deactivate project
+      setError(null);
+      
+      console.log('🏁 Ending AL project from useDALProject');
+      
+      // Import ALContractService
+      const { alContractService } = await import('../components/dal/services/ALContractService');
+      
+      // End project using the contract service
+      const success = await alContractService.endProject(projectAddress, account);
+      
+      if (success) {
+        // Reload project data to reflect changes
+        await loadProjectDetails(projectAddress);
+        console.log('✅ AL project ended successfully');
+      } else {
+        throw new Error('Failed to end AL project');
+      }
       
     } catch (err) {
-      console.error('Failed to end project:', err);
+      console.error('❌ Failed to end project:', err);
       setError(err instanceof Error ? err.message : 'Failed to end project');
+      throw err;
     } finally {
       setLoading(false);
     }
-  }, [account, currentProject]);
+  }, [account, currentProject, loadProjectDetails]);
 
   // Submit vote for current sample
   const submitVote = useCallback(async (projectAddress: string, sampleId: string, label: string) => {
@@ -283,17 +390,32 @@ export const useDALProject = (projectAddress?: string) => {
 
     try {
       setLoading(true);
+      setError(null);
       
-      // TODO: Implement real smart contract integration
-      // This should submit to ALProjectVoting contract
+      console.log('🗳️ Submitting vote from useDALProject');
+      
+      // Import ALContractService
+      const { alContractService } = await import('../components/dal/services/ALContractService');
+      
+      // Submit vote using the contract service
+      const success = await alContractService.submitVote(projectAddress, sampleId, label, account);
+      
+      if (success) {
+        // Reload project data to reflect the vote
+        await loadProjectDetails(projectAddress);
+        console.log('✅ Vote submitted successfully');
+      } else {
+        throw new Error('Failed to submit vote');
+      }
       
     } catch (err) {
-      console.error('Failed to submit vote:', err);
+      console.error('❌ Failed to submit vote:', err);
       setError(err instanceof Error ? err.message : 'Failed to submit vote');
+      throw err;
     } finally {
       setLoading(false);
     }
-  }, [account, currentProject]);
+  }, [account, currentProject, loadProjectDetails]);
 
   // Load projects on mount and when projects change
   useEffect(() => {

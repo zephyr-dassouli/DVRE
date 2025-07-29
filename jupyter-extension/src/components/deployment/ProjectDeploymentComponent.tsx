@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
-import { DVREProjectConfiguration, projectConfigurationService } from '../../services/ProjectConfigurationService';
+import { DVREProjectConfiguration, projectConfigurationService } from './services/ProjectConfigurationService';
 import { useAuth } from '../../hooks/useAuth';
 import { useProjects } from '../../hooks/useProjects';
 import ProjectConfigurationPanel from './ProjectConfigurationPanel';
@@ -536,7 +536,7 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
                   Modified: {new Date(project.lastModified).toLocaleDateString()}
                 </span>
                 {project.ipfs && (
-                  <span className="ipfs-status">📎 Published</span>
+                  <span className="ipfs-status">Published</span>
                 )}
               </div>
             </div>

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { DVREProjectConfiguration } from '../../services/ProjectConfigurationService';
+import { DVREProjectConfiguration } from './services/ProjectConfigurationService';
 
 interface ComputationModePanelProps {
   project: DVREProjectConfiguration;

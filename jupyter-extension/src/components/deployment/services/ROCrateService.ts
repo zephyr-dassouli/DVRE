@@ -1,10 +1,9 @@
 /**
- * RO-Crate Service - Handles RO-Crate generation and enhancement
- * Extracted from ProjectConfigurationService for better organization
+ * RO-Crate Service - Generate Research Object Crate metadata for projects
  */
 
-import { DVREProjectConfiguration } from './types';
-import { assetService } from '../utils/AssetService';
+import { DVREProjectConfiguration } from '../../../shared/types/types';
+import { assetService } from '../../../utils/AssetService';
 
 export class ROCrateService {
   private static instance: ROCrateService;

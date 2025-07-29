@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DALProject, DALComponentProps } from './types';
 import DALProjectPage from './DALProjectPage';
-import { useDALProject } from '../../hooks/useDALProject';
+import { useProjects } from '../../hooks/useProjects';
 import { useAuth } from '../../hooks/useAuth';
+import { projectConfigurationService } from '../deployment/services/ProjectConfigurationService';
+import { ethers } from 'ethers';
+import { RPC_URL } from '../../config/contracts';
+import JSONProject from '../../abis/JSONProject.json';
 
 /**
  * DAL Landing Page Component - Shows user's DAL projects
@@ -14,39 +18,168 @@ export const DALComponent: React.FC<DALComponentProps> = ({
 }) => {
   const [selectedView, setSelectedView] = useState<'all' | 'owned' | 'joined'>('all');
   const [selectedProject, setSelectedProject] = useState<DALProject | null>(null);
+  const [enrichedProjects, setEnrichedProjects] = useState<DALProject[]>([]);
+  const [enrichmentLoading, setEnrichmentLoading] = useState(false);
 
-  // Use the real DAL hook from the jupyter-extension
-  const { dalProjects, loading, error } = useDALProject();
+  // Use useProjects to get all user projects
+  const { userProjects, loading, error } = useProjects();
   const { account } = useAuth();
 
-  // Convert DALProjectInfo to DALProject format
-  const convertToDALProject = (projectInfo: any): DALProject => {
-    const isOwner = projectInfo.creator?.toLowerCase() === account?.toLowerCase();
-    
-    return {
-      id: projectInfo.address,
-      name: projectInfo.projectData?.name || projectInfo.objective,
-      contractAddress: projectInfo.address,
-      status: projectInfo.isActive ? 'running' : 'completed',
-      participants: projectInfo.participants?.length || 0,
-      currentRound: projectInfo.currentIteration || 1,
-      totalRounds: projectInfo.alConfiguration?.maxIterations || 10,
-      lastUpdated: new Date(projectInfo.lastModified * 1000),
-      workflowConfigured: true,
-      creator: projectInfo.creator,
-      isActive: projectInfo.isActive,
-      alConfiguration: projectInfo.alConfiguration,
-      modelPerformance: projectInfo.modelPerformance,
-      activeVoting: projectInfo.activeVoting,
-      userRole: isOwner ? 'coordinator' : 'contributor',
-      totalSamplesLabeled: projectInfo.totalSamplesLabeled,
-      isDeployed: projectInfo.isDeployed,
-      deploymentStatus: projectInfo.deploymentStatus
-    };
-  };
+  // Enrich project with AL-specific data (borrowed from useDALProject)
+  const enrichProjectWithALData = useCallback(async (project: any) => {
+    try {
+      // Check deployment status from smart contract
+      let isDeployed = false;
+      let deploymentStatus: 'deployed' | 'running' | 'failed' | 'deploying' | 'pending' = 'pending';
+      let alConfiguration: any = undefined;
+      
+      try {
+        // Get provider and create contract instance
+        const provider = new ethers.JsonRpcProvider(RPC_URL);
+        const projectContract = new ethers.Contract(project.address, JSONProject.abi, provider);
+
+        // Check if AL contracts are deployed
+        const hasALContracts = await projectContract.hasALContracts();
+        
+        if (hasALContracts) {
+          isDeployed = true;
+          deploymentStatus = 'deployed';
+        } else {
+          isDeployed = false;
+          deploymentStatus = 'pending';
+        }
+
+        // Fetch AL configuration directly from smart contract
+        try {
+          const metadata = await projectContract.getProjectMetadata();
+          
+          // Extract AL configuration from smart contract metadata
+          alConfiguration = {
+            queryStrategy: metadata._queryStrategy || 'uncertainty_sampling',
+            scenario: metadata._alScenario || 'pool_based', 
+            model: { 
+              type: 'logistic_regression',
+              parameters: {} 
+            },
+            maxIterations: Number(metadata._maxIteration) || 10,
+            queryBatchSize: Number(metadata._queryBatchSize) || 10,
+            votingConsensus: 'simple_majority',
+            votingTimeout: 3600,
+            labelSpace: metadata._labelSpace && metadata._labelSpace.length > 0 
+              ? metadata._labelSpace 
+              : ['positive', 'negative']
+          };
+        } catch (metadataError) {
+          console.warn('Could not fetch AL metadata from smart contract:', metadataError);
+          
+          // Fallback to local configuration if smart contract metadata fails
+          const config = projectConfigurationService.getProjectConfiguration(project.address);
+          const dalConfig = config?.extensions?.dal;
+          if (dalConfig) {
+            alConfiguration = {
+              queryStrategy: dalConfig.queryStrategy || 'uncertainty_sampling',
+              scenario: dalConfig.alScenario || 'pool_based',
+              model: dalConfig.model || { type: 'logistic_regression', parameters: {} },
+              maxIterations: dalConfig.maxIterations || 10,
+              queryBatchSize: dalConfig.queryBatchSize || 10,
+              votingConsensus: dalConfig.votingConsensus || 'simple_majority',
+              votingTimeout: dalConfig.votingTimeout || 3600,
+              labelSpace: dalConfig.labelSpace || ['positive', 'negative']
+            };
+          }
+        }
+        
+      } catch (deploymentError) {
+        console.warn('Could not check smart contract deployment status:', deploymentError);
+        // Fallback to deployment service
+        const config = projectConfigurationService.getProjectConfiguration(project.address);
+        isDeployed = config ? (config.status === 'deployed') : false;
+        deploymentStatus = config?.status === 'deployed' ? 'deployed' : 'pending';
+      }
+
+      const isOwner = project.creator?.toLowerCase() === account?.toLowerCase();
+      
+      return {
+        id: project.address,
+        name: project.projectData?.name || project.projectData?.project_id || project.objective || 'Unnamed Project',
+        description: project.description || project.projectData?.description,
+        contractAddress: project.address,
+        status: project.isActive ? 'running' : 'completed',
+        participants: project.participants?.length || 0,
+        currentRound: 1, // Default for non-AL projects
+        totalRounds: alConfiguration?.maxIterations || 10,
+        lastUpdated: new Date(project.lastModified * 1000),
+        workflowConfigured: true,
+        creator: project.creator,
+        isActive: project.isActive,
+        alConfiguration,
+        modelPerformance: undefined,
+        activeVoting: undefined,
+        userRole: isOwner ? 'coordinator' : 'contributor',
+        totalSamplesLabeled: 0,
+        isDeployed,
+        deploymentStatus: deploymentStatus as any
+      } as DALProject;
+    } catch (err) {
+      console.error(`Failed to enrich project ${project.address} with AL data:`, err);
+      
+      // Return basic project data if enrichment fails
+      const isOwner = project.creator?.toLowerCase() === account?.toLowerCase();
+      return {
+        id: project.address,
+        name: project.projectData?.name || project.projectData?.project_id || project.objective || 'Unnamed Project',
+        description: project.description || project.projectData?.description,
+        contractAddress: project.address,
+        status: project.isActive ? 'running' : 'completed',
+        participants: project.participants?.length || 0,
+        currentRound: 1,
+        totalRounds: 10,
+        lastUpdated: new Date(project.lastModified * 1000),
+        workflowConfigured: true,
+        creator: project.creator,
+        isActive: project.isActive,
+        alConfiguration: undefined,
+        modelPerformance: undefined,
+        activeVoting: undefined,
+        userRole: isOwner ? 'coordinator' : 'contributor',
+        totalSamplesLabeled: 0,
+        isDeployed: false,
+        deploymentStatus: 'pending'
+      } as DALProject;
+    }
+  }, [account]);
+
+  // Enrich all user projects with AL data
+  const enrichAllProjects = useCallback(async () => {
+    if (!userProjects || userProjects.length === 0) {
+      setEnrichedProjects([]);
+      return;
+    }
+
+    setEnrichmentLoading(true);
+    try {
+      const enrichedList: DALProject[] = [];
+      
+      for (const project of userProjects) {
+        const enrichedProject = await enrichProjectWithALData(project);
+        enrichedList.push(enrichedProject);
+      }
+      
+      setEnrichedProjects(enrichedList);
+    } catch (err) {
+      console.error('Failed to enrich projects:', err);
+    } finally {
+      setEnrichmentLoading(false);
+    }
+  }, [userProjects, enrichProjectWithALData]);
+
+  // Enrich projects when userProjects change
+  useEffect(() => {
+    enrichAllProjects();
+  }, [enrichAllProjects]);
 
   // Convert projects and separate owned vs joined
-  const allProjects = dalProjects.map(convertToDALProject);
+  const allProjects = enrichedProjects;
   const ownedProjects = allProjects.filter(p => p.userRole === 'coordinator');
   const joinedProjects = allProjects.filter(p => p.userRole === 'contributor');
 
@@ -121,7 +254,7 @@ export const DALComponent: React.FC<DALComponentProps> = ({
     );
   }
 
-  if (loading) {
+  if (loading || enrichmentLoading) {
     return (
       <div className="dal-container">
         <div className="dal-loading">
@@ -205,29 +338,33 @@ export const DALComponent: React.FC<DALComponentProps> = ({
         <div className="dal-projects">
           {filteredProjects.map((project) => (
             <div key={project.id} className="dal-project-card">
-              <div className="project-header">
-                <div className="project-title-row">
-                  <h4>{project.name}</h4>
-                  <div className="project-badges">
-                    <span className="role-badge" data-role={project.userRole}>
-                      {project.userRole === 'coordinator' ? 'COORDINATOR' : 'CONTRIBUTOR'}
-                    </span>
-                    <span 
-                      className="status-badge"
-                      style={{ backgroundColor: getStatusColor(project.status) }}
-                    >
-                      {project.status.toUpperCase()}
-                    </span>
-                  </div>
+              {/* Prominent Project Name Container */}
+              <div className="project-name-container">
+                <h3 className="project-name">{project.name}</h3>
+                <div className="project-badges">
+                  <span className="project-type-badge">
+                    ACTIVE LEARNING
+                  </span>
+                  <span className="role-badge" data-role={project.userRole}>
+                    {project.userRole === 'coordinator' ? 'COORDINATOR' : 'CONTRIBUTOR'}
+                  </span>
+                  <span 
+                    className="status-badge"
+                    style={{ backgroundColor: getStatusColor(project.status) }}
+                  >
+                    {project.status.toUpperCase()}
+                  </span>
                 </div>
-                {project.alConfiguration && (
-                  <div className="project-config-summary">
-                    <span>Strategy: {project.alConfiguration.queryStrategy}</span>
-                    <span>Model: {project.alConfiguration.model.type}</span>
-                    <span>Batch: {project.alConfiguration.queryBatchSize}</span>
-                  </div>
-                )}
               </div>
+
+              {/* Configuration Summary */}
+              {project.alConfiguration && (
+                <div className="project-config-summary">
+                  <span>Strategy: {project.alConfiguration.queryStrategy}</span>
+                  <span>Model: {project.alConfiguration.model.type}</span>
+                  <span>Batch: {project.alConfiguration.queryBatchSize}</span>
+                </div>
+              )}
 
               <div className="project-stats">
                 <div className="stat">

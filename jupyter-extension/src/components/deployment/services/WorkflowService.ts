@@ -1,10 +1,9 @@
 /**
- * Workflow Service - Handles CWL workflow generation, validation, and orchestrator communication
- * Extracted to centralize workflow management for DVRE projects
+ * Workflow Service - Handles workflow submission and management
  */
 
-import { DVREProjectConfiguration, ConfigurationWorkflow } from './types';
-import config from '../config';
+import { DVREProjectConfiguration, ConfigurationWorkflow } from '../../../shared/types/types';
+import config from '../../../config';
 import { ethers } from 'ethers';
 
 export interface WorkflowExecutionConfig {

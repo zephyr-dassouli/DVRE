@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DVREProjectConfiguration } from '../../services/ProjectConfigurationService';
+import { DVREProjectConfiguration } from './services/ProjectConfigurationService';
 
 interface WorkflowsPanelProps {
   project: DVREProjectConfiguration;

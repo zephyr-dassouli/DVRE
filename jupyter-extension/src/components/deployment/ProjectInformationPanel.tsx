@@ -1,5 +1,5 @@
 import React from 'react';
-import { DVREProjectConfiguration } from '../../services/ProjectConfigurationService';
+import { DVREProjectConfiguration } from './services/ProjectConfigurationService';
 
 interface ProjectInformationPanelProps {
   project: DVREProjectConfiguration;
@@ -137,9 +137,14 @@ const ProjectInformationPanel: React.FC<ProjectInformationPanelProps> = ({ proje
               <strong>IPFS Status:</strong>
             </div>
             <div className="info-value">
-              <span className="ipfs-status">
-                📎 Published on {new Date(project.ipfs.publishedAt || '').toLocaleDateString()}
-              </span>
+              <a 
+                href={`https://ipfs.io/ipfs/${project.ipfs.roCrateHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ipfs-link"
+              >
+                Published on {new Date(project.ipfs.publishedAt || '').toLocaleDateString()}
+              </a>
             </div>
           </div>
         )}

@@ -13,7 +13,6 @@ import { LabIcon } from '@jupyterlab/ui-components';
 
 // import { Widget } from '@lumino/widgets'; // DISABLED - no longer needed without ExtensionInfoWidget
 import { AuthWidget, CollaborationWidget, GraphWidget, FederatedLearningWidget, IPFSWidget, ProjectDeploymentWidget, DALWidget } from './components';
-// import { ExtensionDiscovery, IExtensionInfo } from './services/ExtensionDiscovery'; // DISABLED - no longer using extension discovery
 import { UserRegistryReactWidget } from './widgets/UserRegistryWidget';
 
 
@@ -53,7 +52,7 @@ const ipfsIcon = new LabIcon({
 
 const deploymentIcon = new LabIcon({
   name: 'my-extension:deployment',
-  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M8 11.5L10.5 9H9V6.5H7V9H5.5L8 11.5z" fill="currentColor"/></svg>'
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M8 1.5L13 6v3L8 14.5L3 9V6l5-4.5z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 1.5L8 6M8 6L6 8M8 6L10 8" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8" cy="9" r="1" fill="currentColor"/><path d="M5 12L11 12" stroke="currentColor" stroke-width="1.2"/></svg>'
 });
 
 /*
@@ -119,69 +118,6 @@ const plugin: JupyterFrontEndPlugin<void> = {
     launcher: ILauncher | null
   ) => {
     console.log('DVRE Core is activated!');
-
-    /* 
-    // Extension Discovery Service - DISABLED
-    // No longer needed since DAL is integrated directly into the main extension
-    
-    // Initialize extension discovery
-    const extensionDiscovery = new ExtensionDiscovery();
-    
-    // Store discovered extensions for potential integration
-    let discoveredExtensions: IExtensionInfo[] = [];
-
-    // Discover and load dApp extensions
-    extensionDiscovery.discoverExtensions().then(extensions => {
-      discoveredExtensions = extensions;
-      console.log(`DVRE Core: Discovered ${extensions.length} dApp extension(s)`);
-      
-      if (extensions.length === 0) {
-        console.log('DVRE Core: No external dApp extensions found. Install additional extensions like DAL for more functionality.');
-      }
-      
-      // Register commands for discovered extensions
-      extensions.forEach(ext => {
-        const extensionCommand = `dvre-extension:${ext.name}`;
-        const icon = createExtensionIcon(ext.name);
-        
-        app.commands.addCommand(extensionCommand, {
-          label: ext.manifest.displayName,
-          caption: ext.manifest.description,
-          icon: icon,
-          execute: () => {
-            // Create a placeholder widget showing extension info
-            // In a real implementation, this would load the actual extension component
-            const content = new ExtensionInfoWidget(ext);
-            const widget = new MainAreaWidget({ content });
-            widget.id = `dvre-${ext.name}-${Date.now()}`;
-            widget.title.closable = true;
-            widget.title.icon = icon;
-            
-            app.shell.add(widget, 'main');
-            app.shell.activateById(widget.id);
-          }
-        });
-
-        // Add to command palette and launcher
-        palette.addItem({ 
-          command: extensionCommand, 
-          category: `DVRE Extensions` 
-        });
-        
-        if (launcher) {
-          launcher.add({
-            command: extensionCommand,
-            category: 'DVRE Extensions',
-            rank: 100 + extensions.indexOf(ext)
-          });
-        }
-
-        console.log(`DVRE Core: Registered extension - ${ext.manifest.displayName} (${ext.manifest.category || 'General'})`);
-      });
-    }).catch(error => {
-      console.warn('DVRE Core: Failed to discover extensions:', error);
-    });
-    */
 
     // Command for authentication
     const authCommand = 'my-extension:auth';
@@ -258,11 +194,11 @@ const plugin: JupyterFrontEndPlugin<void> = {
     // Command for IPFS
     const ipfsCommand = 'my-extension:ipfs';
     app.commands.addCommand(ipfsCommand, {
-      label: 'IPFS Manager',
+      label: 'Storage',
       caption: 'Manage files on IPFS and blockchain assets',
       icon: ipfsIcon,
       execute: () => {
-        const content = new IPFSWidget('IPFS Manager');
+        const content = new IPFSWidget('Storage');
         const widget = new MainAreaWidget({ content });
         widget.id = `my-ipfs-${Date.now()}`;
         widget.title.closable = true;

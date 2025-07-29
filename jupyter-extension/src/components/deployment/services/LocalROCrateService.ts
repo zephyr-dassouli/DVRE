@@ -1,7 +1,8 @@
 // LocalROCrateService.ts - Service for saving RO-Crate bundles locally for AL-Engine
 
-import { DVREProjectConfiguration } from './types';
-import { IPFSFile } from './types';
+import { DVREProjectConfiguration } from '../../../shared/types/types';
+import { IPFSFile } from '../../../shared/types/types';
+import ipfsConfig from '../../../config';
 
 export interface LocalROCrateSaveResult {
   success: boolean;
@@ -45,6 +46,10 @@ export class LocalROCrateService {
       
       // Prepare the same file bundle that was uploaded to IPFS
       const bundleFiles = await this.prepareBundleFiles(projectId, roCrateData, config);
+      
+      // Download actual dataset CSV files from IPFS and add to bundle
+      const datasetFiles = await this.downloadActualDatasets(config);
+      bundleFiles.push(...datasetFiles);
       
       // Save files locally
       const savedFiles = await this.saveFilesToLocal(projectPath, bundleFiles);
@@ -102,7 +107,7 @@ export class LocalROCrateService {
       });
 
       // 2. Generate inputs.yml (runtime input mapping)
-      const inputsYmlContent = this.generateInputsYml(projectId);
+      const inputsYmlContent = this.generateInputsYml(projectId, config);
       bundleFiles.push({
         name: 'inputs.yml',
         content: inputsYmlContent,
@@ -132,24 +137,94 @@ export class LocalROCrateService {
         });
       }
 
-      // 4. Generate placeholder dataset files (for AL-Engine structure)
-      bundleFiles.push({
-        name: 'inputs/datasets/labeled_samples.npy',
-        content: '# Placeholder for labeled training data (NumPy array)\n# This file should be populated with actual labeled samples',
-        type: 'text/plain'
-      });
+      // 4. Generate dataset files (with IPFS references instead of placeholders)
+      const datasets = Object.values(config.roCrate.datasets);
+      const hasTrainingDataset = datasets.some((ds: any) => ds.type === 'training');
+      const hasLabelingDataset = datasets.some((ds: any) => ds.type === 'labeling');
+      
+      if (hasTrainingDataset || hasLabelingDataset) {
+        console.log('📊 Adding real dataset references to RO-Crate bundle');
+        
+        // Create dataset reference file with IPFS URLs
+        const datasetReferences: any = {};
+        
+        datasets.forEach((dataset: any) => {
+          if (dataset.ipfsHash) {
+            datasetReferences[dataset.name] = {
+              name: dataset.name,
+              description: dataset.description,
+              type: dataset.type,
+              format: dataset.format,
+              ipfsHash: dataset.ipfsHash,
+              ipfsUrl: `${ipfsConfig.ipfs.publicUrl}/ipfs/${dataset.ipfsHash}`,
+              assetAddress: dataset.assetAddress
+            };
+          }
+        });
+        
+        bundleFiles.push({
+          name: 'inputs/datasets/dataset_references.json',
+          content: JSON.stringify(datasetReferences, null, 2),
+          type: 'application/json'
+        });
+        
+        // Add instruction file for AL-Engine
+        bundleFiles.push({
+          name: 'inputs/datasets/README.md',
+          content: `# AL-Engine Dataset Instructions
 
-      bundleFiles.push({
-        name: 'inputs/datasets/labeled_targets.npy',
-        content: '# Placeholder for labeled training targets (NumPy array)\n# This file should be populated with actual labels',
-        type: 'text/plain'
-      });
+## Available Datasets
 
-      bundleFiles.push({
-        name: 'inputs/datasets/unlabeled_samples.npy',
-        content: '# Placeholder for unlabeled data pool (NumPy array)\n# This file should be populated with unlabeled samples for querying',
-        type: 'text/plain'
-      });
+${datasets.map((ds: any) => `
+### ${ds.name}
+- **Type**: ${ds.type || 'general'}
+- **Format**: ${ds.format || 'csv'}
+- **IPFS Hash**: \`${ds.ipfsHash}\`
+- **Download URL**: \`${ipfsConfig.ipfs.publicUrl}/ipfs/${ds.ipfsHash}\`
+`).join('')}
+
+## For Local AL-Engine Execution
+
+When running AL-Engine locally, these datasets will be automatically downloaded to:
+- Training data: \`inputs/datasets/labeled_samples.csv\`
+- Labeling data: \`inputs/datasets/unlabeled_samples.csv\`
+
+The dataset download is handled by the DVRE local file download service during project deployment.
+
+## Manual Download (if needed)
+
+If you need to download datasets manually:
+
+\`\`\`bash
+# Download training dataset
+curl -o inputs/datasets/labeled_samples.csv "${ipfsConfig.ipfs.publicUrl}/ipfs/${datasets.find((ds: any) => ds.type === 'training')?.ipfsHash || 'TRAINING_HASH'}"
+
+# Download labeling dataset  
+curl -o inputs/datasets/unlabeled_samples.csv "${ipfsConfig.ipfs.publicUrl}/ipfs/${datasets.find((ds: any) => ds.type === 'labeling')?.ipfsHash || 'LABELING_HASH'}"
+\`\`\`
+`,
+          type: 'text/plain'
+        });
+      } else {
+        // Keep original placeholder files if no real datasets are configured
+        bundleFiles.push({
+          name: 'inputs/datasets/labeled_samples.npy',
+          content: '# Placeholder for labeled training data (NumPy array)\n# This file should be populated with actual labeled samples',
+          type: 'text/plain'
+        });
+
+        bundleFiles.push({
+          name: 'inputs/datasets/labeled_targets.npy',
+          content: '# Placeholder for labeled training targets (NumPy array)\n# This file should be populated with actual labels',
+          type: 'text/plain'
+        });
+
+        bundleFiles.push({
+          name: 'inputs/datasets/unlabeled_samples.npy',
+          content: '# Placeholder for unlabeled data pool (NumPy array)\n# This file should be populated with unlabeled samples for querying',
+          type: 'text/plain'
+        });
+      }
 
       bundleFiles.push({
         name: 'config/model/model_placeholder.pkl',
@@ -251,7 +326,7 @@ export class LocalROCrateService {
 class: CommandLineTool
 
 label: Active Learning Iteration (Train + Query)
-doc: One-step AL iteration using modAL and scikit-learn
+doc: One-step AL iteration using modAL and scikit-learn, supports CSV and NPY formats
 
 baseCommand: python3
 arguments: [al_iteration.py]
@@ -261,63 +336,124 @@ inputs:
     type: File
     inputBinding:
       prefix: --labeled_data
+    doc: Training dataset file (CSV or NPY format)
   labeled_labels:
     type: File
     inputBinding:
       prefix: --labeled_labels
+    doc: Training labels file (CSV or NPY format, can be same as labeled_data for CSV)
   unlabeled_data:
     type: File
     inputBinding:
       prefix: --unlabeled_data
+    doc: Unlabeled data pool for querying (CSV or NPY format)
   model_in:
     type: File?
     inputBinding:
       prefix: --model_in
+    doc: Pre-trained model from previous iteration (optional)
   config:
     type: File
     inputBinding:
       prefix: --config
+    doc: AL configuration file with parameters
 
 outputs:
   model_out:
     type: File
     outputBinding:
       glob: model/model_round_*.pkl
+    doc: Updated model after training with new labels
   query_indices:
     type: File
     outputBinding:
       glob: query_indices.npy
+    doc: Indices of samples selected for labeling in next iteration
 
 requirements:
   DockerRequirement:
-    dockerPull: python:3.9-slim`;
+    dockerPull: python:3.9-slim
+  InitialWorkDirRequirement:
+    listing:
+      - entry: |
+          #!/usr/bin/env python3
+          # AL iteration script that handles both CSV and NPY formats
+          import argparse
+          import pandas as pd
+          import numpy as np
+          import json
+          import os
+          from pathlib import Path
+          
+          def detect_format(filepath):
+              return filepath.suffix.lower()
+          
+          def load_data(filepath, is_labels=False):
+              ext = detect_format(Path(filepath))
+              if ext == '.csv':
+                  df = pd.read_csv(filepath)
+                  if is_labels:
+                      # Assume last column is labels for CSV
+                      return df.iloc[:, -1].values
+                  else:
+                      # Assume all but last column is features for CSV
+                      return df.iloc[:, :-1].values
+              elif ext == '.npy':
+                  return np.load(filepath)
+              else:
+                  raise ValueError(f"Unsupported format: {ext}")
+          
+          parser = argparse.ArgumentParser()
+          parser.add_argument('--labeled_data', required=True)
+          parser.add_argument('--labeled_labels', required=True) 
+          parser.add_argument('--unlabeled_data', required=True)
+          parser.add_argument('--model_in')
+          parser.add_argument('--config', required=True)
+          args = parser.parse_args()
+          
+          print("AL iteration script would run here with actual data files")
+          print(f"Labeled data: {args.labeled_data}")
+          print(f"Unlabeled data: {args.unlabeled_data}")
+          print(f"Config: {args.config}")
+          
+        entryname: al_iteration.py
+        writable: false`;
   }
 
   /**
    * Generate inputs.yml content (runtime input mapping)
    */
-  private generateInputsYml(projectId: string): string {
+  private generateInputsYml(projectId: string, config: DVREProjectConfiguration): string {
+    // Determine the actual dataset file extensions and names based on what was configured
+    const datasets = Object.values(config.roCrate.datasets);
+    const trainingDataset = datasets.find((ds: any) => ds.type === 'training');
+    const labelingDataset = datasets.find((ds: any) => ds.type === 'labeling');
+    
+    // Use the actual file format from the datasets, default to csv
+    const datasetExtension = trainingDataset?.format || labelingDataset?.format || 'csv';
+    
     return `# inputs.yml - Runtime input mapping for al_iteration.cwl
 
 # Labeled training data (required)
 labeled_data:
   class: File
-  path: al-engine/ro-crates/${projectId}/inputs/datasets/labeled_samples.npy
+  path: al-engine/ro-crates/${projectId}/inputs/datasets/labeled_samples.${datasetExtension}
 
-# Labels for the labeled data (required)
+# Labels for the labeled data (required) 
+# Note: For CSV files, labels are typically in the same file or a separate labels column
 labeled_labels:
   class: File
-  path: al-engine/ro-crates/${projectId}/inputs/datasets/labeled_targets.npy
+  path: al-engine/ro-crates/${projectId}/inputs/datasets/labeled_samples.${datasetExtension}
 
 # Unlabeled data pool for querying (required)
 unlabeled_data:
   class: File
-  path: al-engine/ro-crates/${projectId}/inputs/datasets/unlabeled_samples.npy
+  path: al-engine/ro-crates/${projectId}/inputs/datasets/unlabeled_samples.${datasetExtension}
 
-# Pre-trained model from previous iteration (optional - only for rounds > 1)
+# Pre-trained model from previous iteration (optional - dynamic based on current iteration)
 model_in:
   class: File
-  path: al-engine/ro-crates/${projectId}/config/model/model_round_2.pkl
+  path: al-engine/ro-crates/${projectId}/config/model/model_round_*.pkl
 
 # Configuration file with AL parameters (required)
 config:
@@ -406,6 +542,66 @@ config:
 
     console.log('🔄 Transformed result:', JSON.stringify(result, null, 2));
     return result;
+  }
+
+  /**
+   * Download actual dataset CSV files from IPFS and return as IPFSFile objects
+   */
+  private async downloadActualDatasets(config: DVREProjectConfiguration): Promise<IPFSFile[]> {
+    const datasetFiles: IPFSFile[] = [];
+    
+    console.log('📊 Downloading actual dataset CSV files from IPFS...');
+    console.log('📋 Available datasets in project:', Object.keys(config.roCrate.datasets));
+    
+    // Get datasets from project configuration
+    const datasets = Object.values(config.roCrate.datasets);
+    
+    for (const dataset of datasets) {
+      if (dataset.ipfsHash) {
+        try {
+          console.log(`🔗 Downloading dataset "${dataset.name}" from IPFS: ${dataset.ipfsHash}`);
+          
+          const ipfsUrl = `${ipfsConfig.ipfs.publicUrl}/ipfs/${dataset.ipfsHash}`;
+          const response = await fetch(ipfsUrl);
+          
+          if (response.ok) {
+            const content = await response.text();
+            
+            // Create filename based on dataset type and name
+            const sanitizedName = dataset.name.replace(/[^a-zA-Z0-9-_]/g, '_');
+            const extension = dataset.format || 'csv';
+            let filename: string;
+            
+            // Use AL-Engine expected filenames for training and labeling datasets
+            if ((dataset as any).type === 'training') {
+              filename = `inputs/datasets/labeled_samples.${extension}`;
+            } else if ((dataset as any).type === 'labeling') {
+              filename = `inputs/datasets/unlabeled_samples.${extension}`;
+            } else {
+              filename = `inputs/datasets/${sanitizedName}.${extension}`;
+            }
+            
+            // Add to bundle files
+            datasetFiles.push({
+              name: filename,
+              content: content,
+              type: 'text/csv'
+            });
+            
+            console.log(`✅ Successfully downloaded dataset: ${filename} (${(content.length / 1024).toFixed(1)} KB)`);
+          } else {
+            console.warn(`❌ Failed to download dataset ${dataset.name}: HTTP ${response.status}`);
+          }
+        } catch (error) {
+          console.warn(`❌ Failed to download dataset ${dataset.name}:`, error);
+        }
+      } else {
+        console.warn(`⚠️ Dataset "${dataset.name}" has no IPFS hash - skipping download`);
+      }
+    }
+
+    console.log(`📊 Downloaded ${datasetFiles.length} actual dataset CSV files`);
+    return datasetFiles;
   }
 
   /**

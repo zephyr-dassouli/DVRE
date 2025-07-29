@@ -4,8 +4,8 @@
  * Based on comp_mode.md requirements
  */
 
-import { DVREProjectConfiguration } from './ProjectConfigurationService';
-import config from '../config';
+import { DVREProjectConfiguration } from '../../../shared/types/types';
+import config from '../../../config';
 
 export interface LocalDownloadResult {
   success: boolean;
@@ -141,26 +141,51 @@ export class LocalFileDownloadService {
   private async downloadProjectDatasets(project: DVREProjectConfiguration): Promise<Record<string, Blob>> {
     const datasetFiles: Record<string, Blob> = {};
     
+    console.log('📥 Downloading project datasets from IPFS...');
+    console.log('📊 Available datasets in project:', Object.keys(project.roCrate.datasets));
+    
     // Get datasets from project configuration
     const datasets = Object.values(project.roCrate.datasets);
     
     for (const dataset of datasets) {
       if (dataset.ipfsHash) {
         try {
+          console.log(`🔗 Downloading dataset "${dataset.name}" from IPFS: ${dataset.ipfsHash}`);
+          
           const ipfsUrl = `${config.ipfs.publicUrl}/ipfs/${dataset.ipfsHash}`;
           const response = await fetch(ipfsUrl);
           
           if (response.ok) {
             const blob = await response.blob();
-            const filename = `${dataset.name.replace(/[^a-zA-Z0-9-_]/g, '_')}.${dataset.format}`;
+            
+            // Create filename based on dataset type and name
+            const sanitizedName = dataset.name.replace(/[^a-zA-Z0-9-_]/g, '_');
+            const extension = dataset.format || 'csv';
+            let filename: string;
+            
+            // Use AL-Engine expected filenames for training and labeling datasets
+            if ((dataset as any).type === 'training') {
+              filename = `labeled_samples.${extension}`;
+            } else if ((dataset as any).type === 'labeling') {
+              filename = `unlabeled_samples.${extension}`;
+            } else {
+              filename = `${sanitizedName}.${extension}`;
+            }
+            
             datasetFiles[filename] = blob;
+            console.log(`✅ Successfully downloaded dataset: ${filename} (${(blob.size / 1024).toFixed(1)} KB)`);
+          } else {
+            console.warn(`❌ Failed to download dataset ${dataset.name}: HTTP ${response.status}`);
           }
         } catch (error) {
-          console.warn(`Failed to download dataset ${dataset.name}:`, error);
+          console.warn(`❌ Failed to download dataset ${dataset.name}:`, error);
         }
+      } else {
+        console.warn(`⚠️ Dataset "${dataset.name}" has no IPFS hash - skipping download`);
       }
     }
 
+    console.log(`📊 Downloaded ${Object.keys(datasetFiles).length} dataset files`);
     return datasetFiles;
   }
 

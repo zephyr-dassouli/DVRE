@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  DVREProjectConfiguration,
-  projectConfigurationService
-} from '../services/ProjectConfigurationService';
+import { 
+  projectConfigurationService,
+  DVREProjectConfiguration 
+} from '../components/deployment/services/ProjectConfigurationService';
 import { useAuth } from './useAuth';
 
 /**

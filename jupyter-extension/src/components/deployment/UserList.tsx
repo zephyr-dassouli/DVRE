@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { DVREProjectConfiguration } from '../../services/ProjectConfigurationService';
+import { DVREProjectConfiguration } from './services/ProjectConfigurationService';
 import { useAuth } from '../../hooks/useAuth';
 
 interface UserListProps {

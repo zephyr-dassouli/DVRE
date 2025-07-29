@@ -1,10 +1,9 @@
 /**
- * IPFS Service - Handles IPFS upload functionality
- * Extracted from ProjectConfigurationService for better organization
+ * IPFS Service - Enhanced IPFS integration with proper error handling and configuration
  */
 
-import { IPFSConfig, IPFSFile, IPFSUploadResult, DVREProjectConfiguration } from './types';
-import config from '../config';
+import { IPFSConfig, IPFSFile, IPFSUploadResult, DVREProjectConfiguration } from '../../../shared/types/types';
+import config from '../../../config';
 
 export class IPFSService {
   private static instance: IPFSService;

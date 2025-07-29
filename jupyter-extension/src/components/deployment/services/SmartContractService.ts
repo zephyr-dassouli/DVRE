@@ -1,12 +1,11 @@
 /**
- * Smart Contract Service - Handles smart contract integration
- * Extracted from ProjectConfigurationService for better organization
+ * Smart Contract Service - Handles smart contract interactions
  */
 
 import { ethers } from 'ethers';
-import JSONProject from '../abis/JSONProject.json';
-import { RPC_URL } from '../config/contracts';
-import { DVREProjectConfiguration } from './types';
+import JSONProject from '../../../abis/JSONProject.json';
+import { RPC_URL } from '../../../config/contracts';
+import { DVREProjectConfiguration } from '../../../shared/types/types';
 
 export class SmartContractService {
   private static instance: SmartContractService;

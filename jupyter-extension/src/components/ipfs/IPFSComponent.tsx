@@ -1,28 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { ipfsService, IPFSFile } from '../../utils/IPFSService';
+import { ipfsService } from '../../utils/IPFSService';
 import { assetService, AssetInfo } from '../../utils/AssetService';
+import { useAuth } from '../../hooks/useAuth';
 
 interface IPFSComponentProps {
   title?: string;
 }
 
 export const IPFSComponent: React.FC<IPFSComponentProps> = ({ 
-  title = 'IPFS Manager' 
+  title = 'Storage' 
 }) => {
-  const [files, setFiles] = useState<IPFSFile[]>([]);
   const [assets, setAssets] = useState<AssetInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [assetName, setAssetName] = useState('');
   const [assetType, setAssetType] = useState('dataset');
-  const [userAccount, setUserAccount] = useState<string | null>(null);
   const [ipfsHealthy, setIpfsHealthy] = useState<boolean | null>(null);
   const [blockchainAvailable, setBlockchainAvailable] = useState<boolean>(false);
 
+  // Use auth hook to get user's wallet address
+  const { account } = useAuth();
+
   useEffect(() => {
     checkIPFSHealth();
-    loadFiles();
     checkBlockchainAvailability(); // This will also try to load assets
   }, []);
 
@@ -49,20 +50,6 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
       setIpfsHealthy(healthy);
     } catch (error) {
       setIpfsHealthy(false);
-    }
-  };
-
-  const loadFiles = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const fileList = await ipfsService.listFiles();
-      setFiles(fileList);
-    } catch (error) {
-      console.error('Failed to load files:', error);
-      setError(`Failed to load file list: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -97,10 +84,10 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
       // If blockchain is available and asset name is provided, create blockchain asset
       if (blockchainAvailable && assetName.trim()) {
         try {
-          if (!userAccount) {
-            // Try to connect wallet first
-            const account = await assetService.connectWallet();
-            setUserAccount(account);
+          if (!account) {
+            // Try to connect wallet first - this should not happen normally since auth handles connection
+            console.warn('No account available for blockchain registration');
+            throw new Error('Wallet not connected');
           }
           
           await assetService.createAsset(assetName, assetType, uploadResult.Hash);
@@ -117,7 +104,6 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
       }
 
       // Refresh file list (fallback)
-      await loadFiles();
       
       // Reset form
       setSelectedFile(null);
@@ -150,17 +136,6 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
       setError(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const connectWallet = async () => {
-    try {
-      const account = await assetService.connectWallet();
-      setUserAccount(account);
-      await loadAssets();
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
-      setError(`Failed to connect wallet: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -304,23 +279,7 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
             {loading ? 'Uploading...' : blockchainAvailable ? 'Upload & Register Asset' : 'Upload to IPFS'}
           </button>
 
-          {blockchainAvailable && !userAccount && (
-            <button
-              onClick={connectWallet}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: 'var(--jp-warn-color1)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Connect Wallet
-            </button>
-          )}
-
-          {blockchainAvailable && userAccount && (
+          {blockchainAvailable && account && (
             <div style={{ 
               padding: '8px 12px',
               backgroundColor: 'var(--jp-brand-color1)',
@@ -328,24 +287,10 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
               borderRadius: '4px',
               fontSize: '12px'
             }}>
-              Connected: {userAccount.substring(0, 6)}...{userAccount.substring(38)}
+              Connected: {account.substring(0, 6)}...{account.substring(38)}
             </div>
           )}
         </div>
-
-        {!blockchainAvailable && (
-          <div style={{ 
-            marginTop: '10px',
-            padding: '10px',
-            backgroundColor: 'var(--jp-layout-color2)',
-            borderRadius: '4px',
-            fontSize: '12px',
-            color: 'var(--jp-ui-font-color2)',
-            border: '1px solid var(--jp-border-color2)'
-          }}>
-            ⚠️ Blockchain not available: Install MetaMask and ensure contracts are deployed to enable asset registration.
-          </div>
-        )}
       </div>
 
       {/* Blockchain Assets (Primary) */}
@@ -462,7 +407,8 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
         </div>
       )}
 
-      {/* IPFS Files (Fallback/Additional) */}
+      {/* IPFS Files (Fallback/Additional) - COMMENTED OUT */}
+      {/* 
       <div style={{ 
         border: '1px solid var(--jp-border-color1)',
         borderRadius: '8px',
@@ -518,25 +464,21 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
                     const hash = (e.target as HTMLInputElement).value.trim();
                     if (hash.startsWith('Qm') || hash.startsWith('bafy')) {
                       window.open(getPublicUrl(hash), '_blank');
-                    } else {
-                      alert('Please enter a valid IPFS hash');
                     }
                   }
                 }}
               />
               <button
                 onClick={() => {
-                  const input = document.querySelector('input[placeholder*="IPFS hash"]') as HTMLInputElement;
+                  const input = document.querySelector('input[placeholder*="Enter IPFS hash"]') as HTMLInputElement;
                   const hash = input?.value.trim();
                   if (hash && (hash.startsWith('Qm') || hash.startsWith('bafy'))) {
                     window.open(getPublicUrl(hash), '_blank');
-                  } else {
-                    alert('Please enter a valid IPFS hash');
                   }
                 }}
                 style={{
                   padding: '8px 16px',
-                  backgroundColor: 'var(--jp-accept-color1)',
+                  backgroundColor: 'var(--jp-brand-color1)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
@@ -547,41 +489,45 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
               </button>
             </div>
           </div>
-        ) : files.length === 0 ? (
-          <p style={{ color: 'var(--jp-ui-font-color2)', fontStyle: 'italic' }}>
-            No files found
-          </p>
         ) : (
-          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+          <div style={{ 
+            maxHeight: '400px',
+            overflowY: 'auto',
+            border: '1px solid var(--jp-border-color2)',
+            borderRadius: '4px'
+          }}>
             {files.map((file, index) => (
-              <div
+              <div 
                 key={index}
-                style={{
+                style={{ 
+                  padding: '12px',
+                  borderBottom: index < files.length - 1 ? '1px solid var(--jp-border-color2)' : 'none',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '10px',
-                  border: '1px solid var(--jp-border-color2)',
-                  borderRadius: '4px',
-                  marginBottom: '8px',
-                  background: 'var(--jp-layout-color1)'
+                  background: index % 2 === 0 ? 'var(--jp-layout-color0)' : 'var(--jp-layout-color2)'
                 }}
               >
-                <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div>
+                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                    {file.Name || `File ${index + 1}`}
+                  </div>
                   <div style={{ 
-                    fontWeight: 'bold',
                     fontSize: '12px',
-                    color: 'var(--jp-ui-font-color1)',
-                    wordBreak: 'break-all'
+                    color: 'var(--jp-ui-font-color2)',
+                    fontFamily: 'monospace'
                   }}>
                     {file.Hash}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--jp-ui-font-color2)' }}>
+                    Size: {formatSize(file.Size)}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     onClick={() => handleDownload(file.Hash)}
                     style={{
-                      padding: '4px 8px',
+                      padding: '6px 12px',
                       backgroundColor: 'var(--jp-brand-color1)',
                       color: 'white',
                       border: 'none',
@@ -595,8 +541,8 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
                   <button
                     onClick={() => window.open(getPublicUrl(file.Hash), '_blank')}
                     style={{
-                      padding: '4px 8px',
-                      backgroundColor: 'var(--jp-accept-color1)',
+                      padding: '6px 12px',
+                      backgroundColor: 'var(--jp-warn-color1)',
                       color: 'white',
                       border: 'none',
                       borderRadius: '4px',
@@ -612,6 +558,7 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
           </div>
         )}
       </div>
+      */}
     </div>
   );
 };

@@ -1,17 +1,20 @@
 /**
- * Project Configuration Service - Centralized configuration management for DVRE (Refactored)
- * Now uses smaller, focused services for better maintainability
+ * Project Configuration Service
+ * Manages project configuration data and state across the application
  */
 
-import { projectDeploymentService, DeploymentStatus } from '../components/deployment/services/ProjectDeploymentService';
+import { ProjectDeploymentService, DeploymentStatus } from './ProjectDeploymentService';
 import { 
-  DVREProjectConfiguration, 
+  DVREProjectConfiguration,
   TemplateParameters,
-  ConfigurationChangeCallback 
-} from './types';
+  ConfigurationChangeCallback
+} from '../../../shared/types/types';
 import { templateService } from './TemplateService';
 import { roCrateService } from './ROCrateService';
 import { ipfsService } from './IPFSService';
+
+// Get the instance for this service
+const projectDeploymentService = ProjectDeploymentService.getInstance();
 
 export class ProjectConfigurationService {
   private static instance: ProjectConfigurationService;
@@ -489,4 +492,4 @@ export class ProjectConfigurationService {
 export const projectConfigurationService = ProjectConfigurationService.getInstance(); 
 
 // Re-export types for convenience
-export type { DVREProjectConfiguration, TemplateParameters } from './types'; 
+export type { DVREProjectConfiguration, TemplateParameters } from '../../../shared/types/types'; 

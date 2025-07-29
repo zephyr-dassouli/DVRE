@@ -3,7 +3,7 @@
  * Extracted from ProjectConfigurationService for better organization
  */
 
-import { DVREProjectConfiguration, DALTemplateParameters, GeneralTemplateParameters, ROCrateMetadata } from './types';
+import { DVREProjectConfiguration, DALTemplateParameters, GeneralTemplateParameters, ROCrateMetadata } from '../../../shared/types/types';
 import { workflowService } from './WorkflowService';
 
 export class TemplateService {

@@ -1,14 +1,34 @@
 /**
- * Services barrel file - Export all DVRE services
+ * Services barrel file - Export all DVRE services from their new component-based locations
  */
 
+// Deployment services
 export { 
   ProjectConfigurationService, 
-  projectConfigurationService
-} from './ProjectConfigurationService';
+  projectConfigurationService,
+  TemplateService,
+  templateService,
+  ROCrateService,
+  roCrateService,
+  SmartContractService,
+  smartContractService,
+  LocalFileDownloadService,
+  localFileDownloadService,
+  IPFSService,
+  ipfsService,
+  WorkflowService,
+  workflowService,
+  LocalROCrateService,
+  localROCrateService,
+  DeploymentOrchestrator,
+  ProjectDeploymentService
+} from '../components/deployment/services';
 
-// Export types from types.ts
 export type {
+  LocalDownloadResult,
+  WorkflowExecutionConfig,
+  WorkflowSubmissionResult,
+  DeploymentStatus,
   DVREProjectConfiguration,
   ConfigurationDataset,
   ConfigurationWorkflow,
@@ -21,45 +41,17 @@ export type {
   TemplateParameters,
   IPFSConfig,
   ConfigurationChangeCallback
-} from './types';
+} from '../components/deployment/services';
 
-// New refactored services
-export {
-  TemplateService,
-  templateService
-} from './TemplateService';
-
-export {
-  ROCrateService,
-  roCrateService
-} from './ROCrateService';
-
-export {
-  SmartContractService,
-  smartContractService
-} from './SmartContractService';
-
+// DAL services
 export { 
-  LocalFileDownloadService,
-  localFileDownloadService,
-  type LocalDownloadResult
-} from './LocalFileDownloadService';
+  alContractService, 
+  ALContractService 
+} from '../components/dal/services';
 
-export { 
-  IPFSService,
-  ipfsService 
-} from './IPFSService';
-
-// New workflow service
-export {
-  WorkflowService,
-  workflowService,
-  type WorkflowExecutionConfig,
-  type WorkflowSubmissionResult
-} from './WorkflowService';
-
-export { 
-  ExtensionDiscovery,
-  type IExtensionDiscovery,
-  type IExtensionInfo
-} from './ExtensionDiscovery'; 
+export type { 
+  VotingRecord,
+  UserContribution, 
+  ModelUpdate,
+  ActiveVoting
+} from '../components/dal/services'; 

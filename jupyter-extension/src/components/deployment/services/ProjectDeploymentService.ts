@@ -1,9 +1,9 @@
 /**
- * Project Deployment Service - Centralized deployment for all DVRE projects
- * Handles deployment to orchestration server after RO-Crate publication
+ * Project Deployment Service
+ * Manages the state and progress of project deployment across different phases
  */
 
-import { DVREProjectConfiguration } from '../../../services/ProjectConfigurationService';
+import { DVREProjectConfiguration } from './ProjectConfigurationService';
 
 export interface DeploymentStatus {
   status: 'pending' | 'deploying' | 'deployed' | 'running' | 'failed';

@@ -1,8 +1,8 @@
 /**
- * Type definitions for DVRE Project Configuration System
+ * Shared Types - Common type definitions used across DVRE components
  */
 
-import { DeploymentStatus } from '../components/deployment/services/ProjectDeploymentService';
+import { DeploymentStatus } from '../../components/deployment/services/ProjectDeploymentService';
 
 export interface DVREProjectConfiguration {
   // Core project metadata

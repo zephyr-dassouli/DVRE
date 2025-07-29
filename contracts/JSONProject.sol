@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 // AL Contract Interfaces (no imports needed - just interfaces)
 interface IALProjectVoting {
     function startVotingSession(string memory sampleId) external;
+    function startBatchVoting(string[] memory sampleIds, uint256 round) external;
     function endVotingSession(string memory sampleId) external;
     function setVoters(address[] memory _voters, uint256[] memory _weights) external;
     function projectContract() external view returns (address);
@@ -95,10 +96,13 @@ contract JSONProject {
     event ParticipantAdded(address indexed participant);
     event RoundIncremented(uint256 newRound);
     event ALRoundTriggered(uint256 round, string reason, uint256 timestamp);
+    event AutoLabelStored(string sampleId, string label, uint256 round, uint256 timestamp);
     event InvitationSent(address indexed invitee, address indexed inviter, string role, uint256 timestamp);
     event InvitationAccepted(address indexed invitee, address indexed project, uint256 timestamp);
     event InvitationRejected(address indexed invitee, address indexed project, uint256 timestamp);
     event MemberAdded(address indexed member, string role, uint256 timestamp);
+    event ALBatchStarted(uint256 round, uint256 sampleCount, uint256 timestamp);
+    event ALBatchCompleted(uint256 round, uint256 completedSamples, uint256 timestamp);
     
 
     // Modifiers
@@ -109,6 +113,11 @@ contract JSONProject {
     
     modifier onlyActive() {
         require(isActive, "Inactive");
+        _;
+    }
+    
+    modifier onlyVotingContract() {
+        require(msg.sender == votingContract, "Only voting contract can call");
         _;
     }
     
@@ -293,8 +302,28 @@ contract JSONProject {
     function startVotingSession(string memory sampleId) external onlyCreator {
         require(votingContract != address(0), "Voting contract not set");
         
+        // NOTE: This method is deprecated in favor of startBatchVoting
+        // Even for single samples, use startBatchVoting([sampleId]) for consistency
+        
         // Call via interface
         IALProjectVoting(votingContract).startVotingSession(sampleId);
+    }
+
+    /**
+     * @dev Start batch voting for AL iteration samples
+     * Always use this method (even for single samples) for consistent event handling
+     */
+    function startBatchVoting(string[] memory sampleIds) external onlyCreator {
+        require(votingContract != address(0), "Voting contract not set");
+        require(sampleIds.length > 0, "Empty sample batch");
+        
+        // Increment round for new batch
+        currentRound += 1;
+        
+        // Call via interface - supports any batch size including 1
+        IALProjectVoting(votingContract).startBatchVoting(sampleIds, currentRound);
+        
+        emit ALBatchStarted(currentRound, sampleIds.length, block.timestamp);
     }
 
     function endVotingSession(string memory sampleId) external onlyCreator {
@@ -315,6 +344,31 @@ contract JSONProject {
         
         // Call via interface
         IALProjectStorage(storageContract).storeFinalLabel(sampleId, label, round, justification, ipfsHash);
+    }
+    
+    /**
+     * @dev Automatically receives and stores finalized labels from the voting contract
+     * This function is called automatically when voting sessions are finalized
+     */
+    function receiveFinalLabelFromVoting(
+        string memory sampleId,
+        string memory label,
+        string memory justification,
+        string memory ipfsHash
+    ) external onlyVotingContract {
+        require(storageContract != address(0), "Storage contract not set");
+        
+        // Store the finalized label using current round
+        IALProjectStorage(storageContract).storeFinalLabel(
+            sampleId, 
+            label, 
+            currentRound, 
+            justification, 
+            ipfsHash
+        );
+        
+        // Emit event for tracking automatic label storage
+        emit AutoLabelStored(sampleId, label, currentRound, block.timestamp);
     }
     
     function hasALContracts() external view returns (bool) {

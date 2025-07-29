@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { DVREProjectConfiguration, projectConfigurationService } from '../../services/ProjectConfigurationService';
+import { DVREProjectConfiguration, projectConfigurationService } from './services/ProjectConfigurationService';
 import { useAuth } from '../../hooks/useAuth';
 import { assetService, AssetInfo } from '../../utils/AssetService';
 
@@ -184,6 +184,9 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
         account
       );
 
+      // IMPORTANT: Add selected datasets to roCrate.datasets with IPFS hashes
+      await updateProjectDatasets(newConfig);
+
       // Notify parent component
       const updatedConfig = projectConfigurationService.getProjectConfiguration(projectId);
       if (updatedConfig && onConfigurationChange) {
@@ -192,7 +195,52 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
     } catch (error) {
       console.error('Failed to save configuration:', error);
     }
-  }, [account, isActivelearning, projectId, onConfigurationChange]);
+  }, [account, isActivelearning, projectId, onConfigurationChange, userAssets]);
+
+  // Update roCrate.datasets with selected datasets including IPFS hashes
+  const updateProjectDatasets = async (newConfig: ActiveLearningConfig) => {
+    if (!account) return;
+
+    // Add training dataset if selected
+    if (newConfig.trainingDataset) {
+      const trainingAsset = userAssets.find(asset => asset.address === newConfig.trainingDataset);
+      if (trainingAsset) {
+        const trainingDataset = {
+          name: trainingAsset.name,
+          description: `Training dataset: ${trainingAsset.name}`,
+          format: 'csv', // Default format, could be enhanced to detect from asset
+          columns: [],
+          size: 0,
+          ipfsHash: trainingAsset.ipfsHash, // This is crucial for downloading!
+          assetAddress: trainingAsset.address,
+          type: 'training'
+        };
+        
+        projectConfigurationService.addDataset(projectId, 'training-dataset', trainingDataset, account);
+        console.log('📊 Added training dataset to RO-Crate:', trainingAsset.name, 'IPFS:', trainingAsset.ipfsHash);
+      }
+    }
+
+    // Add labeling dataset if selected
+    if (newConfig.labelingDataset) {
+      const labelingAsset = userAssets.find(asset => asset.address === newConfig.labelingDataset);
+      if (labelingAsset) {
+        const labelingDataset = {
+          name: labelingAsset.name,
+          description: `Labeling dataset: ${labelingAsset.name}`,
+          format: 'csv', // Default format, could be enhanced to detect from asset
+          columns: [],
+          size: 0,
+          ipfsHash: labelingAsset.ipfsHash, // This is crucial for downloading!
+          assetAddress: labelingAsset.address,
+          type: 'labeling'
+        };
+        
+        projectConfigurationService.addDataset(projectId, 'labeling-dataset', labelingDataset, account);
+        console.log('📊 Added labeling dataset to RO-Crate:', labelingAsset.name, 'IPFS:', labelingAsset.ipfsHash);
+      }
+    }
+  };
 
   const getModelParameters = (modelType: string) => {
     switch (modelType) {

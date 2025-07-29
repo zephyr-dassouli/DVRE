@@ -6,6 +6,7 @@
 export interface DALProject {
   id: string;
   name: string;
+  description?: string;
   contractAddress: string;
   status: 'draft' | 'configured' | 'running' | 'completed' | 'terminated';
   participants: number;

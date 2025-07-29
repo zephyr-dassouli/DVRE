@@ -35,6 +35,7 @@ contract ALProjectStorage {
     
     event LabelFinalized(string sampleId, string label, string ipfsHash, uint256 round, uint256 timestamp);
     event VotingHistoryRecorded(string sampleId, uint256 round, string finalLabel, uint256 voteCount);
+    event AutoHistoryRecorded(string sampleId, uint256 round, string finalLabel);
     
     modifier onlyJSONProject() {
         require(msg.sender == jsonProject, "Only main project can call");
@@ -53,6 +54,19 @@ contract ALProjectStorage {
         string memory justification,
         string memory ipfsHash
     ) external onlyJSONProject {
+        _storeFinalLabelInternal(sampleId, label, round, justification, ipfsHash);
+    }
+    
+    /**
+     * @dev Internal function to store final labels (called by both external functions)
+     */
+    function _storeFinalLabelInternal(
+        string memory sampleId,
+        string memory label,
+        uint256 round,
+        string memory justification,
+        string memory ipfsHash
+    ) internal {
         require(bytes(sampleId).length > 0, "Sample ID cannot be empty");
         require(bytes(label).length > 0, "Label cannot be empty");
         
@@ -69,6 +83,35 @@ contract ALProjectStorage {
         sampleHistory[sampleId].push(ipfsHash);
         
         emit LabelFinalized(sampleId, label, ipfsHash, round, block.timestamp);
+    }
+    
+    /**
+     * @dev Automatically record basic voting history when label is finalized
+     * This is called when automatic vote aggregation occurs
+     */
+    function autoRecordFinalizedLabel(
+        string memory sampleId,
+        string memory label,
+        uint256 round,
+        string memory justification,
+        string memory ipfsHash
+    ) external onlyJSONProject {
+        // First store the final label using internal function
+        _storeFinalLabelInternal(sampleId, label, round, justification, ipfsHash);
+        
+        // Create a basic voting history entry for automatic finalization
+        historyBySample[sampleId].push();
+        uint256 index = historyBySample[sampleId].length - 1;
+        
+        VotingHistory storage record = historyBySample[sampleId][index];
+        record.sampleId = sampleId;
+        record.round = round;
+        record.finalLabel = label;
+        record.timestamp = block.timestamp;
+        
+        // Note: Detailed vote records would need to be added separately if needed
+        
+        emit AutoHistoryRecorded(sampleId, round, label);
     }
     
     function recordVotingHistory(
@@ -140,5 +183,38 @@ contract ALProjectStorage {
         
         VoteRecord memory vote = historyBySample[sampleId][historyIndex].votes[voteIndex];
         return (vote.voter, vote.label);
+    }
+    
+    /**
+     * @dev Check if a sample already has a final label
+     */
+    function hasFinalLabel(string memory sampleId) external view returns (bool) {
+        return bytes(finalLabels[sampleId].sampleId).length > 0;
+    }
+    
+    /**
+     * @dev Get all samples that have been finalized
+     */
+    function getAllFinalizedSamples() external view returns (string[] memory) {
+        // Note: This is a simplified version. In production, you might want to track samples in an array
+        // For now, this would need to be implemented with additional storage if needed
+        string[] memory empty = new string[](0);
+        return empty;
+    }
+    
+    /**
+     * @dev Get total number of finalized labels
+     */
+    function getTotalFinalizedCount() external view returns (uint256) {
+        // Note: This would need additional tracking in a real implementation
+        // For now, returning 0 as placeholder
+        return 0;
+    }
+    
+    /**
+     * @dev Validate sample ID format
+     */
+    function isValidSampleId(string memory sampleId) external pure returns (bool) {
+        return bytes(sampleId).length > 0 && bytes(sampleId).length <= 64;
     }
 } 
