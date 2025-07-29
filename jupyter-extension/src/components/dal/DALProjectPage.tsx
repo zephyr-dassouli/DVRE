@@ -20,7 +20,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
   const [userContributions, setUserContributions] = useState<UserContribution[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // New state for batch voting
   const [batchProgress, setBatchProgress] = useState<{
     round: number;
@@ -368,10 +368,10 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
               className="refresh-button"
             >
               {loading ? 'Loading...' : 'Refresh'}
-            </button>
-            <div className="project-status">
-              <span className={`status-indicator ${project.status}`}></span>
-              {project.status.toUpperCase()}
+          </button>
+          <div className="project-status">
+            <span className={`status-indicator ${project.status}`}></span>
+            {project.status.toUpperCase()}
             </div>
           </div>
         </div>
@@ -510,26 +510,26 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
                       ? `Sample voting in progress`
                       : `Sample ${batchProgress.currentSampleIndex + 1} of ${batchProgress.totalSamples}`
                     }
+              </div>
+            </div>
+            
+            {project.activeVoting ? (
+              <div className="active-voting">
+                <div className="sample-display">
+                      <h4>Current Sample: {project.activeVoting.sampleId}</h4>
+                  <div className="sample-content">
+                    <pre>{JSON.stringify(project.activeVoting.sampleData, null, 2)}</pre>
                   </div>
                 </div>
-
-                {project.activeVoting ? (
-                  <div className="active-voting">
-                    <div className="sample-display">
-                      <h4>Current Sample: {project.activeVoting.sampleId}</h4>
-                      <div className="sample-content">
-                        <pre>{JSON.stringify(project.activeVoting.sampleData, null, 2)}</pre>
-                      </div>
-                    </div>
-                    
-                    <div className="voting-interface">
-                      <h4>Select Label</h4>
-                      <div className="label-options">
-                        {project.activeVoting.labelOptions.map(label => (
-                          <button
-                            key={label}
-                            className="label-button"
-                            onClick={() => handleSubmitVote(label)}
+                
+                <div className="voting-interface">
+                  <h4>Select Label</h4>
+                  <div className="label-options">
+                    {project.activeVoting.labelOptions.map(label => (
+                      <button
+                        key={label}
+                        className="label-button"
+                        onClick={() => handleSubmitVote(label)}
                             style={{
                               padding: '12px 24px',
                               margin: '8px',
@@ -541,29 +541,29 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
                               fontSize: '16px',
                               fontWeight: 'bold'
                             }}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="live-voting">
-                      <h4>Live Voting Distribution</h4>
-                      <div className="vote-distribution">
-                        {Object.entries(project.activeVoting.currentVotes).map(([label, count]) => (
-                          <div key={label} className="vote-item">
-                            <span className="vote-label">{label}:</span>
-                            <span className="vote-count">{count as number}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="time-remaining">
-                        Time remaining: {Math.floor(project.activeVoting.timeRemaining / 60)}m {project.activeVoting.timeRemaining % 60}s
-                      </div>
-                    </div>
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
-                ) : (
+                </div>
+                
+                <div className="live-voting">
+                  <h4>Live Voting Distribution</h4>
+                  <div className="vote-distribution">
+                    {Object.entries(project.activeVoting.currentVotes).map(([label, count]) => (
+                      <div key={label} className="vote-item">
+                        <span className="vote-label">{label}:</span>
+                        <span className="vote-count">{count as number}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="time-remaining">
+                    Time remaining: {Math.floor(project.activeVoting.timeRemaining / 60)}m {project.activeVoting.timeRemaining % 60}s
+                  </div>
+                </div>
+              </div>
+            ) : (
                   <div className="waiting-for-next-sample">
                     <h4>🔄 Processing {batchProgress.totalSamples === 1 ? 'Sample' : 'Previous Sample'}</h4>
                     <p>

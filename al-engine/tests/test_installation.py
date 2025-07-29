@@ -141,30 +141,9 @@ def test_workflow_runner():
         return False
 
 def test_orchestrator_client():
-    """Test the orchestrator client"""
-    print("\nTesting OrchestratorClient...")
-    
-    try:
-        from orchestrator_client import OrchestratorClient
-        
-        client = OrchestratorClient()
-        print("  ✓ OrchestratorClient initialization")
-        
-        # Test health check (this may fail if orchestrator is not available)
-        try:
-            health = client.check_orchestrator_health()
-            if health:
-                print("  ✓ Orchestrator is healthy")
-            else:
-                print("  ! Orchestrator not available (expected for local testing)")
-        except Exception:
-            print("  ! Orchestrator connection failed (expected for local testing)")
-        
-        return True
-        
-    except Exception as e:
-        print(f"  ✗ OrchestratorClient test failed: {e}")
-        return False
+    """Test orchestrator client functionality (REMOVED - Local execution only)"""
+    print("⚠️ Orchestrator client functionality removed - using local execution only")
+    return True, "Orchestrator functionality removed - local execution only"
 
 def test_al_engine():
     """Test the main AL-Engine class"""
@@ -215,7 +194,6 @@ def main():
         ("Import Test", test_imports),
         ("AL Iteration Test", test_al_iteration),
         ("WorkflowRunner Test", test_workflow_runner),
-        ("OrchestratorClient Test", test_orchestrator_client),
         ("ALEngine Test", test_al_engine)
     ]
     

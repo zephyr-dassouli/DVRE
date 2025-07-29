@@ -6,7 +6,7 @@ export { ALContractService } from './ALContractService';
 export { alContractService } from './ALContractService';
 
 // Re-export types for convenience
-export type {
+export type { 
   VotingRecord,
   UserContribution,
   ModelUpdate,

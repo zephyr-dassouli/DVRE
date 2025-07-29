@@ -497,9 +497,9 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
             borderRadius: '4px'
           }}>
             {files.map((file, index) => (
-              <div 
+              <div
                 key={index}
-                style={{ 
+                style={{
                   padding: '12px',
                   borderBottom: index < files.length - 1 ? '1px solid var(--jp-border-color2)' : 'none',
                   display: 'flex',

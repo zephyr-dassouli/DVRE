@@ -1,0 +1,27 @@
+# inputs.yml - Runtime input mapping for al_iteration.cwl
+
+# Labeled training data (required)
+labeled_data:
+  class: File
+  path: al-engine/ro-crates/0xeCA882d35e2917642F887e40014D01d202A28181/inputs/datasets/labeled_samples.csv
+
+# Labels for the labeled data (required) 
+# Note: For CSV files, labels are typically in the same file or a separate labels column
+labeled_labels:
+  class: File
+  path: al-engine/ro-crates/0xeCA882d35e2917642F887e40014D01d202A28181/inputs/datasets/labeled_samples.csv
+
+# Unlabeled data pool for querying (required)
+unlabeled_data:
+  class: File
+  path: al-engine/ro-crates/0xeCA882d35e2917642F887e40014D01d202A28181/inputs/datasets/unlabeled_samples.csv
+
+# Pre-trained model from previous iteration (optional - dynamic based on current iteration)
+model_in:
+  class: File
+  path: al-engine/ro-crates/0xeCA882d35e2917642F887e40014D01d202A28181/config/model/model_round_*.pkl
+
+# Configuration file with AL parameters (required)
+config:
+  class: File
+  path: al-engine/ro-crates/0xeCA882d35e2917642F887e40014D01d202A28181/config.json

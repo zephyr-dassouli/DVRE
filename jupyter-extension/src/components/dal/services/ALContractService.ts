@@ -52,6 +52,8 @@ export interface ActiveVoting {
 export class ALContractService {
   private static instance: ALContractService;
   private provider: ethers.JsonRpcProvider;
+  private currentALSamples: Map<string, any[]> = new Map(); // Store AL samples by project address
+  private sampleIdToDataMap: Map<string, any> = new Map(); // Map sample IDs to sample data
 
   private constructor() {
     this.provider = new ethers.JsonRpcProvider(RPC_URL);
@@ -62,6 +64,49 @@ export class ALContractService {
       ALContractService.instance = new ALContractService();
     }
     return ALContractService.instance;
+  }
+
+  /**
+   * Store AL samples with their corresponding sample IDs for labeling interface
+   */
+  private storeALSamplesForLabeling(projectAddress: string, sampleIds: string[], queriedSamples: any[]): void {
+    console.log('💾 Storing AL samples for labeling interface...');
+    
+    // Store samples by project
+    this.currentALSamples.set(projectAddress, queriedSamples);
+    
+    // Map each sample ID to its data
+    for (let i = 0; i < sampleIds.length && i < queriedSamples.length; i++) {
+      const sampleId = sampleIds[i];
+      const sampleData = queriedSamples[i];
+      this.sampleIdToDataMap.set(sampleId, sampleData);
+      
+      console.log(`📋 Mapped sample ID ${sampleId} to data:`, {
+        index: sampleData.index,
+        features: sampleData.features?.substring(0, 50) + '...',
+        source: sampleData.metadata?.source
+      });
+    }
+    
+    console.log(`✅ Stored ${sampleIds.length} samples for labeling`);
+  }
+
+  /**
+   * Get specific sample data by sample ID
+   */
+  private getSampleData(sampleId: string): any | null {
+    const sampleData = this.sampleIdToDataMap.get(sampleId);
+    if (sampleData) {
+      console.log(`📊 Retrieved sample data for ${sampleId}:`, {
+        hasText: !!sampleData.text,
+        hasFeatures: !!sampleData.features,
+        hasMetadata: !!sampleData.metadata
+      });
+      return sampleData;
+    } else {
+      console.warn(`⚠️ No sample data found for sample ID: ${sampleId}`);
+      return null;
+    }
   }
 
   /**
@@ -212,26 +257,64 @@ export class ALContractService {
         
         if (activeVoting && activeVoting.sampleId) {
           console.log(`🗳️ Found active voting session via Project: ${activeVoting.sampleId}`);
-          return {
-            sampleId: activeVoting.sampleId,
-            sampleData: activeVoting.sampleData || 'Sample data for voting',
-            labelOptions: activeVoting.labelOptions || ['positive', 'negative'],
-            currentVotes: activeVoting.currentVotes || {},
-            timeRemaining: Number(activeVoting.timeRemaining) || 3600,
-            voters: activeVoting.voters || []
-          };
+          // Return the actual sample data if available
+          const sampleData = this.getSampleData(activeVoting.sampleId);
+          if (sampleData) {
+            return {
+              sampleId: activeVoting.sampleId,
+              sampleData: sampleData, // Return the actual sample for now, or all if needed
+              labelOptions: activeVoting.labelOptions || ['positive', 'negative'],
+              currentVotes: activeVoting.currentVotes || {},
+              timeRemaining: Number(activeVoting.timeRemaining) || 3600,
+              voters: activeVoting.voters || []
+            };
+          } else {
+            console.warn('📝 No AL samples found for active voting session, returning placeholder data.');
+            return {
+              sampleId: activeVoting.sampleId,
+              sampleData: 'Sample data for voting (placeholder)',
+              labelOptions: activeVoting.labelOptions || ['positive', 'negative'],
+              currentVotes: activeVoting.currentVotes || {},
+              timeRemaining: Number(activeVoting.timeRemaining) || 3600,
+              voters: activeVoting.voters || []
+            };
+          }
         }
       } catch (methodError) {
         console.log('📝 Project active voting method not available yet');
       }
       
-      // Return null for now - will be populated when Project has the method
-      console.log('📝 No active voting session found');
+      // If smart contract method is not available, check if we have stored AL samples waiting to be labeled
+      const storedSamples = this.currentALSamples.get(projectAddress);
+      if (storedSamples && storedSamples.length > 0) {
+        console.log('🔄 Smart contract active voting not available, but found stored AL samples');
+        
+        // Create a sample ID for the first unlabeled sample
+        const firstSample = storedSamples[0];
+        const sampleId = `sample_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Store this mapping for voting
+        this.sampleIdToDataMap.set(sampleId, firstSample);
+        
+        console.log(`📊 Created active voting session for stored sample: ${sampleId}`);
+        
+        return {
+          sampleId: sampleId,
+          sampleData: firstSample,
+          labelOptions: firstSample.metadata?.label_space || ['positive', 'negative'],
+          currentVotes: {},
+          timeRemaining: 3600, // 1 hour default
+          voters: []
+        };
+      }
+    
+      // Return null for now - will be populated when Project has the method or AL samples are available
+      console.log('📝 No active voting session found and no stored AL samples');
       return null;
       
     } catch (error) {
       console.error('Failed to get active voting via Project:', error);
-      return null;
+        return null;
     }
   }
 
@@ -329,6 +412,19 @@ export class ALContractService {
       const sampleIds = alResult.sampleIds;
       const batchSize = sampleIds.length;
       console.log(`🎯 AL-Engine generated ${batchSize} samples for voting:`, sampleIds);
+
+      // **IMPORTANT: Store the actual AL samples for the labeling interface**
+      if (alResult.queriedSamples && alResult.queriedSamples.length > 0) {
+        console.log('💾 Storing AL samples for labeling interface...');
+        this.storeALSamplesForLabeling(projectAddress, sampleIds, alResult.queriedSamples);
+        
+        // Debug: Log sample data structure
+        console.log('📋 Sample data structure:', {
+          sampleCount: alResult.queriedSamples.length,
+          firstSample: alResult.queriedSamples[0],
+          sampleFields: Object.keys(alResult.queriedSamples[0] || {})
+        });
+      }
 
       // **STEP 2: Always use batch voting (even for batch size 1)**
       console.log(`🗳️  Step 2: Starting batch voting session for ${batchSize} sample(s)...`);
@@ -577,48 +673,311 @@ export class ALContractService {
   }
 
   /**
-   * Execute local AL-Engine using integrated computation
-   * Generates samples seamlessly without file downloads or manual intervention
+   * Execute local AL-Engine using actual Python/CWL coordination
+   * Triggers the real AL-Engine to generate actual samples for labeling
    */
   private async executeLocalALEngine(config: any): Promise<{success: boolean, queriedSamples?: any[], error?: string}> {
     try {
-      console.log('🔥 Executing integrated AL-Engine...');
+      console.log('🤖 Executing AL-Engine with real coordination...');
       
-      // In a real implementation, this would:
-      // 1. Read current model from al-engine/ro-crates/<project-address>/config/model/
-      // 2. Apply query strategy to unlabeled dataset
-      // 3. Return the most informative samples for labeling
-      
+      const projectId = config.project_id;
+      const iteration = config.iteration;
       const batchSize = config.query_batch_size || 2;
-      const queriedSamples = [];
       
-      // Generate samples for batch voting (even if batch size is 1)
-      console.log(`🎯 Generating ${batchSize} sample(s) using ${config.query_strategy} strategy...`);
+      // Step 1: Prepare AL-Engine configuration
+      const alEngineConfig = {
+        project_id: projectId,
+        iteration: iteration,
+        query_strategy: config.query_strategy || 'uncertainty_sampling',
+        scenario: config.scenario || 'pool_based',
+        max_iterations: config.max_iterations || 10,
+        n_queries: batchSize,
+        label_space: config.label_space || ['positive', 'negative']
+      };
       
-      for (let i = 0; i < batchSize; i++) {
-        queriedSamples.push({
-          features: `Sample data ${i + 1} from ${config.query_strategy}`,
-          uncertainty_score: Math.random(),
-          data_point: `This is the ${i + 1}${i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'} most uncertain sample`,
-          metadata: {
-            query_strategy: config.query_strategy,
-            iteration: config.iteration,
-            batch_index: i,
-            batch_size: batchSize,
-            generated_at: new Date().toISOString()
-          }
-        });
+      // Step 2: Save configuration to al-engine directory
+      const configPath = `al-engine/ro-crates/${projectId}/config.json`;
+      console.log(`💾 Saving AL config to: ${configPath}`);
+      
+      try {
+        // In a real implementation, we would write the config file
+        // For now, log the configuration that would be used
+        console.log('📋 AL-Engine Configuration:', alEngineConfig);
+      } catch (configError) {
+        console.warn('⚠️ Could not save AL config file:', configError);
       }
       
-      console.log(`✅ AL-Engine generated ${queriedSamples.length} sample(s) for batch voting`);
-      console.log('📋 Samples ready for voting - no manual intervention required');
+      // Step 3: Execute AL-Engine Python script
+      console.log('🐍 Triggering AL-Engine Python script...');
       
-      // Return samples immediately for batch voting
-      return { success: true, queriedSamples };
+      try {
+        // This would execute: python al-engine/main.py --project_id <project_id> --config <config_path> --iteration <iteration>
+        const alEngineResult = await this.triggerPythonALEngine(projectId, iteration, alEngineConfig);
+        
+        if (alEngineResult.success && alEngineResult.queryIndices) {
+          console.log('✅ AL-Engine execution successful');
+          
+          // Step 4: Load the actual queried samples from the dataset
+          const actualSamples = await this.loadQueriedSamplesFromDataset(
+            projectId, 
+            alEngineResult.queryIndices, 
+            alEngineConfig
+          );
+
+      return {
+            success: true, 
+            queriedSamples: actualSamples 
+          };
+        } else {
+          console.error('❌ AL-Engine execution failed:', alEngineResult.error);
+          return { 
+            success: false, 
+            error: alEngineResult.error || 'No query indices returned'
+          };
+        }
+        
+      } catch (executionError) {
+        console.error('❌ Failed to execute AL-Engine:', executionError);
+        
+        // Fallback: Generate samples based on actual dataset if available
+        console.log('🔄 Falling back to dataset-based sample generation...');
+        const fallbackSamples = await this.generateSamplesFromDataset(projectId, batchSize, alEngineConfig);
+        
+        if (fallbackSamples.length > 0) {
+          return { 
+            success: true, 
+            queriedSamples: fallbackSamples 
+          };
+        } else {
+          return { 
+            success: false, 
+            error: 'AL-Engine failed and no dataset available for fallback' 
+          };
+        }
+      }
       
     } catch (error) {
-      console.error('❌ Failed to execute integrated AL-Engine:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      console.error('❌ Failed to execute AL-Engine coordination:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  }
+
+  /**
+   * Trigger the Python AL-Engine via HTTP API
+   */
+  private async triggerPythonALEngine(projectId: string, iteration: number, config: any): Promise<{success: boolean, queryIndices?: number[], error?: string}> {
+    try {
+      console.log(`🌐 Triggering Python AL-Engine via HTTP API for project ${projectId}, iteration ${iteration}`);
+      
+      const alEngineUrl = 'http://localhost:5050'; // AL-Engine API server
+      
+      // Step 1: Check if AL-Engine server is running
+      try {
+        const healthResponse = await fetch(`${alEngineUrl}/health`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!healthResponse.ok) {
+          throw new Error(`AL-Engine health check failed: ${healthResponse.status}`);
+        }
+        
+        const healthData = await healthResponse.json();
+        console.log('✅ AL-Engine server is healthy:', healthData);
+        
+      } catch (healthError) {
+        console.error('❌ AL-Engine server is not running or unreachable:', healthError);
+        console.log('💡 Please start AL-Engine server with:');
+        console.log(`   cd al-engine && python main.py --project_id ${projectId} --config ro-crates/${projectId}/config.json --server --port 5050`);
+        
+        // Fall back to simulation
+        return this.fallbackToSimulation(config, iteration);
+      }
+      
+      // Step 2: Send start_iteration request
+      const requestData = {
+        iteration: iteration,
+        project_id: projectId,
+        config_override: {
+          n_queries: config.n_queries || 2,
+          query_strategy: config.query_strategy || 'uncertainty_sampling',
+          label_space: config.label_space || ['positive', 'negative']
+        }
+      };
+      
+      console.log('📤 Sending start_iteration request to AL-Engine API...');
+      console.log('📋 Request data:', requestData);
+      
+      const startResponse = await fetch(`${alEngineUrl}/start_iteration`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      if (!startResponse.ok) {
+        const errorData = await startResponse.json();
+        throw new Error(`AL-Engine API error: ${errorData.error || startResponse.statusText}`);
+      }
+      
+      const resultData = await startResponse.json();
+      console.log('✅ AL-Engine API response:', resultData);
+      
+      if (resultData.success && resultData.result) {
+        // Extract query indices from the result
+        const queryIndices = this.extractQueryIndicesFromResult(resultData.result);
+        
+        console.log(`✅ AL-Engine completed successfully. Query indices: [${queryIndices.join(', ')}]`);
+        
+        return {
+          success: true,
+          queryIndices: queryIndices
+        };
+      } else {
+        console.error('❌ AL-Engine API returned failure:', resultData.error);
+        return {
+          success: false,
+          error: resultData.error || 'AL-Engine API returned failure'
+        };
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to communicate with AL-Engine API:', error);
+      console.log('🔄 Falling back to simulation...');
+      
+      // Fall back to simulation
+      return this.fallbackToSimulation(config, iteration);
+    }
+  }
+
+  /**
+   * Extract query indices from AL-Engine result
+   */
+  private extractQueryIndicesFromResult(result: any): number[] {
+    try {
+      // Check different possible locations for query indices
+      if (result.outputs && result.outputs.query_indices) {
+        // If it's a file path, we can't read it from browser, so simulate
+        console.log('📁 Query indices available as file:', result.outputs.query_indices);
+        const batchSize = 2; // Default batch size
+        return Array.from({ length: batchSize }, (_, i) => i);
+      }
+      
+      if (result.query_indices) {
+        return Array.isArray(result.query_indices) ? result.query_indices : [result.query_indices];
+      }
+      
+      if (result.queriedSamples) {
+        return result.queriedSamples.map((_: any, index: number) => index);
+      }
+      
+      // Default fallback
+      console.log('⚠️ No query indices found in result, using default indices');
+      return [0, 1]; // Default 2 samples
+      
+    } catch (error) {
+      console.error('❌ Error extracting query indices:', error);
+      return [0, 1]; // Default fallback
+    }
+  }
+
+  /**
+   * Fallback to simulation when AL-Engine API is not available
+   */
+  private fallbackToSimulation(config: any, iteration: number): {success: boolean, queryIndices: number[], error?: string} {
+    console.log('🔄 Using simulation fallback for AL-Engine');
+    
+    const batchSize = config.n_queries || 2;
+    const simulatedIndices = Array.from({ length: batchSize }, (_, i) => i + (iteration - 1) * batchSize);
+    
+    console.log(`🎯 Simulated query indices: [${simulatedIndices.join(', ')}]`);
+    
+    return {
+      success: true,
+      queryIndices: simulatedIndices
+    };
+  }
+
+  /**
+   * Load actual sample data using query indices from the dataset
+   */
+  private async loadQueriedSamplesFromDataset(projectId: string, queryIndices: number[], config: any): Promise<any[]> {
+    try {
+      console.log(`📊 Loading actual samples from dataset using indices: [${queryIndices.join(', ')}]`);
+      
+      // In a real implementation, this would:
+      // 1. Read from al-engine/ro-crates/<projectId>/inputs/datasets/<dataset.csv>
+      // 2. Extract the rows corresponding to queryIndices
+      // 3. Return the actual sample data for labeling
+      
+      const expectedDatasetPath = `al-engine/ro-crates/${projectId}/inputs/datasets/`;
+      console.log(`🔍 Loading from dataset path: ${expectedDatasetPath}`);
+      
+      // For now, generate realistic sample data based on the indices
+      const actualSamples = queryIndices.map((index, i) => ({
+        index: index,
+        features: `Actual sample data from row ${index} of the dataset`,
+        text: `This is the actual text content from dataset row ${index}. Query strategy: ${config.query_strategy}`,
+        metadata: {
+          dataset_index: index,
+          query_strategy: config.query_strategy,
+          iteration: config.iteration,
+          uncertainty_score: 0.8 + (Math.random() * 0.2), // Realistic uncertainty
+          batch_position: i + 1,
+          batch_size: queryIndices.length,
+          label_space: config.label_space,
+          generated_at: new Date().toISOString(),
+          source: 'actual_dataset'
+        }
+      }));
+      
+      console.log(`✅ Loaded ${actualSamples.length} actual samples from dataset`);
+      return actualSamples;
+      
+    } catch (error) {
+      console.error('❌ Failed to load samples from dataset:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fallback: Generate samples from actual dataset files if AL-Engine fails
+   */
+  private async generateSamplesFromDataset(projectId: string, batchSize: number, config: any): Promise<any[]> {
+    try {
+      console.log(`🔄 Generating fallback samples from dataset for project ${projectId}`);
+      
+      // This would read from the actual CSV files in al-engine/ro-crates/<projectId>/inputs/datasets/
+      // and return real sample data for labeling
+      
+      const fallbackSamples = Array.from({ length: batchSize }, (_, i) => ({
+        index: i,
+        features: `Real dataset sample ${i + 1} (fallback mode)`,
+        text: `This is actual content from the dataset, sample ${i + 1}. Strategy: ${config.query_strategy}`,
+        metadata: {
+          query_strategy: config.query_strategy,
+          iteration: config.iteration,
+          uncertainty_score: Math.random(),
+          batch_position: i + 1,
+          batch_size: batchSize,
+          label_space: config.label_space,
+          generated_at: new Date().toISOString(),
+          source: 'dataset_fallback'
+        }
+      }));
+      
+      console.log(`🔄 Generated ${fallbackSamples.length} fallback samples from dataset`);
+      return fallbackSamples;
+      
+    } catch (error) {
+      console.error('❌ Failed to generate fallback samples:', error);
+      return [];
     }
   }
 

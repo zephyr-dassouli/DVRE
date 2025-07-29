@@ -207,23 +207,23 @@ curl -o inputs/datasets/unlabeled_samples.csv "${ipfsConfig.ipfs.publicUrl}/ipfs
         });
       } else {
         // Keep original placeholder files if no real datasets are configured
-        bundleFiles.push({
-          name: 'inputs/datasets/labeled_samples.npy',
-          content: '# Placeholder for labeled training data (NumPy array)\n# This file should be populated with actual labeled samples',
-          type: 'text/plain'
-        });
+      bundleFiles.push({
+        name: 'inputs/datasets/labeled_samples.npy',
+        content: '# Placeholder for labeled training data (NumPy array)\n# This file should be populated with actual labeled samples',
+        type: 'text/plain'
+      });
 
-        bundleFiles.push({
-          name: 'inputs/datasets/labeled_targets.npy',
-          content: '# Placeholder for labeled training targets (NumPy array)\n# This file should be populated with actual labels',
-          type: 'text/plain'
-        });
+      bundleFiles.push({
+        name: 'inputs/datasets/labeled_targets.npy',
+        content: '# Placeholder for labeled training targets (NumPy array)\n# This file should be populated with actual labels',
+        type: 'text/plain'
+      });
 
-        bundleFiles.push({
-          name: 'inputs/datasets/unlabeled_samples.npy',
-          content: '# Placeholder for unlabeled data pool (NumPy array)\n# This file should be populated with unlabeled samples for querying',
-          type: 'text/plain'
-        });
+      bundleFiles.push({
+        name: 'inputs/datasets/unlabeled_samples.npy',
+        content: '# Placeholder for unlabeled data pool (NumPy array)\n# This file should be populated with unlabeled samples for querying',
+        type: 'text/plain'
+      });
       }
 
       bundleFiles.push({
@@ -322,26 +322,28 @@ curl -o inputs/datasets/unlabeled_samples.csv "${ipfsConfig.ipfs.publicUrl}/ipfs
    * Generate al_iteration.cwl content (YAML format)
    */
   private generateALIterationCWL(): string {
-    return `cwlVersion: v1.2
+    // Create cwltool definition for AL iteration
+    // This references the existing al_iteration.py file in al-engine directory
+    const cwlContent = `cwlVersion: v1.2
 class: CommandLineTool
 
 label: Active Learning Iteration (Train + Query)
-doc: One-step AL iteration using modAL and scikit-learn, supports CSV and NPY formats
+doc: One-step AL iteration using modAL and scikit-learn, returns actual query samples.
 
 baseCommand: python3
-arguments: [al_iteration.py]
+arguments: [../../al_iteration.py]
 
 inputs:
   labeled_data:
     type: File
     inputBinding:
       prefix: --labeled_data
-    doc: Training dataset file (CSV or NPY format)
+    doc: Initial labeled dataset file (CSV or NPY format)
   labeled_labels:
     type: File
     inputBinding:
       prefix: --labeled_labels
-    doc: Training labels file (CSV or NPY format, can be same as labeled_data for CSV)
+    doc: Initial labels file (CSV or NPY format)
   unlabeled_data:
     type: File
     inputBinding:
@@ -364,60 +366,18 @@ outputs:
     outputBinding:
       glob: model/model_round_*.pkl
     doc: Updated model after training with new labels
-  query_indices:
+  query_samples:
     type: File
     outputBinding:
-      glob: query_indices.npy
-    doc: Indices of samples selected for labeling in next iteration
+      glob: query_samples.json
+    doc: JSON file containing the actual samples selected for labeling.
 
 requirements:
   DockerRequirement:
     dockerPull: python:3.9-slim
-  InitialWorkDirRequirement:
-    listing:
-      - entry: |
-          #!/usr/bin/env python3
-          # AL iteration script that handles both CSV and NPY formats
-          import argparse
-          import pandas as pd
-          import numpy as np
-          import json
-          import os
-          from pathlib import Path
-          
-          def detect_format(filepath):
-              return filepath.suffix.lower()
-          
-          def load_data(filepath, is_labels=False):
-              ext = detect_format(Path(filepath))
-              if ext == '.csv':
-                  df = pd.read_csv(filepath)
-                  if is_labels:
-                      # Assume last column is labels for CSV
-                      return df.iloc[:, -1].values
-                  else:
-                      # Assume all but last column is features for CSV
-                      return df.iloc[:, :-1].values
-              elif ext == '.npy':
-                  return np.load(filepath)
-              else:
-                  raise ValueError(f"Unsupported format: {ext}")
-          
-          parser = argparse.ArgumentParser()
-          parser.add_argument('--labeled_data', required=True)
-          parser.add_argument('--labeled_labels', required=True) 
-          parser.add_argument('--unlabeled_data', required=True)
-          parser.add_argument('--model_in')
-          parser.add_argument('--config', required=True)
-          args = parser.parse_args()
-          
-          print("AL iteration script would run here with actual data files")
-          print(f"Labeled data: {args.labeled_data}")
-          print(f"Unlabeled data: {args.unlabeled_data}")
-          print(f"Config: {args.config}")
-          
-        entryname: al_iteration.py
-        writable: false`;
+`;
+
+    return cwlContent;
   }
 
   /**
@@ -439,7 +399,7 @@ labeled_data:
   class: File
   path: al-engine/ro-crates/${projectId}/inputs/datasets/labeled_samples.${datasetExtension}
 
-# Labels for the labeled data (required) 
+# Labels for the labeled data (required)
 # Note: For CSV files, labels are typically in the same file or a separate labels column
 labeled_labels:
   class: File

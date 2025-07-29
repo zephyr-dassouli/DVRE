@@ -98,8 +98,8 @@ export const DALComponent: React.FC<DALComponentProps> = ({
       }
 
       const isOwner = project.creator?.toLowerCase() === account?.toLowerCase();
-      
-      return {
+    
+    return {
         id: project.address,
         name: project.projectData?.name || project.projectData?.project_id || project.objective || 'Unnamed Project',
         description: project.description || project.projectData?.description,
@@ -135,13 +135,13 @@ export const DALComponent: React.FC<DALComponentProps> = ({
         currentRound: 1,
         totalRounds: 10,
         lastUpdated: new Date(project.lastModified * 1000),
-        workflowConfigured: true,
+      workflowConfigured: true,
         creator: project.creator,
         isActive: project.isActive,
         alConfiguration: undefined,
         modelPerformance: undefined,
         activeVoting: undefined,
-        userRole: isOwner ? 'coordinator' : 'contributor',
+      userRole: isOwner ? 'coordinator' : 'contributor',
         totalSamplesLabeled: 0,
         isDeployed: false,
         deploymentStatus: 'pending'
@@ -341,30 +341,30 @@ export const DALComponent: React.FC<DALComponentProps> = ({
               {/* Prominent Project Name Container */}
               <div className="project-name-container">
                 <h3 className="project-name">{project.name}</h3>
-                <div className="project-badges">
+                  <div className="project-badges">
                   <span className="project-type-badge">
                     ACTIVE LEARNING
                   </span>
-                  <span className="role-badge" data-role={project.userRole}>
-                    {project.userRole === 'coordinator' ? 'COORDINATOR' : 'CONTRIBUTOR'}
-                  </span>
-                  <span 
-                    className="status-badge"
-                    style={{ backgroundColor: getStatusColor(project.status) }}
-                  >
-                    {project.status.toUpperCase()}
-                  </span>
+                    <span className="role-badge" data-role={project.userRole}>
+                      {project.userRole === 'coordinator' ? 'COORDINATOR' : 'CONTRIBUTOR'}
+                    </span>
+                    <span 
+                      className="status-badge"
+                      style={{ backgroundColor: getStatusColor(project.status) }}
+                    >
+                      {project.status.toUpperCase()}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
               {/* Configuration Summary */}
-              {project.alConfiguration && (
-                <div className="project-config-summary">
-                  <span>Strategy: {project.alConfiguration.queryStrategy}</span>
-                  <span>Model: {project.alConfiguration.model.type}</span>
-                  <span>Batch: {project.alConfiguration.queryBatchSize}</span>
-                </div>
-              )}
+                {project.alConfiguration && (
+                  <div className="project-config-summary">
+                    <span>Strategy: {project.alConfiguration.queryStrategy}</span>
+                    <span>Model: {project.alConfiguration.model.type}</span>
+                    <span>Batch: {project.alConfiguration.queryBatchSize}</span>
+                  </div>
+                )}
 
               <div className="project-stats">
                 <div className="stat">
