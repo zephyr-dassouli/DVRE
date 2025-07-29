@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "./JSONProject.sol";
+import "./Project.sol";
 import "./ProjectTemplateRegistry.sol";
 
 contract ProjectFactory {
@@ -26,7 +26,7 @@ contract ProjectFactory {
         require(bytes(_projectData).length > 0, "Project data cannot be empty");
 
         // Create new project with simplified constructor
-        JSONProject newProject = new JSONProject(msg.sender, _projectData);
+        Project newProject = new Project(msg.sender, _projectData);
         address projectAddress = address(newProject);
 
         // Track DAL projects for special handling
@@ -48,7 +48,7 @@ contract ProjectFactory {
         require(bytes(_projectData).length > 0, "Project data cannot be empty");
 
         // Create new project with simplified constructor
-        JSONProject newProject = new JSONProject(msg.sender, _projectData);
+        Project newProject = new Project(msg.sender, _projectData);
         address projectAddress = address(newProject);
 
         // Register project

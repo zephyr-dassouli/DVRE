@@ -4,7 +4,7 @@ import { ProjectDetails as ProjectDetailsType, useProjects } from '../../hooks/u
 import { useAuth } from '../../hooks/useAuth';
 import { useUserRegistry } from '../../hooks/useUserRegistry';
 import { UserInvitationDialog } from '../userregistry/UserInvitationDialog';
-import JSONProject from '../../abis/JSONProject.json';
+import Project from '../../abis/Project.json';
 import { RPC_URL } from '../../config/contracts';
 
 interface ProjectDetailsProps {
@@ -178,7 +178,7 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
         const setupEventListener = async () => {
             try {
                 const provider = new ethers.JsonRpcProvider(RPC_URL);
-                const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, provider);
+                const projectContract = new ethers.Contract(projectAddress, Project.abi, provider);
 
                 const memberAddedFilter = projectContract.filters.MemberAdded();
                 

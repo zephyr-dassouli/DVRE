@@ -24,8 +24,8 @@ const assetFactoryPath = path.join(__dirname, "../artifacts/contracts/AssetFacto
 const assetFactoryJson = JSON.parse(fs.readFileSync(assetFactoryPath));
 
 // Load new AL project contracts
-const jsonProjectPath = path.join(__dirname, "../artifacts/contracts/JSONProject.sol/JSONProject.json");
-const jsonProjectJson = JSON.parse(fs.readFileSync(jsonProjectPath));
+const projectPath = path.join(__dirname, "../artifacts/contracts/Project.sol/Project.json");
+const projectJson = JSON.parse(fs.readFileSync(projectPath));
 
 const alProjectVotingPath = path.join(__dirname, "../artifacts/contracts/ALProjectVoting.sol/ALProjectVoting.json");
 const alProjectVotingJson = JSON.parse(fs.readFileSync(alProjectVotingPath));
@@ -169,9 +169,9 @@ const deploy = async () => {
 
   // Link AL contracts to the main project
   console.log("\nLinking AL contracts to main project...");
-  const jsonProjectInstance = new web3.eth.Contract(jsonProjectJson.abi, projectAddress);
+  const projectInstance = new web3.eth.Contract(projectJson.abi, projectAddress);
   
-  await jsonProjectInstance.methods.linkALContracts(
+  await projectInstance.methods.linkALContracts(
     alVotingReceipt.contractAddress,
     alStorageReceipt.contractAddress
   ).send({
@@ -183,7 +183,7 @@ const deploy = async () => {
 
   // Configure project metadata
   console.log("\nConfiguring project metadata...");
-  await jsonProjectInstance.methods.setProjectMetadata(
+  await projectInstance.methods.setProjectMetadata(
     "Test AL Project",
     "A comprehensive test of the new AL architecture",
     "active_learning",
@@ -195,7 +195,7 @@ const deploy = async () => {
     gasPrice: 0
   });
 
-  await jsonProjectInstance.methods.setALMetadata(
+  await projectInstance.methods.setALMetadata(
     "uncertainty_sampling",
     "text_classification",
     10,  // max iterations
@@ -211,7 +211,7 @@ const deploy = async () => {
   // Set up test voters
   console.log("\nSetting up test voters...");
   
-  await jsonProjectInstance.methods.setProjectVoters([account.address], [1]).send({
+  await projectInstance.methods.setProjectVoters([account.address], [1]).send({
     from: account.address,
     gas: 200000,
     gasPrice: 0
@@ -222,17 +222,17 @@ const deploy = async () => {
   console.log("\nTesting basic AL functionality...");
   
   // Trigger new round
-  await jsonProjectInstance.methods.triggerNextRound("Initial test round").send({
+  await projectInstance.methods.triggerNextRound("Initial test round").send({
     from: account.address,
     gas: 200000,
     gasPrice: 0
   });
   
-  const currentRound = await jsonProjectInstance.methods.currentRound().call();
+  const currentRound = await projectInstance.methods.currentRound().call();
   console.log("Current round:", currentRound);
 
   // Start voting session
-  await jsonProjectInstance.methods.startVotingSession("sample_001").send({
+  await projectInstance.methods.startVotingSession("sample_001").send({
     from: account.address,
     gas: 200000,
     gasPrice: 0
@@ -271,14 +271,14 @@ const deploy = async () => {
     { name: "ProjectTemplateRegistry", address: templateRegistryReceipt.contractAddress },
     { name: "ProjectFactory", address: projectFactoryReceipt.contractAddress },
     { name: "AssetFactory", address: assetFactoryReceipt.contractAddress }
-    // Note: Per-project contracts (JSONProject, ALProjectVoting, ALProjectStorage) 
+    // Note: Per-project contracts (Project, ALProjectVoting, ALProjectStorage) 
     // are discovered through the project's state, not the registry
   ];
 
   try {
     await registerMultipleFactories(factories);
     console.log("\nCore infrastructure contracts registered successfully in FactoryRegistry!");
-    console.log("Per-project contracts are accessible through JSONProject.votingContract() and JSONProject.storageContract()");
+    console.log("Per-project contracts are accessible through Project.votingContract() and Project.storageContract()");
   } catch (error) {
     console.error("\nError registering factories:", error.message);
   }

@@ -10,7 +10,7 @@
     6. After voting is done for the current AL iteration, 
         - For Coordinator: the Labeling panel says ‘Current AL iteration is done, you may start the next iteration or end the project in Control Panel’
         - For Contributor: the Labeling panel says ‘Current AL iteration is done, wait for project Coordinator to start a new round’
-        - Smart Contract: JSONProject prompts ALProjectVoting and ALProjectStorage to aggregate results and store the latest labeled samples
+        - Smart Contract: Project prompts ALProjectVoting and ALProjectStorage to aggregate results and store the latest labeled samples
         - DAL: calls a getter smart contract function to fetch all the labeled samples
         - AL-Engine: the labeled samples get added to the training set
     

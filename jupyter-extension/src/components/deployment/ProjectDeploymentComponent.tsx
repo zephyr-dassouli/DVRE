@@ -9,8 +9,8 @@ import WorkflowsPanel from './WorkflowsPanel';
 import UserList from './UserList';
 import ComputationModePanel from './ComputationModePanel';
 
-// Import JSONProject ABI for smart contract interaction
-import JSONProject from '../../abis/JSONProject.json';
+// Import Project ABI for smart contract interaction
+import Project from '../../abis/Project.json';
 
 interface ProjectDeploymentComponentProps {
   title?: string;
@@ -352,7 +352,7 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
       const signer = await getSigner();
       const projectContract = new ethers.Contract(
         selectedProject.contractAddress,
-        JSONProject.abi,
+        Project.abi,
         signer
       );
 

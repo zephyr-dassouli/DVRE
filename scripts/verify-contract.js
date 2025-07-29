@@ -8,19 +8,19 @@ const CONTRACT_ADDRESS = '0xFE7532b08AA5dC9D1D53DeEA9a64d5983172530F';
 const RPC_URL = 'http://145.100.135.27:8550';
 
 // Load the updated ABI
-const JSONProject = JSON.parse(fs.readFileSync('./jupyter-extension/src/abis/JSONProject.json', 'utf8'));
+const Project = JSON.parse(fs.readFileSync('./jupyter-extension/src/abis/Project.json', 'utf8'));
 
 async function verifyContract() {
   try {
     console.log('🔍 Verifying contract:', CONTRACT_ADDRESS);
     console.log('🌐 Using RPC:', RPC_URL);
-    console.log('📋 Using updated ABI with', JSONProject.abi.length, 'functions');
+    console.log('📋 Using updated ABI with', Project.abi.length, 'functions');
     
     // Create provider
     const provider = new ethers.JsonRpcProvider(RPC_URL);
     
     // Create contract instance with updated ABI
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, JSONProject.abi, provider);
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, Project.abi, provider);
     
     console.log('\n📋 === PROJECT BASIC INFO ===');
     try {

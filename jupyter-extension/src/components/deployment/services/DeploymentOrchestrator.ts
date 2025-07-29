@@ -9,7 +9,7 @@ import { localFileDownloadService } from './LocalFileDownloadService';
 
 // Import blockchain dependencies  
 import { ethers } from 'ethers';
-import JSONProject from '../../../abis/JSONProject.json';
+import Project from '../../../abis/Project.json';
 
 /**
  * Deployment results interface
@@ -259,7 +259,7 @@ export class DeploymentOrchestrator {
           const signer = await provider.getSigner();
           
           // Connect to main project contract
-          const projectContract = new ethers.Contract(config.contractAddress, JSONProject.abi, signer);
+          const projectContract = new ethers.Contract(config.contractAddress, Project.abi, signer);
           
           // Try to update IPFS hash on contract
           try {
@@ -309,7 +309,7 @@ export class DeploymentOrchestrator {
   }
 
   /**
-   * Deploy AL smart contracts separately and link them to JSONProject
+   * Deploy AL smart contracts separately and link them to Project
    */
   private async deployALSmartContracts(
     config: DVREProjectConfiguration, 
@@ -325,7 +325,7 @@ export class DeploymentOrchestrator {
       throw new Error('DAL configuration not found for AL project');
     }
 
-    console.log('🚀 Deploying AL contracts separately and linking to JSONProject...');
+    console.log('🚀 Deploying AL contracts separately and linking to Project...');
     
     try {
       // Get blockchain connection
@@ -349,7 +349,7 @@ export class DeploymentOrchestrator {
       );
       
       const deployedVotingContract = await votingContractFactory.deploy(
-        config.contractAddress,  // _jsonProject
+        config.contractAddress,  // _project
         votingConsensus,         // _votingConsensus
         votingTimeout           // _votingTimeoutSeconds
       );
@@ -373,10 +373,10 @@ export class DeploymentOrchestrator {
       const storageContractAddress = await deployedStorageContract.getAddress();
       console.log('✅ ALProjectStorage deployed at:', storageContractAddress);
 
-      // Step 3: Link contracts to JSONProject
-      console.log('🔗 Step 3: Linking AL contracts to JSONProject...');
+      // Step 3: Link contracts to Project
+      console.log('🔗 Step 3: Linking AL contracts to Project...');
       
-      const projectContract = new ethers.Contract(config.contractAddress, JSONProject.abi, signer);
+      const projectContract = new ethers.Contract(config.contractAddress, Project.abi, signer);
       
       const linkTx = await projectContract.linkALContracts(votingContractAddress, storageContractAddress);
       await linkTx.wait();
@@ -447,7 +447,7 @@ export class DeploymentOrchestrator {
       
     } catch (error) {
       console.error('❌ AL smart contract deployment failed:', error);
-      console.log('💡 This approach deploys AL contracts separately and links them to JSONProject');
+      console.log('💡 This approach deploys AL contracts separately and links them to Project');
       throw error;
     }
   }

@@ -8,6 +8,14 @@ interface IALProjectVoting {
     function endVotingSession(string memory sampleId) external;
     function setVoters(address[] memory _voters, uint256[] memory _weights) external;
     function projectContract() external view returns (address);
+    function getVotingSession(string memory sampleId) external view returns (
+        uint256 startTime,
+        bool isActive,
+        bool isFinalized,
+        string memory finalLabel
+    );
+    function getFinalLabel(string memory sampleId) external view returns (string memory);
+    function isVotingActive(string memory sampleId) external view returns (bool);
 }
 
 interface IALProjectStorage {
@@ -22,7 +30,7 @@ interface IALProjectStorage {
     function projectContract() external view returns (address);
 }
 
-contract JSONProject {
+contract Project {
     // Core ownership and status
     address public creator;
     bool public isActive;
@@ -44,6 +52,11 @@ contract JSONProject {
     uint256 public maxIteration;
     uint256 public queryBatchSize;
     string[] public labelSpace;
+    
+    // DAL-specific state
+    uint256 public votingTimeout = 3600; // 1 hour default voting timeout
+    string[] private currentBatchSampleIds;
+    mapping(string => bool) private activeSamples;
     
     // Join request structure
     struct JoinRequest {
@@ -103,6 +116,11 @@ contract JSONProject {
     event MemberAdded(address indexed member, string role, uint256 timestamp);
     event ALBatchStarted(uint256 round, uint256 sampleCount, uint256 timestamp);
     event ALBatchCompleted(uint256 round, uint256 completedSamples, uint256 timestamp);
+    
+    // DAL Events for labeling interface
+    event VotingSessionStarted(string sampleId, uint256 round, uint256 timeout, uint256 timestamp);
+    event VotingSessionEnded(string sampleId, string finalLabel, uint256 round, uint256 timestamp);
+    event VoteSubmitted(string sampleId, address voter, string label, uint256 timestamp);
     
 
     // Modifiers
@@ -369,6 +387,125 @@ contract JSONProject {
         
         // Emit event for tracking automatic label storage
         emit AutoLabelStored(sampleId, label, currentRound, block.timestamp);
+    }
+
+    // ==================== DAL LABELING METHODS ====================
+    
+    /**
+     * @dev Submit vote for a sample (DAL interface method)
+     * This is the main entry point for DAL to submit votes
+     */
+    function submitVote(string memory sampleId, string memory label) external {
+        require(votingContract != address(0), "Voting contract not set");
+        require(bytes(sampleId).length > 0, "Empty sample ID");
+        require(bytes(label).length > 0, "Empty label");
+        
+        // Verify the sample is currently active for voting
+        require(activeSamples[sampleId], "Sample not active for voting");
+        
+        // Submit vote to ALProjectVoting contract
+        // Note: ALProjectVoting will handle voter authorization and validation
+        // This requires ALProjectVoting to have a submitVote function that accepts any caller
+        // and handles the authorization internally
+        
+        // For now, we'll emit the event and assume the vote will be processed
+        emit VoteSubmitted(sampleId, msg.sender, label, block.timestamp);
+        
+        // TODO: Once ALProjectVoting has a public submitVote method, call it here:
+        // IALProjectVoting(votingContract).submitVote(sampleId, label, msg.sender);
+    }
+    
+    /**
+     * @dev Get current active voting session for DAL interface
+     * Returns the first active sample found
+     */
+    function getActiveVoting() external view returns (
+        string memory sampleId,
+        string memory sampleData,
+        string[] memory labelOptions,
+        uint256 timeRemaining,
+        address[] memory voters
+    ) {
+        require(votingContract != address(0), "Voting contract not set");
+        
+        // Find the first active sample in current batch
+        for (uint i = 0; i < currentBatchSampleIds.length; i++) {
+            string memory currentSampleId = currentBatchSampleIds[i];
+            
+            if (activeSamples[currentSampleId] && 
+                IALProjectVoting(votingContract).isVotingActive(currentSampleId)) {
+                
+                // Get voting session details from ALProjectVoting
+                (uint256 sessionStartTime, bool sessionIsActive, bool isFinalized, string memory finalLabel) = 
+                    IALProjectVoting(votingContract).getVotingSession(currentSampleId);
+                
+                if (sessionIsActive && !isFinalized) {
+                    uint256 elapsed = block.timestamp - sessionStartTime;
+                    uint256 remaining = elapsed >= votingTimeout ? 0 : votingTimeout - elapsed;
+                    
+                    return (
+                        currentSampleId,
+                        string(abi.encodePacked("Sample data for ", currentSampleId)), // Placeholder
+                        labelSpace, // Use project's label space
+                        remaining,
+                        new address[](0) // Empty voters array for now
+                    );
+                }
+            }
+        }
+        
+        // No active voting session found
+        return ("", "", new string[](0), 0, new address[](0));
+    }
+    
+    /**
+     * @dev Called by ALProjectVoting when a voting session starts
+     * This enables DAL event emission
+     */
+    function notifyVotingSessionStarted(string memory sampleId) external onlyVotingContract {
+        activeSamples[sampleId] = true;
+        
+        // Add to current batch if not already present
+        bool found = false;
+        for (uint i = 0; i < currentBatchSampleIds.length; i++) {
+            if (keccak256(bytes(currentBatchSampleIds[i])) == keccak256(bytes(sampleId))) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            currentBatchSampleIds.push(sampleId);
+        }
+        
+        emit VotingSessionStarted(sampleId, currentRound, votingTimeout, block.timestamp);
+    }
+    
+    /**
+     * @dev Called by ALProjectVoting when a voting session ends
+     * This enables DAL event emission
+     */
+    function notifyVotingSessionEnded(string memory sampleId, string memory finalLabel) external onlyVotingContract {
+        activeSamples[sampleId] = false;
+        emit VotingSessionEnded(sampleId, finalLabel, currentRound, block.timestamp);
+        
+        // Check if all samples in current batch are completed
+        bool allCompleted = true;
+        uint256 completedCount = 0;
+        
+        for (uint i = 0; i < currentBatchSampleIds.length; i++) {
+            if (activeSamples[currentBatchSampleIds[i]]) {
+                allCompleted = false;
+            } else {
+                completedCount++;
+            }
+        }
+        
+        if (allCompleted && currentBatchSampleIds.length > 0) {
+            emit ALBatchCompleted(currentRound, completedCount, block.timestamp);
+            
+            // Clear the batch
+            delete currentBatchSampleIds;
+        }
     }
     
     function hasALContracts() external view returns (bool) {

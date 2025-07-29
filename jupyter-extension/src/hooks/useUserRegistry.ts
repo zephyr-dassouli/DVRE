@@ -4,7 +4,7 @@ import { useFactoryRegistry } from './useFactoryRegistry';
 import { useAuth } from './useAuth';
 
 import UserMetadataFactory from '../abis/UserMetadataFactory.json';
-import JSONProject from '../abis/JSONProject.json';
+import Project from '../abis/Project.json';
 import ProjectFactory from '../abis/ProjectFactory.json';
 import { RPC_URL } from '../config/contracts';
 
@@ -115,7 +115,7 @@ export const useUserRegistry = () => {
       for (const projectAddress of projectAddresses) {
         try {
           const provider = new ethers.JsonRpcProvider(RPC_URL);
-          const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, provider);
+          const projectContract = new ethers.Contract(projectAddress, Project.abi, provider);
           
           // Check if there's an invitation for this user
           const invitation = await projectContract.getInvitation(account);
@@ -157,7 +157,7 @@ export const useUserRegistry = () => {
 
     try {
       const signer = await getSigner();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
       // Check if current user is project creator
       const creator = await projectContract.creator();
@@ -184,7 +184,7 @@ export const useUserRegistry = () => {
     try {
       console.log('Starting invitation acceptance for project:', projectAddress);
       const signer = await getSigner();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
       // Get invitation details first
       console.log('Getting invitation details for account:', account);
@@ -270,7 +270,7 @@ export const useUserRegistry = () => {
 
     try {
       const signer = await getSigner();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
       // Check if current user is project creator
       const creator = await projectContract.creator();
@@ -323,7 +323,7 @@ export const useUserRegistry = () => {
 
     try {
       const signer = await getSigner();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
       const tx = await projectContract.rejectInvitation();
       await tx.wait();

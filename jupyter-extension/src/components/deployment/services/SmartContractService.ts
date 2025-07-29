@@ -3,7 +3,7 @@
  */
 
 import { ethers } from 'ethers';
-import JSONProject from '../../../abis/JSONProject.json';
+import Project from '../../../abis/Project.json';
 import { RPC_URL } from '../../../config/contracts';
 import { DVREProjectConfiguration } from '../../../shared/types/types';
 
@@ -58,7 +58,7 @@ export class SmartContractService {
           // Get project contract instance
           const projectContract = new ethers.Contract(
             config.contractAddress,
-            JSONProject.abi,
+            Project.abi,
             provider
           );
 
@@ -208,7 +208,7 @@ export class SmartContractService {
       const signer = await provider.getSigner();
       const projectContract = new ethers.Contract(
         config.contractAddress,
-        JSONProject.abi,
+        Project.abi,
         signer
       );
 

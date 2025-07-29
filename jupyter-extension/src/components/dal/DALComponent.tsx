@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { projectConfigurationService } from '../deployment/services/ProjectConfigurationService';
 import { ethers } from 'ethers';
 import { RPC_URL } from '../../config/contracts';
-import JSONProject from '../../abis/JSONProject.json';
+import Project from '../../abis/Project.json';
 
 /**
  * DAL Landing Page Component - Shows user's DAL projects
@@ -36,7 +36,7 @@ export const DALComponent: React.FC<DALComponentProps> = ({
       try {
         // Get provider and create contract instance
         const provider = new ethers.JsonRpcProvider(RPC_URL);
-        const projectContract = new ethers.Contract(project.address, JSONProject.abi, provider);
+        const projectContract = new ethers.Contract(project.address, Project.abi, provider);
 
         // Check if AL contracts are deployed
         const hasALContracts = await projectContract.hasALContracts();

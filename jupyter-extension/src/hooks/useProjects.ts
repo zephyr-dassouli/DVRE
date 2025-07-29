@@ -5,7 +5,7 @@ import { useAuth } from './useAuth';
 
 import ProjectTemplateRegistry from '../abis/ProjectTemplateRegistry.json';
 import ProjectFactory from '../abis/ProjectFactory.json';
-import JSONProject from '../abis/JSONProject.json';
+import Project from '../abis/Project.json';
 import { RPC_URL } from '../config/contracts';
 
 export interface TemplateField {
@@ -85,7 +85,7 @@ export const useProjects = () => {
   const getProjectInfo = useCallback(async (projectAddress: string): Promise<ProjectInfo | null> => {
     try {
       const provider = getProvider();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, provider);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, provider);
 
       // First, validate that this is a valid contract by checking if it has code
       const code = await provider.getCode(projectAddress);
@@ -98,7 +98,7 @@ export const useProjects = () => {
       try {
         await projectContract.creator();
       } catch (err) {
-        console.warn(`Address ${projectAddress} is not a valid JSONProject contract:`, err);
+        console.warn(`Address ${projectAddress} is not a valid Project contract:`, err);
         return null;
       }
 
@@ -296,7 +296,7 @@ export const useProjects = () => {
 
     try {
       const signer = await getSigner();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
 
       // Check if user already has a pending request or is already a member
       const projectInfo = await getProjectInfo(projectAddress);
@@ -345,7 +345,7 @@ export const useProjects = () => {
 
     try {
       const signer = await getSigner();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
 
       if (approve) {
         // Get the join request details first
@@ -648,7 +648,7 @@ export const useProjects = () => {
   const getJoinRequests = useCallback(async (projectAddress: string): Promise<JoinRequest[]> => {
     try {
       const provider = getProvider();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, provider);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, provider);
 
       const requesters = await projectContract.getAllRequesters();
       const joinRequests: JoinRequest[] = [];
@@ -679,7 +679,7 @@ export const useProjects = () => {
 
     try {
       const signer = await getSigner();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
 
       // Verify that the current user is the project creator
       const creator = await projectContract.creator();

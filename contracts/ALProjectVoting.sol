@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-interface IJSONProject {
+interface IProject {
     function receiveFinalLabelFromVoting(
         string memory sampleId,
         string memory label,
         string memory justification,
         string memory ipfsHash
     ) external;
+    function notifyVotingSessionStarted(string memory sampleId) external;
+    function notifyVotingSessionEnded(string memory sampleId, string memory finalLabel) external;
 }
 
 contract ALProjectVoting {
-    address public jsonProject;
+    address public project;
     uint256 public consensusThreshold = 51; // percentage
     uint256 public votingTimeoutSeconds;
     string public votingConsensus; // e.g. "simple_majority"
@@ -70,8 +72,8 @@ contract ALProjectVoting {
     event BatchCompleted(uint256 round, uint256 completedSamples, uint256 timestamp);
     event BatchSampleCompleted(uint256 round, string sampleId, string finalLabel, uint256 remainingSamples);
     
-    modifier onlyJSONProject() {
-        require(msg.sender == jsonProject, "Only main project can call");
+    modifier onlyProject() {
+        require(msg.sender == project, "Only main project can call");
         _;
     }
     
@@ -81,17 +83,17 @@ contract ALProjectVoting {
     }
     
     constructor(
-        address _jsonProject,
+        address _project,
         string memory _votingConsensus,
         uint256 _votingTimeoutSeconds
     ) {
-        require(_jsonProject != address(0), "Invalid address");
-        jsonProject = _jsonProject;
+        require(_project != address(0), "Invalid address");
+        project = _project;
         votingConsensus = _votingConsensus;
         votingTimeoutSeconds = _votingTimeoutSeconds;
     }
     
-    function setVoters(address[] memory _voters, uint256[] memory _weights) external onlyJSONProject {
+    function setVoters(address[] memory _voters, uint256[] memory _weights) external onlyProject {
         require(_voters.length == _weights.length, "Mismatched lengths");
         
         // Clear existing voters
@@ -108,7 +110,7 @@ contract ALProjectVoting {
         }
     }
     
-    function startVotingSession(string memory sampleId) external onlyJSONProject {
+    function startVotingSession(string memory sampleId) external onlyProject {
         require(!votingSessions[sampleId].isActive, "Voting session already active");
         require(!votingSessions[sampleId].isFinalized, "Voting session already finalized");
         
@@ -119,9 +121,16 @@ contract ALProjectVoting {
         votingSessions[sampleId].round = 0; // Default round for individual samples
         
         emit VotingSessionStarted(sampleId, block.timestamp);
+        
+        // Notify main contract
+        try IProject(project).notifyVotingSessionStarted(sampleId) {
+            // Success
+        } catch {
+            // Continue if notification fails
+        }
     }
     
-    function startBatchVoting(string[] memory sampleIds, uint256 round) external onlyJSONProject {
+    function startBatchVoting(string[] memory sampleIds, uint256 round) external onlyProject {
         require(sampleIds.length > 0, "Empty sample batch");
         require(!batches[round].isActive, "Batch already active for this round");
         
@@ -146,12 +155,19 @@ contract ALProjectVoting {
             votingSessions[sampleId].round = round;
             
             emit VotingSessionStarted(sampleId, block.timestamp);
+            
+            // Notify main contract
+            try IProject(project).notifyVotingSessionStarted(sampleId) {
+                // Success
+            } catch {
+                // Continue if notification fails
+            }
         }
         
         emit BatchStarted(round, sampleIds, block.timestamp);
     }
     
-    function endVotingSession(string memory sampleId) external onlyJSONProject {
+    function endVotingSession(string memory sampleId) external onlyProject {
         require(votingSessions[sampleId].isActive, "Voting session not active");
         _finalizeVotingSession(sampleId, "Manual finalization");
     }
@@ -252,6 +268,16 @@ contract ALProjectVoting {
     
     function getFinalLabel(string memory sampleId) external view returns (string memory) {
         return votingSessions[sampleId].finalLabel;
+    }
+    
+    function getVotingSession(string memory sampleId) external view returns (
+        uint256 startTime,
+        bool isActive,
+        bool isFinalized,
+        string memory finalLabel
+    ) {
+        VotingSession storage session = votingSessions[sampleId];
+        return (session.startTime, session.isActive, session.isFinalized, session.finalLabel);
     }
     
     function getVotingResult(string memory sampleId) external view returns (
@@ -515,7 +541,7 @@ contract ALProjectVoting {
     }
     
     function _notifyMainContract(string memory sampleId, string memory finalLabel) internal {
-        // Call back to JSONProject to store the final result
+        // Call back to Project to store the final result
         try this.notifyMainContractExternal(sampleId, finalLabel) {
             // Success
             emit LabelStoredInProject(sampleId, finalLabel, block.timestamp);
@@ -527,8 +553,8 @@ contract ALProjectVoting {
     function notifyMainContractExternal(string memory sampleId, string memory finalLabel) external {
         require(msg.sender == address(this), "Internal call only");
         
-        // Interface call to JSONProject to store final label
-        try IJSONProject(jsonProject).receiveFinalLabelFromVoting(
+        // Interface call to Project to store final label
+        try IProject(project).receiveFinalLabelFromVoting(
             sampleId,
             finalLabel,
             "Automated vote aggregation",
@@ -537,6 +563,13 @@ contract ALProjectVoting {
             // Success
         } catch {
             // Continue even if storage fails
+        }
+        
+        // Notify Project about session ending
+        try IProject(project).notifyVotingSessionEnded(sampleId, finalLabel) {
+            // Success
+        } catch {
+            // Continue even if notification fails
         }
     }
 } 

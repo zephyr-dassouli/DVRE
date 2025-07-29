@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { projectConfigurationService } from '../components/deployment/services/ProjectConfigurationService';
 import { ethers } from 'ethers';
 import { RPC_URL } from '../config/contracts';
-import JSONProject from '../abis/JSONProject.json';
+import Project from '../abis/Project.json';
 
 export interface DALProjectInfo extends ProjectInfo {
   // DAL-specific properties
@@ -135,7 +135,7 @@ export const useDALProject = (projectAddress?: string) => {
       try {
         // Get provider and create contract instance
         const provider = new ethers.JsonRpcProvider(RPC_URL);
-        const projectContract = new ethers.Contract(project.address, JSONProject.abi, provider);
+        const projectContract = new ethers.Contract(project.address, Project.abi, provider);
 
         // Check if AL contracts are deployed
         const hasALContracts = await projectContract.hasALContracts();

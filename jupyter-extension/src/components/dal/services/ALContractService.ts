@@ -5,7 +5,7 @@
 
 import { ethers } from 'ethers';
 import { RPC_URL } from '../../../config/contracts';
-import JSONProject from '../../../abis/JSONProject.json';
+import Project from '../../../abis/Project.json';
 
 export interface VotingRecord {
   sampleId: string;
@@ -65,20 +65,20 @@ export class ALContractService {
   }
 
   /**
-   * Get voting history from JSONProject (which manages AL contracts internally)
+   * Get voting history from Project (which manages AL contracts internally)
    */
   async getVotingHistory(projectAddress: string): Promise<VotingRecord[]> {
     try {
-      console.log('📊 Getting voting history via JSONProject for:', projectAddress);
+      console.log('📊 Getting voting history via Project for:', projectAddress);
       
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
       try {
-        // Try to get voting history through JSONProject
+        // Try to get voting history through Project
         const votingHistory = await projectContract.getVotingHistory();
         
         if (votingHistory && votingHistory.length > 0) {
-          console.log(`📊 Found ${votingHistory.length} voting records via JSONProject`);
+          console.log(`📊 Found ${votingHistory.length} voting records via Project`);
           return votingHistory.map((record: any) => ({
             sampleId: record.sampleId || `sample_${Math.random()}`,
             sampleData: record.sampleData || { text: 'Sample data' },
@@ -91,34 +91,34 @@ export class ALContractService {
           }));
         }
       } catch (methodError) {
-        console.log('📝 JSONProject voting history method not available yet, using placeholder data');
+        console.log('📝 Project voting history method not available yet, using placeholder data');
       }
       
-      // Return empty array for now - will be populated when JSONProject has the method
+      // Return empty array for now - will be populated when Project has the method
       console.log('📝 No voting history available yet - project may be newly deployed');
       return [];
       
     } catch (error) {
-      console.error('Failed to get voting history via JSONProject:', error);
+      console.error('Failed to get voting history via Project:', error);
       return [];
     }
   }
 
   /**
-   * Get user contributions from JSONProject (which manages AL contracts internally)
+   * Get user contributions from Project (which manages AL contracts internally)
    */
   async getUserContributions(projectAddress: string): Promise<UserContribution[]> {
     try {
-      console.log('👥 Getting user contributions via JSONProject for:', projectAddress);
+      console.log('👥 Getting user contributions via Project for:', projectAddress);
       
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
       try {
-        // Try to get user contributions through JSONProject
+        // Try to get user contributions through Project
         const contributions = await projectContract.getUserContributions();
         
         if (contributions && contributions.length > 0) {
-          console.log(`👥 Found ${contributions.length} contributors via JSONProject`);
+          console.log(`👥 Found ${contributions.length} contributors via Project`);
           return contributions.map((contrib: any) => ({
             address: contrib.address,
             role: contrib.role || 'contributor',
@@ -129,15 +129,15 @@ export class ALContractService {
           }));
         }
       } catch (methodError) {
-        console.log('📝 JSONProject user contributions method not available yet, using placeholder data');
+        console.log('📝 Project user contributions method not available yet, using placeholder data');
       }
       
-      // Return empty array for now - will be populated when JSONProject has the method
+      // Return empty array for now - will be populated when Project has the method
       console.log('📝 No user contributions available yet - project may be newly deployed');
       return [];
       
     } catch (error) {
-      console.error('Failed to get user contributions via JSONProject:', error);
+      console.error('Failed to get user contributions via Project:', error);
       return [];
     }
   }
@@ -198,20 +198,20 @@ export class ALContractService {
   }
 
   /**
-   * Get current active voting session from JSONProject (which manages AL contracts internally)
+   * Get current active voting session from Project (which manages AL contracts internally)
    */
   async getActiveVoting(projectAddress: string): Promise<ActiveVoting | null> {
     try {
-      console.log('🗳️ Getting active voting via JSONProject for:', projectAddress);
+      console.log('🗳️ Getting active voting via Project for:', projectAddress);
       
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
       try {
-        // Try to get active voting through JSONProject
+        // Try to get active voting through Project
         const activeVoting = await projectContract.getActiveVoting();
         
         if (activeVoting && activeVoting.sampleId) {
-          console.log(`🗳️ Found active voting session via JSONProject: ${activeVoting.sampleId}`);
+          console.log(`🗳️ Found active voting session via Project: ${activeVoting.sampleId}`);
           return {
             sampleId: activeVoting.sampleId,
             sampleData: activeVoting.sampleData || 'Sample data for voting',
@@ -222,15 +222,15 @@ export class ALContractService {
           };
         }
       } catch (methodError) {
-        console.log('📝 JSONProject active voting method not available yet');
+        console.log('📝 Project active voting method not available yet');
       }
       
-      // Return null for now - will be populated when JSONProject has the method
+      // Return null for now - will be populated when Project has the method
       console.log('📝 No active voting session found');
       return null;
       
     } catch (error) {
-      console.error('Failed to get active voting via JSONProject:', error);
+      console.error('Failed to get active voting via Project:', error);
       return null;
     }
   }
@@ -245,7 +245,7 @@ export class ALContractService {
     activeVoting: ActiveVoting | null;
   }> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
       // Get project metadata (this method exists)
       const metadata = await projectContract.getProjectMetadata();
@@ -288,14 +288,14 @@ export class ALContractService {
    * 1. Trigger AL-Engine to query new samples
    * 2. Start batch voting for those samples (regardless of batch size)
    * 3. Set up event listeners for completion
-   * Only communicates with JSONProject
+   * Only communicates with Project
    */
   async startNextIteration(projectAddress: string, userAddress: string): Promise<boolean> {
     try {
-      console.log('🚀 Starting next AL iteration via JSONProject for project:', projectAddress);
+      console.log('🚀 Starting next AL iteration via Project for project:', projectAddress);
       
       // Get current project metadata
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       const metadata = await projectContract.getProjectMetadata();
       const currentIteration = Number(metadata._currentIteration || 0);
       const nextIteration = currentIteration + 1;
@@ -327,13 +327,12 @@ export class ALContractService {
       }
 
       const sampleIds = alResult.sampleIds;
-      const queriedSamples = alResult.queriedSamples || [];
       const batchSize = sampleIds.length;
       console.log(`🎯 AL-Engine generated ${batchSize} samples for voting:`, sampleIds);
 
       // **STEP 2: Always use batch voting (even for batch size 1)**
       console.log(`🗳️  Step 2: Starting batch voting session for ${batchSize} sample(s)...`);
-      const projectWithSigner = new ethers.Contract(projectAddress, JSONProject.abi, signer);
+      const projectWithSigner = new ethers.Contract(projectAddress, Project.abi, signer);
       
       try {
         // Try to call the enhanced batch voting function
@@ -358,31 +357,31 @@ export class ALContractService {
         }
         
         console.log(`✅ Fallback voting sessions started for ${batchSize} sample(s)`);
-        console.log(`📝 JSONProject should emit VotingSessionStarted events for DAL to listen to`);
+        console.log(`📝 Project should emit VotingSessionStarted events for DAL to listen to`);
       }
 
-      // **STEP 3: Set up event listeners for completion (via JSONProject)**
+      // **STEP 3: Set up event listeners for completion (via Project)**
       this.setupProjectEventListeners(projectAddress, nextIteration, sampleIds);
 
       return true;
       
     } catch (error) {
-      console.error('❌ Failed to start AL iteration via JSONProject:', error);
+      console.error('❌ Failed to start AL iteration via Project:', error);
       throw error;
     }
   }
 
   /**
-   * Submit vote for current sample - only communicates with JSONProject
+   * Submit vote for current sample - only communicates with Project
    */
   async submitVote(projectAddress: string, sampleId: string, label: string, userAddress: string): Promise<boolean> {
     try {
-      console.log('🗳️ Submitting vote via JSONProject:', { projectAddress, sampleId, label, userAddress });
+      console.log('🗳️ Submitting vote via Project:', { projectAddress, sampleId, label, userAddress });
       
       // Get signer for transaction
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
       // Check if user is authorized to vote
       const signerAddress = await signer.getAddress();
@@ -390,9 +389,9 @@ export class ALContractService {
         throw new Error('User address mismatch');
       }
 
-      // Submit vote through JSONProject (JSONProject will handle AL contract interaction)
+      // Submit vote through Project (Project will handle AL contract interaction)
       const tx = await projectContract.submitVote(sampleId, label);
-      console.log('📡 Vote transaction submitted via JSONProject:', tx.hash);
+      console.log('📡 Vote transaction submitted via Project:', tx.hash);
       
       // Wait for confirmation
       const receipt = await tx.wait();
@@ -403,7 +402,7 @@ export class ALContractService {
       
       return true;
     } catch (error) {
-      console.error('❌ Failed to submit vote via JSONProject:', error);
+      console.error('❌ Failed to submit vote via Project:', error);
       throw error;
     }
   }
@@ -418,7 +417,7 @@ export class ALContractService {
       // Get signer for transaction
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
       // Check if user is authorized (should be coordinator/owner)
       const signerAddress = await signer.getAddress();
@@ -515,36 +514,36 @@ export class ALContractService {
   }
 
   /**
-   * Set up event listeners for project events (via JSONProject only)
+   * Set up event listeners for project events (via Project only)
    */
   private setupProjectEventListeners(projectAddress: string, round: number, sampleIds: string[]): void {
     try {
-      console.log(`👂 Setting up JSONProject event listeners for Round ${round}`);
+      console.log(`👂 Setting up Project event listeners for Round ${round}`);
       
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
-      // Try to listen to actual JSONProject events
+      // Try to listen to actual Project events
       try {
-        // Listen for VotingSessionStarted events from JSONProject
+        // Listen for VotingSessionStarted events from Project
         projectContract.on('VotingSessionStarted', (sampleId: string, round: number) => {
-          console.log(`🗳️ JSONProject: Voting session started for sample ${sampleId} in Round ${round}`);
+          console.log(`🗳️ Project: Voting session started for sample ${sampleId} in Round ${round}`);
           // UI can refresh to show active voting
           window.dispatchEvent(new CustomEvent('dal-voting-started', {
             detail: { round, sampleId }
           }));
         });
 
-        // Listen for VotingSessionEnded events from JSONProject  
+        // Listen for VotingSessionEnded events from Project  
         projectContract.on('VotingSessionEnded', (sampleId: string, finalLabel: string, round: number) => {
-          console.log(`✅ JSONProject: Voting session ended for sample ${sampleId} with label ${finalLabel}`);
+          console.log(`✅ Project: Voting session ended for sample ${sampleId} with label ${finalLabel}`);
           window.dispatchEvent(new CustomEvent('dal-sample-completed', {
             detail: { round, sampleId, finalLabel, remaining: 0, total: sampleIds.length }
           }));
         });
 
-        // Listen for ALBatchCompleted events from JSONProject
+        // Listen for ALBatchCompleted events from Project
         projectContract.on('ALBatchCompleted', (round: number, completedSamples: number) => {
-          console.log(`🎉 JSONProject: Batch completed for Round ${round} with ${completedSamples} samples`);
+          console.log(`🎉 Project: Batch completed for Round ${round} with ${completedSamples} samples`);
           window.dispatchEvent(new CustomEvent('dal-iteration-completed', {
             detail: { 
               round, 
@@ -555,17 +554,17 @@ export class ALContractService {
           }));
         });
 
-        console.log(`✅ JSONProject event listeners set up for Round ${round}`);
+        console.log(`✅ Project event listeners set up for Round ${round}`);
         
       } catch (eventError) {
-        console.log('📝 JSONProject events not available in current deployment');
-        console.log('⚠️  Labeling will work when JSONProject is updated with proper events');
+        console.log('📝 Project events not available in current deployment');
+        console.log('⚠️  Labeling will work when Project is updated with proper events');
         
         // For now, show a message that the feature is pending contract update
         setTimeout(() => {
           window.dispatchEvent(new CustomEvent('dal-pending-contract-update', {
             detail: { 
-              message: 'Voting interface pending JSONProject contract update',
+              message: 'Voting interface pending Project contract update',
               missingEvents: ['VotingSessionStarted', 'VotingSessionEnded', 'ALBatchCompleted']
             }
           }));
@@ -574,103 +573,6 @@ export class ALContractService {
       
     } catch (error) {
       console.error('❌ Failed to set up project event listeners:', error);
-    }
-  }
-
-  /**
-   * Handle completion of batch voting - trigger next AL phase
-   */
-  private async handleBatchVotingCompleted(projectAddress: string, round: number, sampleIds: string[]): Promise<void> {
-    try {
-      console.log(`🎯 Handling batch voting completion for Round ${round}`);
-      
-      // **STEP 6 from the flow: Fetch all labeled samples and update AL-Engine**
-      
-      // 1. Fetch final labels for all samples in this batch
-      const labeledSamples = await this.fetchBatchResults(projectAddress, round, sampleIds);
-      
-      // 2. Update AL-Engine training set with new labeled samples
-      await this.updateALEngineWithLabeledSamples(projectAddress, round, labeledSamples);
-      
-      // 3. Emit completion event for UI updates
-      window.dispatchEvent(new CustomEvent('dal-iteration-completed', {
-        detail: { 
-          round, 
-          projectAddress, 
-          labeledSamples: labeledSamples.length,
-          message: 'Current AL iteration is done'
-        }
-      }));
-      
-      console.log(`✅ Round ${round} processing completed. Ready for next iteration.`);
-      
-    } catch (error) {
-      console.error(`❌ Failed to handle batch completion for Round ${round}:`, error);
-    }
-  }
-
-  /**
-   * Fetch final labels for a batch of samples via JSONProject
-   */
-  private async fetchBatchResults(projectAddress: string, round: number, sampleIds: string[]): Promise<any[]> {
-    try {
-      console.log(`📊 Fetching batch results via JSONProject for Round ${round}`);
-      
-      const projectContract = new ethers.Contract(projectAddress, JSONProject.abi, this.provider);
-      
-      try {
-        // Try to get batch results through JSONProject
-        const batchResults = await projectContract.getBatchResults(round, sampleIds);
-        
-        if (batchResults && batchResults.length > 0) {
-          console.log(`📊 Found ${batchResults.length} batch results via JSONProject`);
-          return batchResults.map((result: any) => ({
-            sampleId: result.sampleId,
-            finalLabel: result.finalLabel || 'Unknown',
-            timestamp: new Date(Number(result.timestamp) * 1000),
-            iterationNumber: Number(result.round) || round,
-            consensusReached: !!result.finalLabel
-          }));
-        }
-      } catch (methodError) {
-        console.log('📝 JSONProject batch results method not available yet');
-      }
-      
-      // Fallback: create placeholder results
-      const labeledSamples = sampleIds.map(sampleId => ({
-        sampleId,
-        finalLabel: 'Placeholder',
-        timestamp: new Date(),
-        iterationNumber: round,
-        consensusReached: true
-      }));
-      
-      console.log(`📝 Using placeholder batch results for ${sampleIds.length} samples`);
-      return labeledSamples;
-      
-    } catch (error) {
-      console.error('Failed to fetch batch results via JSONProject:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Update AL-Engine training set with new labeled samples
-   * Simplified version for current contract deployment
-   */
-  private async updateALEngineWithLabeledSamples(projectAddress: string, round: number, labeledSamples: any[]): Promise<void> {
-    try {
-      console.log(`📊 Updating AL-Engine training set for Round ${round} with ${labeledSamples.length} samples`);
-      
-      // For now, just log the update since the contracts don't have this functionality yet
-      console.log('📝 Labeled samples ready for next AL iteration:', labeledSamples.map(s => ({
-        sampleId: s.sampleId,
-        finalLabel: s.finalLabel
-      })));
-      
-      console.log(`✅ AL-Engine training set update logged for ${labeledSamples.length} new samples.`);
-    } catch (error) {
-      console.error('Failed to update AL-Engine training set:', error);
     }
   }
 
@@ -727,9 +629,9 @@ export class ALContractService {
     try {
       console.log(`✅ Vote submitted for sample: ${sampleId} with label: ${label}`);
       
-      // JSONProject should emit VotingSessionEnded event
+      // Project should emit VotingSessionEnded event
       // DAL will listen to that event rather than handling completion here
-      console.log('📝 Waiting for JSONProject to emit VotingSessionEnded event...');
+      console.log('📝 Waiting for Project to emit VotingSessionEnded event...');
       
     } catch (error) {
       console.error('❌ Failed to handle vote submission completion:', error);

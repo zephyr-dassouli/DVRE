@@ -2,7 +2,7 @@
 
 1. **Landing Page:**
     - shows user’s projects - both those that they own as a coordinator, those that they joined as a contributor (fetched from ProjectFactory)
-    - contains basic metadata about the projects (fetched from project’s main smart contract JSONProject)
+    - contains basic metadata about the projects (fetched from project’s main smart contract Project)
     - user is able to select a project, then a project page loads
 2. **Project Page -** once selected, it shows several features and panels:
     - a panel called **Project Configuration**:
@@ -26,7 +26,7 @@
         - max iteration gets reached
         - unlabeled samples run out
     - After the project ends, the Coordinator is prompted via a pop-up window in the Jupyter extension to **save the final results** to **IPFS**.
-    - The AL-Engine stores all local output — including the datasets, final model, model updates — in a shared volume accessible to both containers. The Jupyter extension reads this data directly from the shared output folder, assembles the `ro-crate-final-results/` directory, and uploads it to IPFS. Once uploaded, it stores the resulting CID onto the JSONProject smart contract. Below is a representation of the final RO-Crate:
+    - The AL-Engine stores all local output — including the datasets, final model, model updates — in a shared volume accessible to both containers. The Jupyter extension reads this data directly from the shared output folder, assembles the `ro-crate-final-results/` directory, and uploads it to IPFS. Once uploaded, it stores the resulting CID onto the Project smart contract. Below is a representation of the final RO-Crate:
         
         ```solidity
         ro-crate-final-results/

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 contract ALProjectStorage {
-    address public jsonProject;
+    address public project;
     
     struct FinalLabel {
         string sampleId;
@@ -37,14 +37,14 @@ contract ALProjectStorage {
     event VotingHistoryRecorded(string sampleId, uint256 round, string finalLabel, uint256 voteCount);
     event AutoHistoryRecorded(string sampleId, uint256 round, string finalLabel);
     
-    modifier onlyJSONProject() {
-        require(msg.sender == jsonProject, "Only main project can call");
+    modifier onlyProject() {
+        require(msg.sender == project, "Only main project can call");
         _;
     }
     
-    constructor(address _jsonProject) {
-        require(_jsonProject != address(0), "Invalid project address");
-        jsonProject = _jsonProject;
+    constructor(address _project) {
+        require(_project != address(0), "Invalid project address");
+        project = _project;
     }
     
     function storeFinalLabel(
@@ -53,7 +53,7 @@ contract ALProjectStorage {
         uint256 round,
         string memory justification,
         string memory ipfsHash
-    ) external onlyJSONProject {
+    ) external onlyProject {
         _storeFinalLabelInternal(sampleId, label, round, justification, ipfsHash);
     }
     
@@ -95,7 +95,7 @@ contract ALProjectStorage {
         uint256 round,
         string memory justification,
         string memory ipfsHash
-    ) external onlyJSONProject {
+    ) external onlyProject {
         // First store the final label using internal function
         _storeFinalLabelInternal(sampleId, label, round, justification, ipfsHash);
         
@@ -120,7 +120,7 @@ contract ALProjectStorage {
         string memory finalLabel,
         address[] memory voters,
         string[] memory labels
-    ) external onlyJSONProject {
+    ) external onlyProject {
         require(voters.length == labels.length, "Length mismatch");
         require(bytes(sampleId).length > 0, "Sample ID cannot be empty");
         
