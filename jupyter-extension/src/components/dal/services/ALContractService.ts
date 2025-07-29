@@ -110,79 +110,155 @@ export class ALContractService {
   }
 
   /**
-   * Get voting history from Project (which manages AL contracts internally)
+   * Get voting history from Project (which delegates to ALProjectStorage)
    */
   async getVotingHistory(projectAddress: string): Promise<VotingRecord[]> {
     try {
-      console.log('📊 Getting voting history via Project for:', projectAddress);
+      console.log('📊 Getting voting history via Project delegation for:', projectAddress);
       
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
       try {
-        // Try to get voting history through Project
-        const votingHistory = await projectContract.getVotingHistory();
+        // Try to get voting history through Project delegation to ALProjectStorage
+        const votingHistoryResult = await projectContract.getVotingHistory();
         
-        if (votingHistory && votingHistory.length > 0) {
-          console.log(`📊 Found ${votingHistory.length} voting records via Project`);
-          return votingHistory.map((record: any) => ({
-            sampleId: record.sampleId || `sample_${Math.random()}`,
-            sampleData: record.sampleData || { text: 'Sample data' },
-            finalLabel: record.finalLabel || 'Unknown',
-            votes: record.votes || {},
-            votingDistribution: record.votingDistribution || {},
-            timestamp: new Date(Number(record.timestamp) * 1000),
-            iterationNumber: Number(record.round) || 1,
-            consensusReached: !!record.finalLabel
-          }));
+        if (votingHistoryResult && votingHistoryResult.length === 4) {
+          const [sampleIds, rounds, finalLabels, timestamps] = votingHistoryResult;
+          
+          if (sampleIds.length > 0) {
+            console.log(`📊 Found ${sampleIds.length} voting records via Project delegation`);
+            
+            // Convert to VotingRecord format
+            const records: VotingRecord[] = [];
+            for (let i = 0; i < sampleIds.length; i++) {
+              // Get detailed voting info for each sample
+              try {
+                const detailedHistory = await projectContract.getSampleVotingHistory(sampleIds[i]);
+                const [round, finalLabel, timestamp, voters, labels] = detailedHistory;
+                
+                // Build votes mapping
+                const votes: { [voterAddress: string]: string } = {};
+                const votingDistribution: { [label: string]: number } = {};
+                
+                for (let j = 0; j < voters.length && j < labels.length; j++) {
+                  votes[voters[j]] = labels[j];
+                  
+                  // Count label distribution
+                  if (votingDistribution[labels[j]]) {
+                    votingDistribution[labels[j]]++;
+                  } else {
+                    votingDistribution[labels[j]] = 1;
+                  }
+                }
+                
+                records.push({
+                  sampleId: sampleIds[i],
+                  sampleData: { sampleId: sampleIds[i] },
+                  finalLabel: finalLabel,
+                  votes,
+                  votingDistribution,
+                  timestamp: new Date(Number(timestamp) * 1000),
+                  iterationNumber: Number(round),
+                  consensusReached: !!finalLabel && finalLabel !== ""
+                });
+                
+              } catch (detailError) {
+                console.warn(`⚠️ Could not get detailed history for sample ${sampleIds[i]}:`, detailError);
+                
+                // Fallback to basic record
+                records.push({
+                  sampleId: sampleIds[i],
+                  sampleData: { sampleId: sampleIds[i] },
+                  finalLabel: finalLabels[i] || 'Unknown',
+                  votes: {},
+                  votingDistribution: {},
+                  timestamp: new Date(Number(timestamps[i]) * 1000),
+                  iterationNumber: Number(rounds[i]),
+                  consensusReached: !!(finalLabels[i] && finalLabels[i] !== "")
+                });
+              }
+            }
+            
+            return records;
+          }
         }
       } catch (methodError) {
-        console.log('📝 Project voting history method not available yet, using placeholder data');
+        console.log('📝 Project voting history delegation not available yet, using placeholder data');
       }
       
-      // Return empty array for now - will be populated when Project has the method
-      console.log('📝 No voting history available yet - project may be newly deployed');
+      // Return empty array for now - will be populated when delegation is working
+      console.log('📝 No voting history available yet via delegation - contracts may need to be linked');
       return [];
       
     } catch (error) {
-      console.error('Failed to get voting history via Project:', error);
+      console.error('Failed to get voting history via Project delegation:', error);
       return [];
     }
   }
 
   /**
-   * Get user contributions from Project (which manages AL contracts internally)
+   * Get user contributions from Project (which delegates to ALProjectVoting)
    */
   async getUserContributions(projectAddress: string): Promise<UserContribution[]> {
     try {
-      console.log('👥 Getting user contributions via Project for:', projectAddress);
+      console.log('👥 Getting user contributions via Project delegation for:', projectAddress);
       
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
       try {
-        // Try to get user contributions through Project
-        const contributions = await projectContract.getUserContributions();
+        // Try to get user contributions through Project delegation to ALProjectVoting
+        const contributionsResult = await projectContract.getUserContributions();
         
-        if (contributions && contributions.length > 0) {
-          console.log(`👥 Found ${contributions.length} contributors via Project`);
-          return contributions.map((contrib: any) => ({
-            address: contrib.address,
-            role: contrib.role || 'contributor',
-            votesCount: Number(contrib.votesCount) || 0,
-            joinedAt: new Date(Number(contrib.joinedAt) * 1000),
-            lastActivity: new Date(Number(contrib.lastActivity) * 1000),
-            reputation: Number(contrib.reputation) || 50
-          }));
+        if (contributionsResult && contributionsResult.length === 3) {
+          const [voters, voteCounts, weights] = contributionsResult;
+          
+          if (voters.length > 0) {
+            console.log(`👥 Found ${voters.length} contributors via Project delegation`);
+            
+            const contributions: UserContribution[] = [];
+            for (let i = 0; i < voters.length; i++) {
+              // Get additional voter stats
+              try {
+                const voterStats = await projectContract.getVoterStats(voters[i]);
+                const [weight, totalVotes, isRegistered] = voterStats;
+                
+                contributions.push({
+                  address: voters[i],
+                  role: isRegistered ? 'contributor' : 'observer',
+                  votesCount: Number(voteCounts[i]) || Number(totalVotes) || 0,
+                  joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000), // Estimate
+                  lastActivity: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000), // Estimate
+                  reputation: Math.min(100, Math.max(50, Number(weight) || 50))
+                });
+                
+              } catch (statsError) {
+                console.warn(`⚠️ Could not get stats for voter ${voters[i]}:`, statsError);
+                
+                // Fallback to basic record
+                contributions.push({
+                  address: voters[i],
+                  role: 'contributor',
+                  votesCount: Number(voteCounts[i]) || 0,
+                  joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
+                  lastActivity: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
+                  reputation: Number(weights[i]) || 50
+                });
+              }
+            }
+            
+            return contributions;
+          }
         }
       } catch (methodError) {
-        console.log('📝 Project user contributions method not available yet, using placeholder data');
+        console.log('📝 Project user contributions delegation not available yet, using placeholder data');
       }
       
-      // Return empty array for now - will be populated when Project has the method
-      console.log('📝 No user contributions available yet - project may be newly deployed');
+      // Return empty array for now - will be populated when delegation is working
+      console.log('📝 No user contributions available yet via delegation - contracts may need to be linked');
       return [];
       
     } catch (error) {
-      console.error('Failed to get user contributions via Project:', error);
+      console.error('Failed to get user contributions via Project delegation:', error);
       return [];
     }
   }
@@ -330,7 +406,10 @@ export class ALContractService {
     try {
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
-      // Get project metadata (this method exists)
+      // Get currentRound directly (it's a public variable)
+      const currentRound = await projectContract.currentRound();
+      
+      // Get project metadata for max iterations
       const metadata = await projectContract.getProjectMetadata();
       
       // Get active voting session
@@ -343,13 +422,17 @@ export class ALContractService {
         const projectInfo = await projectContract.getProjectInfo();
         isActive = projectInfo.isActive;
       } catch (error) {
-        // Method doesn't exist, assume active if we can get metadata
-        console.log('📝 getProjectInfo method not available, assuming project is active');
-        isActive = true;
+        // Method doesn't exist, check isActive directly
+        try {
+          isActive = await projectContract.isActive();
+        } catch (activeError) {
+          console.log('📝 isActive method not available, assuming project is active');
+          isActive = true;
+        }
       }
 
       return {
-        currentIteration: Number(metadata._currentIteration || 0),
+        currentIteration: Number(currentRound),
         maxIterations: Number(metadata._maxIteration || 10),
         isActive,
         activeVoting
@@ -377,15 +460,15 @@ export class ALContractService {
     try {
       console.log('🚀 Starting next AL iteration via Project for project:', projectAddress);
       
-      // Get current project metadata
+      // Get current round directly from Project contract
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
-      const metadata = await projectContract.getProjectMetadata();
-      const currentIteration = Number(metadata._currentIteration || 0);
-      const nextIteration = currentIteration + 1;
+      const currentRound = await projectContract.currentRound();
+      const nextIteration = Number(currentRound) + 1;
       
-      console.log(`📊 Starting AL iteration ${nextIteration} (current: ${currentIteration})`);
+      console.log(`📊 Starting AL iteration ${nextIteration} (current: ${currentRound})`);
 
       // Check iteration limits
+      const metadata = await projectContract.getProjectMetadata();
       const maxIterations = Number(metadata._maxIteration || 10);
       if (nextIteration > maxIterations) {
         throw new Error(`Maximum iterations (${maxIterations}) reached`);

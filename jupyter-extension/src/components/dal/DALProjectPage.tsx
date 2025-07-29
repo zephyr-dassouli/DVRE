@@ -8,6 +8,7 @@ import {
 import { useDALProject } from '../../hooks/useDALProject';
 import { useAuth } from '../../hooks/useAuth';
 import { alContractService } from './services/ALContractService';
+import { createDALProjectSession, type DALProjectSession, type SessionState } from './services/DALProjectSession';
 
 /**
  * DAL Project Page Component
@@ -20,6 +21,10 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
   const [userContributions, setUserContributions] = useState<UserContribution[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // DAL Project Session - Bridge between smart contracts and AL-Engine
+  const [dalSession, setDalSession] = useState<DALProjectSession | null>(null);
+  const [sessionState, setSessionState] = useState<SessionState | null>(null);
 
   // New state for batch voting
   const [batchProgress, setBatchProgress] = useState<{
@@ -43,14 +48,65 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
 
   // Load project data from smart contracts
   useEffect(() => {
+    // Initialize DAL Project Session
+    if (currentUser && !dalSession) {
+      console.log('🔗 Initializing DAL Project Session bridge');
+      const session = createDALProjectSession(project.contractAddress, currentUser);
+      setDalSession(session);
+
+      // Set up session event listeners
+      session.on('state-changed', (newState: SessionState) => {
+        console.log('📊 Session state changed:', newState);
+        setSessionState(newState);
+        
+        // Update batch progress from session state
+        if (newState.batchProgress) {
+          setBatchProgress({
+            round: project.currentRound, // Get round from project data, not session
+            isActive: newState.isActive,
+            totalSamples: newState.batchProgress.totalSamples,
+            completedSamples: newState.batchProgress.completedSamples,
+            sampleIds: newState.batchProgress.sampleIds,
+            currentSampleIndex: newState.batchProgress.currentSampleIndex
+          });
+        } else {
+          setBatchProgress(null);
+        }
+      });
+
+      session.on('iteration-completed', (iteration: number, samplesLabeled: number) => {
+        console.log(`🎉 Iteration ${iteration} completed with ${samplesLabeled} samples`);
+        setIterationCompleted(true);
+        setIterationMessage(`AL Iteration ${iteration} completed successfully! ${samplesLabeled} samples were labeled.`);
+        
+        // Reload project data to reflect updates
+        loadProjectData();
+      });
+
+      session.on('error', (errorMessage: string) => {
+        console.error('❌ DAL Session error:', errorMessage);
+        setError(`Session Error: ${errorMessage}`);
+      });
+
+      // Check AL-Engine health
+      session.checkALEngineHealth().catch(err => {
+        console.warn('⚠️ AL-Engine health check failed:', err);
+        setError('AL-Engine is not responsive. Please ensure it is running on localhost:5050');
+      });
+    }
+
     loadProjectData();
     setupBatchEventListeners();
     
     // Cleanup event listeners on unmount
     return () => {
       cleanupBatchEventListeners();
+      if (dalSession) {
+        dalSession.removeAllListeners();
+        dalSession.endSession().catch(console.error);
+      }
     };
-  }, [project.id]);
+  }, [project.id, currentUser]);
 
   // Set up event listeners for batch voting progress
   const setupBatchEventListeners = () => {
@@ -151,21 +207,20 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
       return;
     }
 
+    if (!dalSession) {
+      setError('DAL Session not initialized');
+      return;
+    }
+
     try {
       setError(null);
       setIterationCompleted(false);
-      console.log('🚀 Starting next AL iteration with batch voting from UI');
+      console.log('🚀 Starting next AL iteration via DAL Session bridge');
       
-      // Start the enhanced AL iteration
-      await startNextIteration(project.contractAddress);
+      // Use the DAL Session bridge to orchestrate the complete workflow
+      await dalSession.startIteration();
       
-      // Fetch and set initial batch progress
-      await loadBatchProgress();
-      
-      // Reload project data to show updated state
-      await loadProjectData();
-      
-      console.log('✅ AL iteration with batch voting started successfully');
+      console.log('✅ AL iteration workflow started successfully via DAL Session');
       
     } catch (error) {
       console.error('❌ Failed to start next AL iteration:', error);
@@ -230,23 +285,27 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
   };
 
   const handleVoteSubmission = async (sampleId: string, label: string) => {
+    if (!dalSession) {
+      setError('DAL Session not initialized');
+      return;
+    }
+
     try {
       setError(null);
-      console.log('🗳️ Submitting vote from UI');
+      console.log('🗳️ Submitting vote via DAL Session bridge');
       
-      await submitVote(project.contractAddress, sampleId, label);
+      // Use the DAL Session bridge for vote submission
+      await dalSession.submitVote(sampleId, label);
       
       // Reload project data to show updated voting state
       await loadProjectData();
       
-      // Show success message
-      alert('Vote submitted successfully!');
+      console.log('✅ Vote submitted successfully via DAL Session');
       
     } catch (error) {
       console.error('❌ Failed to submit vote:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to submit vote';
       setError(errorMessage);
-      alert(`Failed to submit vote: ${errorMessage}`);
     }
   };
 
@@ -386,6 +445,20 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           <span style={{ color: '#10b981', fontWeight: 'bold' }}>
             🔗 Smart Contract Data ({votingHistory.length + userContributions.length + modelUpdates.length} records)
           </span>
+          {sessionState && (
+            <>
+              <span>•</span>
+              <span style={{ 
+                color: sessionState.phase === 'error' ? '#ef4444' : '#10b981', 
+                fontWeight: 'bold' 
+              }}>
+                🤖 AL-Engine: {sessionState.phase.replace('_', ' ').toUpperCase()}
+                {sessionState.phase === 'voting' && sessionState.batchProgress && 
+                  ` (${sessionState.batchProgress.completedSamples}/${sessionState.batchProgress.totalSamples})`
+                }
+              </span>
+            </>
+          )}
         </div>
       </div>
 

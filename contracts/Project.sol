@@ -16,6 +16,7 @@ interface IALProjectVoting {
     );
     function getFinalLabel(string memory sampleId) external view returns (string memory);
     function isVotingActive(string memory sampleId) external view returns (bool);
+    function voterWeights(address voter) external view returns (uint256);
 }
 
 interface IALProjectStorage {
@@ -28,6 +29,25 @@ interface IALProjectStorage {
     ) external;
     function getLabel(string memory sampleId) external view returns (string memory);
     function projectContract() external view returns (address);
+    // Add missing methods for voting history
+    function getVotingHistoryCount(string memory sampleId) external view returns (uint256);
+    function getVotingHistoryByIndex(string memory sampleId, uint256 index) external view returns (
+        uint256 round,
+        string memory finalLabel,
+        uint256 timestamp,
+        uint256 voteCount
+    );
+    function getVoteFromHistory(string memory sampleId, uint256 historyIndex, uint256 voteIndex) external view returns (
+        address voter,
+        string memory label
+    );
+    function getFinalLabel(string memory sampleId) external view returns (
+        string memory label,
+        uint256 round,
+        string memory justification,
+        string memory ipfsHash,
+        uint256 timestamp
+    );
 }
 
 contract Project {
@@ -595,5 +615,102 @@ contract Project {
             queryBatchSize,
             labelSpace
         );
+    }
+
+    // ========================================================================
+    // DELEGATION METHODS - Call linked contracts for DAL integration
+    // ========================================================================
+
+    /**
+     * @dev Get voting history by delegating to ALProjectStorage
+     */
+    function getVotingHistory() external view returns (
+        string[] memory sampleIds,
+        uint256[] memory rounds,
+        string[] memory finalLabels,
+        uint256[] memory timestamps
+    ) {
+        require(storageContract != address(0), "Storage contract not set");
+        
+        // This is a simplified version - in a full implementation, 
+        // you'd need to track all sample IDs or iterate through known samples
+        // For now, return empty arrays as placeholder
+        return (new string[](0), new uint256[](0), new string[](0), new uint256[](0));
+    }
+
+    /**
+     * @dev Get user contributions by delegating to ALProjectVoting
+     */
+    function getUserContributions() external view returns (
+        address[] memory voters,
+        uint256[] memory voteCounts,
+        uint256[] memory weights
+    ) {
+        require(votingContract != address(0), "Voting contract not set");
+        
+        // Get voter weights directly from the mapping
+        // Note: This is a simplified implementation
+        // In a full implementation, you'd need to track voters separately
+        // or iterate through known voters
+        
+        // For now, return empty arrays as placeholder
+        // The actual implementation would need additional tracking
+        return (new address[](0), new uint256[](0), new uint256[](0));
+    }
+
+    /**
+     * @dev Get detailed voting history for a specific sample
+     */
+    function getSampleVotingHistory(string memory sampleId) external view returns (
+        uint256 round,
+        string memory finalLabel,
+        uint256 timestamp,
+        address[] memory voters,
+        string[] memory labels
+    ) {
+        require(storageContract != address(0), "Storage contract not set");
+        
+        // Get voting history count for this sample
+        uint256 historyCount = IALProjectStorage(storageContract).getVotingHistoryCount(sampleId);
+        
+        if (historyCount == 0) {
+            return (0, "", 0, new address[](0), new string[](0));
+        }
+        
+        // Get the latest history entry (most recent)
+        uint256 latestIndex = historyCount - 1;
+        (uint256 historyRound, string memory historyFinalLabel, uint256 historyTimestamp, uint256 voteCount) = 
+            IALProjectStorage(storageContract).getVotingHistoryByIndex(sampleId, latestIndex);
+        
+        // Get all votes for this history entry
+        address[] memory historyVoters = new address[](voteCount);
+        string[] memory historyLabels = new string[](voteCount);
+        
+        for (uint256 i = 0; i < voteCount; i++) {
+            (address voter, string memory label) = 
+                IALProjectStorage(storageContract).getVoteFromHistory(sampleId, latestIndex, i);
+            historyVoters[i] = voter;
+            historyLabels[i] = label;
+        }
+        
+        return (historyRound, historyFinalLabel, historyTimestamp, historyVoters, historyLabels);
+    }
+
+    /**
+     * @dev Get voter statistics from ALProjectVoting
+     */
+    function getVoterStats(address voter) external view returns (
+        uint256 weight,
+        uint256 totalVotes,
+        bool isRegistered
+    ) {
+        require(votingContract != address(0), "Voting contract not set");
+        
+        uint256 voterWeight = IALProjectVoting(votingContract).voterWeights(voter);
+        bool registered = voterWeight > 0;
+        
+        // Note: totalVotes would need to be tracked separately in ALProjectVoting
+        // For now, return weight and registration status
+        return (voterWeight, 0, registered);
     }
 }
