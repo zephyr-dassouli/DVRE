@@ -60,9 +60,9 @@ class ALEngineServer:
         # Load configuration
         self.config = self._load_config()
         
-        # Create working directory
-        self.work_dir = Path(f"./al_work_{project_id}")
-        self.work_dir.mkdir(exist_ok=True)
+        # Create working directory inside the ro-crates project folder
+        self.work_dir = Path(f"../ro-crates/{project_id}/work")
+        self.work_dir.mkdir(parents=True, exist_ok=True)
         
         # Service mode paths
         self.signal_dir = Path(f"../ro-crates/{project_id}/signals")
@@ -571,9 +571,9 @@ class ALEngine:
         # Load configuration
         self.config = self._load_config()
         
-        # Create working directory
-        self.work_dir = Path(f"./al_work_{project_id}")
-        self.work_dir.mkdir(exist_ok=True)
+        # Create working directory inside the ro-crates project folder
+        self.work_dir = Path(f"../ro-crates/{project_id}/work")
+        self.work_dir.mkdir(parents=True, exist_ok=True)
         
         # Service mode paths
         self.signal_dir = Path(f"../ro-crates/{project_id}/signals")
