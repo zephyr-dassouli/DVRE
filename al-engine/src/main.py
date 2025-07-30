@@ -65,7 +65,7 @@ class ALEngineServer:
         self.work_dir.mkdir(exist_ok=True)
         
         # Service mode paths
-        self.signal_dir = Path(f"./al-engine/ro-crates/{project_id}/signals")
+        self.signal_dir = Path(f"../ro-crates/{project_id}/signals")
         self.signal_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info(f"Initialized project resources for {project_id}")
@@ -260,7 +260,7 @@ class ALEngineServer:
             project_id = request_data.get('project_id')
             if not self.project_id and project_id:
                 # Initialize project dynamically from request
-                config_path = f"../al-engine/ro-crates/{project_id}/config.json"
+                config_path = f"../ro-crates/{project_id}/config.json"
                 logger.info(f"Dynamically initializing project: {project_id}")
                 self._initialize_project(project_id, config_path)
             elif not self.project_id:
@@ -289,8 +289,8 @@ class ALEngineServer:
         
         try:
             # Find the CWL workflow file for this project
-            cwl_file = self.work_dir.parent / "ro-crates" / self.project_id / "al_iteration.cwl"
-            inputs_file = self.work_dir.parent / "ro-crates" / self.project_id / "inputs.yml"
+            cwl_file = Path(f"../ro-crates/{self.project_id}/al_iteration.cwl")
+            inputs_file = Path(f"../ro-crates/{self.project_id}/inputs.yml")
             
             if not cwl_file.exists():
                 raise FileNotFoundError(f"CWL workflow not found: {cwl_file}")
@@ -576,7 +576,7 @@ class ALEngine:
         self.work_dir.mkdir(exist_ok=True)
         
         # Service mode paths
-        self.signal_dir = Path(f"./al-engine/ro-crates/{project_id}/signals")
+        self.signal_dir = Path(f"../ro-crates/{project_id}/signals")
         self.signal_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info(f"AL-Engine initialized for project {project_id}")
@@ -631,8 +631,8 @@ class ALEngine:
         
         try:
             # Find the CWL workflow file for this project
-            cwl_file = self.work_dir.parent / "ro-crates" / self.project_id / "al_iteration.cwl"
-            inputs_file = self.work_dir.parent / "ro-crates" / self.project_id / "inputs.yml"
+            cwl_file = Path(f"../ro-crates/{self.project_id}/al_iteration.cwl")
+            inputs_file = Path(f"../ro-crates/{self.project_id}/inputs.yml")
             
             if not cwl_file.exists():
                 raise FileNotFoundError(f"CWL workflow not found: {cwl_file}")
