@@ -71,8 +71,6 @@ contract ALProjectVoting {
     event BatchStarted(uint256 round, string[] sampleIds, uint256 startTime);
     event BatchCompleted(uint256 round, uint256 completedSamples, uint256 timestamp);
     event BatchSampleCompleted(uint256 round, string sampleId, string finalLabel, uint256 remainingSamples);
-    event VoterRegistered(address indexed voter, uint256 weight, uint256 timestamp);
-    event VoterUnregistered(address indexed voter, uint256 timestamp);
     
     modifier onlyProject() {
         require(msg.sender == project, "Only main project can call");
@@ -110,42 +108,6 @@ contract ALProjectVoting {
             voterWeights[_voters[i]] = _weights[i];
             voterList.push(_voters[i]);
         }
-    }
-    
-    /**
-     * @dev Allow voters to self-register with default weight of 1
-     * This enables decentralized voter registration
-     */
-    function registerAsVoter() external {
-        require(voterWeights[msg.sender] == 0, "Already registered as voter");
-        
-        // Register with default weight of 1
-        voterWeights[msg.sender] = 1;
-        voterList.push(msg.sender);
-        
-        emit VoterRegistered(msg.sender, 1, block.timestamp);
-    }
-    
-    /**
-     * @dev Allow voters to unregister themselves
-     */
-    function unregisterAsVoter() external {
-        require(voterWeights[msg.sender] > 0, "Not registered as voter");
-        
-        // Remove from voter weights
-        voterWeights[msg.sender] = 0;
-        
-        // Remove from voter list (simplified - in production might want more efficient removal)
-        for (uint256 i = 0; i < voterList.length; i++) {
-            if (voterList[i] == msg.sender) {
-                // Replace with last element and pop
-                voterList[i] = voterList[voterList.length - 1];
-                voterList.pop();
-                break;
-            }
-        }
-        
-        emit VoterUnregistered(msg.sender, block.timestamp);
     }
     
     function startVotingSession(string memory sampleId) external onlyProject {
@@ -238,6 +200,48 @@ contract ALProjectVoting {
         }
         
         emit VoteSubmitted(sampleId, msg.sender, label, support, block.timestamp);
+        
+        // Check for automatic finalization conditions
+        string memory consensusLabel = _checkForConsensus(sampleId);
+        if (bytes(consensusLabel).length > 0) {
+            _finalizeVotingSession(sampleId, "Consensus reached");
+            emit ConsensusReached(sampleId, consensusLabel);
+        } else if (_allVotersVoted(sampleId)) {
+            _finalizeVotingSession(sampleId, "All voters participated");
+        }
+    }
+    
+    /**
+     * @dev Submit vote on behalf of a user (called by Project contract)
+     * This allows Project to forward votes after auto-registering users
+     */
+    function submitVoteOnBehalf(string memory sampleId, string memory label, address voter) external onlyProject {
+        require(voterWeights[voter] > 0, "Voter not registered");
+        require(votingSessions[sampleId].isActive, "Voting session not active");
+        require(!votingSessions[sampleId].isFinalized, "Voting session already finalized");
+        require(!votingSessions[sampleId].hasVoted[voter], "Already voted");
+        
+        // Check if timeout has been reached - if so, finalize automatically
+        if (_isTimeoutReached(sampleId)) {
+            _finalizeVotingSession(sampleId, "Timeout reached");
+            return;
+        }
+        
+        // Record the vote (assuming support = true for positive vote)
+        votes[sampleId].push(Vote({
+            voter: voter,
+            label: label,
+            support: true,
+            timestamp: block.timestamp
+        }));
+        
+        votingSessions[sampleId].hasVoted[voter] = true;
+        
+        // Update vote aggregation
+        votingSessions[sampleId].labelVotes[label]++;
+        votingSessions[sampleId].labelWeights[label] += voterWeights[voter];
+        
+        emit VoteSubmitted(sampleId, voter, label, true, block.timestamp);
         
         // Check for automatic finalization conditions
         string memory consensusLabel = _checkForConsensus(sampleId);

@@ -559,10 +559,11 @@ export class ALContractService {
 
   /**
    * Submit vote for current sample - only communicates with Project
+   * Project will now auto-register voters and forward votes to ALProjectVoting
    */
   async submitVote(projectAddress: string, sampleId: string, label: string, userAddress: string): Promise<boolean> {
     try {
-      console.log('🗳️ Submitting vote via Project:', { projectAddress, sampleId, label, userAddress });
+      console.log('🗳️ Submitting vote via Project (with auto-registration):', { projectAddress, sampleId, label, userAddress });
       
       // Get signer for transaction
       const provider = new ethers.BrowserProvider((window as any).ethereum);
@@ -572,15 +573,38 @@ export class ALContractService {
       // Use the actual signer address instead of strict validation
       const signerAddress = await signer.getAddress();
       console.log(`🔐 Using signer address for vote: ${signerAddress} (provided: ${userAddress})`);
-      // Note: Removed strict validation to handle wallet connection edge cases
+      
+      // Check if user needs auto-registration (informational only)
+      try {
+        const votingContractAddress = await projectContract.votingContract();
+        if (votingContractAddress && votingContractAddress !== ethers.ZeroAddress) {
+          // Try to check if voter is already registered (optional check)
+          const votingContract = new ethers.Contract(
+            votingContractAddress, 
+            ['function voterWeights(address) view returns (uint256)'], 
+            provider
+          );
+          const currentWeight = await votingContract.voterWeights(signerAddress);
+          
+          if (currentWeight === BigInt(0)) {
+            console.log('ℹ️ User will be auto-registered as voter (first-time voting)');
+          } else {
+            console.log(`ℹ️ User already registered with weight: ${currentWeight}`);
+          }
+        }
+      } catch (checkError) {
+        console.log('ℹ️ Could not check voter registration status (proceeding with vote)');
+      }
 
-      // Submit vote through Project (Project will handle AL contract interaction)
+      // Submit vote through Project (Project will handle auto-registration and AL contract interaction)
+      console.log('📤 Submitting vote - Project will auto-register if needed...');
       const tx = await projectContract.submitVote(sampleId, label);
       console.log('📡 Vote transaction submitted via Project:', tx.hash);
       
       // Wait for confirmation
       const receipt = await tx.wait();
       console.log('✅ Vote confirmed in block:', receipt.blockNumber);
+      console.log('🎉 Vote successfully processed (including any auto-registration)');
       
       // Handle local session completion
       await this.handleVoteSubmissionComplete(projectAddress, sampleId, label);
@@ -588,6 +612,20 @@ export class ALContractService {
       return true;
     } catch (error) {
       console.error('❌ Failed to submit vote via Project:', error);
+      
+      // Provide more helpful error messages for common issues
+      if (error instanceof Error) {
+        if (error.message.includes('Sample not active for voting')) {
+          throw new Error('This sample is not currently active for voting. The voting session may have ended.');
+        } else if (error.message.includes('Already voted')) {
+          throw new Error('You have already voted on this sample.');
+        } else if (error.message.includes('Voting session not active')) {
+          throw new Error('The voting session is not currently active.');
+        } else if (error.message.includes('user rejected')) {
+          throw new Error('Transaction was rejected. Please try again.');
+        }
+      }
+      
       throw error;
     }
   }

@@ -2,41 +2,48 @@ const { ethers } = require('ethers');
 const fs = require('fs');
 
 // Configuration
-const PROJECT_ADDRESS = '0xD5b7B7c5673a86366f3f8203aD66dcE7FBEfb82A';
+const PROJECT_ADDRESS = '0x59426a58c9Ca86F8A0543b6f18DED176FA9762F8';
 const RPC_URL = 'http://145.100.135.27:8550';
 
 // Vote details to verify
-const SAMPLE_ID = 'sample_1_1_1753835455533';
+const SAMPLE_ID = 'sample_1_1_1753842991114';
 const EXPECTED_VOTER = '0x7387059e7dc85391f0bf04ecc349d0d955636282';
-const EXPECTED_LABEL = 'yes';
-const EXPECTED_BLOCK = 449577;
+const EXPECTED_LABEL = 'flower1';
+const EXPECTED_BLOCK = 453284;
+const TRANSACTION_HASH = '0xb852afccd554c1300f48aea0eef12855e9a024ed31d37faf801d7b9eb6ec570b';
 
 // Load ABIs
 let ProjectABI, VotingABI;
 
 try {
-    const Project = JSON.parse(fs.readFileSync('./jupyter-extension/src/abis/Project.json', 'utf8'));
+    const Project = JSON.parse(fs.readFileSync('../jupyter-extension/src/abis/Project.json', 'utf8'));
     ProjectABI = Project.abi;
+    console.log('✅ Loaded updated Project ABI');
 } catch (error) {
-    console.log('⚠️ Could not load Project ABI, using minimal ABI');
+    console.log('⚠️ Could not load Project ABI:', error.message);
     ProjectABI = [
         "function votingContract() view returns (address)",
-        "event VoteSubmitted(string sampleId, address voter, string label, uint256 timestamp)"
+        "function isParticipant(address) view returns (bool)",
+        "function participantRoles(address) view returns (string)",
+        "function participantWeights(address) view returns (uint256)",
+        "function joinedAt(address) view returns (uint256)",
+        "function getAllMembers() view returns (address[], string[], uint256[], uint256[])",
+        "event VoteSubmitted(string sampleId, address voter, string label, uint256 timestamp)",
+        "event ParticipantAutoAdded(address indexed participant, string role, uint256 weight)"
     ];
 }
 
 try {
-    const Voting = JSON.parse(fs.readFileSync('./jupyter-extension/src/abis/ALProjectVoting.json', 'utf8'));
+    const Voting = JSON.parse(fs.readFileSync('../jupyter-extension/src/abis/ALProjectVoting.json', 'utf8'));
     VotingABI = Voting.abi;
+    console.log('✅ Loaded updated ALProjectVoting ABI');
 } catch (error) {
-    console.log('⚠️ Could not load ALProjectVoting ABI, using minimal ABI');
+    console.log('⚠️ Could not load ALProjectVoting ABI:', error.message);
     VotingABI = [
-        "function votes(string) view returns (tuple(address voter, string label, bool support, uint256 timestamp)[])",
-        "function votingSessions(string) view returns (uint256 startTime, bool isActive, bool isFinalized, string finalLabel, uint256 totalVoters, uint256 round)",
         "function voterWeights(address) view returns (uint256)",
-        "event VoteSubmitted(string sampleId, address indexed voter, string label, bool support, uint256 timestamp)",
-        "event VotingSessionStarted(string sampleId, uint256 startTime)",
-        "event VotingSessionFinalized(string sampleId, string finalLabel, uint256 endTime, string reason)"
+        "function getVotingSession(string) view returns (uint256, bool, bool, string)",
+        "function submitVoteOnBehalf(string, string, address) external",
+        "event VoteSubmitted(string sampleId, address indexed voter, string label, bool support, uint256 timestamp)"
     ];
 }
 
@@ -115,7 +122,7 @@ async function verifyVote() {
             const votingFilter = votingContract.filters.VoteSubmitted(SAMPLE_ID);
             const votingEvents = await votingContract.queryFilter(votingFilter, EXPECTED_BLOCK - 10, EXPECTED_BLOCK + 10);
             
-            console.log(`�� Found ${votingEvents.length} ALProjectVoting VoteSubmitted event(s) for sample`);
+            console.log(`🔍 Found ${votingEvents.length} ALProjectVoting VoteSubmitted event(s) for sample`);
             
             if (votingEvents.length > 0) {
                 votingEvents.forEach((event, index) => {
@@ -141,43 +148,71 @@ async function verifyVote() {
         }
         console.log('');
 
-        // ============== STEP 3: Check Voting Session Status ==============
+        // ============== STEP 3: Voting Session Status ==============
         console.log('📋 === STEP 3: VOTING SESSION STATUS ===');
         try {
-            const session = await votingContract.votingSessions(SAMPLE_ID);
+            const session = await votingContract.getVotingSession(SAMPLE_ID);
             console.log('🗳️ Voting Session Details:');
             console.log(`   Start Time: ${session[0]} (${session[0] > 0 ? new Date(Number(session[0]) * 1000).toISOString() : 'Not started'})`);
             console.log(`   Is Active: ${session[1]}`);
             console.log(`   Is Finalized: ${session[2]}`);
             console.log(`   Final Label: "${session[3]}" ${session[3] ? '✅' : '(not set)'}`);
-            console.log(`   Total Voters: ${session[4]}`);
-            console.log(`   Round: ${session[5]}`);
             
-            if (session[2] && session[3] === EXPECTED_LABEL) {
-                console.log('🎉 Session finalized with expected label!');
-            } else if (session[2]) {
-                console.log(`⚠️ Session finalized but with different label: "${session[3]}" (expected: "${EXPECTED_LABEL}")`);
-            } else if (session[1]) {
+            if (session[1] && !session[2]) {
                 console.log('⏳ Session is still active (voting in progress)');
+            } else if (session[2]) {
+                console.log(`✅ Session finalized with label: "${session[3]}"`);
             } else {
-                console.log('❓ Session status unclear');
+                console.log('💤 Session not active');
             }
         } catch (error) {
-            console.log('❌ Error checking voting session:', error.message);
+            console.log('❌ Error getting voting session status:', error.message);
         }
         console.log('');
 
-        // ============== STEP 4: Check Voter Registration ==============
-        console.log('📋 === STEP 4: VOTER VERIFICATION ===');
+        // ============== STEP 4: VOTER & MEMBER VERIFICATION ==============
+        console.log('📋 === STEP 4: VOTER & MEMBER VERIFICATION ===');
         try {
             const voterWeight = await votingContract.voterWeights(EXPECTED_VOTER);
             console.log(`👤 Voter ${EXPECTED_VOTER}:`);
-            console.log(`   Weight: ${voterWeight}`);
-            console.log(`   Registered: ${voterWeight > 0 ? 'YES ✅' : 'NO ❌'}`);
+            console.log(`   Weight in ALProjectVoting: ${voterWeight}`);
+            console.log(`   Registered in ALProjectVoting: ${voterWeight > 0 ? 'YES ✅' : 'NO ❌'}`);
             
-            if (voterWeight == 0) {
-                console.log('⚠️ WARNING: Voter is not registered or has zero weight!');
-                console.log('   This could explain why votes are not being stored in ALProjectVoting');
+            // Check if voter is a project member
+            const isProjectMember = await projectContract.isParticipant(EXPECTED_VOTER);
+            console.log(`   Project Member: ${isProjectMember ? 'YES ✅' : 'NO ❌'}`);
+            
+            if (isProjectMember) {
+                const memberRole = await projectContract.participantRoles(EXPECTED_VOTER);
+                const memberWeight = await projectContract.participantWeights(EXPECTED_VOTER);
+                const joinedAt = await projectContract.joinedAt(EXPECTED_VOTER);
+                
+                console.log(`   Role: ${memberRole}`);
+                console.log(`   Project Weight: ${memberWeight}`);
+                console.log(`   Joined At: ${new Date(Number(joinedAt) * 1000).toISOString()}`);
+            }
+            
+            // Get all project members
+            try {
+                const [memberAddresses, roles, weights, joinTimestamps] = await projectContract.getAllMembers();
+                console.log(`\n👥 Total Project Members: ${memberAddresses.length}`);
+                for (let i = 0; i < memberAddresses.length; i++) {
+                    console.log(`   ${i + 1}. ${memberAddresses[i]} (${roles[i]}, weight: ${weights[i]})`);
+                }
+            } catch (error) {
+                console.log('   ⚠️ Could not fetch all members:', error.message);
+            }
+            
+            if (voterWeight == 0 && !isProjectMember) {
+                console.log('ℹ️ NOTE: With the new member-based system:');
+                console.log('   - Users are automatically added as project members when they vote');
+                console.log('   - Project.startBatchVoting() automatically sets voters from members');
+                console.log('   - If no vote events found, the user may not have voted yet');
+            } else if (isProjectMember && voterWeight == 0) {
+                console.log('⚠️ WARNING: User is a project member but not registered in voting contract');
+                console.log('   This might indicate the voting session hasn\'t been started yet');
+            } else if (isProjectMember && voterWeight > 0) {
+                console.log('✅ Perfect! User is both a project member and registered voter');
             }
         } catch (error) {
             console.log('❌ Error checking voter registration:', error.message);
@@ -185,25 +220,26 @@ async function verifyVote() {
         console.log('');
 
         // ============== STEP 5: Summary ==============
-        console.log('�� === VERIFICATION SUMMARY ===');
+        console.log('🎯 === VERIFICATION SUMMARY ===');
         console.log('');
-        console.log('Based on the above checks:');
-        console.log('');
-        console.log('✅ What\'s Working:');
-        console.log('   - Frontend successfully submits votes to Project contract');
-        console.log('   - Project contract emits VoteSubmitted events');
-        console.log('   - Transaction is confirmed on blockchain');
+        console.log('✅ New Member-Based Architecture:');
+        console.log('   - Project.sol is the source of truth for all participants');
+        console.log('   - Users are automatically added as project members when they vote');
+        console.log('   - Project.startBatchVoting() automatically sets voters from eligible members');
+        console.log('   - Roles: "creator", "contributor", "observer" (only creator/contributor can vote)');
+        console.log('   - Seamless workflow: No manual voter registration required');
         console.log('');
         console.log('🔍 Key Findings:');
-        console.log('   - Check if ALProjectVoting events were found');
-        console.log('   - Verify voter registration status');
-        console.log('   - Check voting session finalization');
+        console.log('   - Check if ALProjectVoting events were found above');
+        console.log('   - Verify user is both project member AND registered voter');
+        console.log('   - Verify voting session finalization status');
+        console.log('   - Member registration should happen automatically');
         console.log('');
-        console.log('📝 Next Steps:');
-        console.log('   1. If voter is not registered → Need to call setVoters() on ALProjectVoting');
-        console.log('   2. If no ALProjectVoting events → Check Project→ALProjectVoting integration');
-        console.log('   3. If session not finalized → May need manual finalization or wait for consensus');
-        console.log('');
+        console.log('🛠️ Troubleshooting:');
+        console.log('   - If user is member but not voter: Check if voting session started');
+        console.log('   - If no events found: Verify transaction hash and block number');
+        console.log('   - If vote rejected: Check member role (must be creator/contributor)');
+        console.log('   - If consensus not reached: Check if other members have voted');
 
     } catch (error) {
         console.error('❌ Critical error during verification:', error);

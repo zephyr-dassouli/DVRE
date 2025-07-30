@@ -7,6 +7,7 @@ interface IALProjectVoting {
     function startBatchVoting(string[] memory sampleIds, uint256 round) external; // Internal call to voting contract
     function endVotingSession(string memory sampleId) external;
     function setVoters(address[] memory _voters, uint256[] memory _weights) external;
+    function submitVoteOnBehalf(string memory sampleId, string memory label, address voter) external; // New method for Project to submit votes
     function projectContract() external view returns (address);
     function getVotingSession(string memory sampleId) external view returns (
         uint256 startTime,
@@ -113,6 +114,12 @@ contract Project {
     // Optional participant registry
     mapping(address => bool) public isParticipant;
     
+    // Persistent member management - Project as source of truth
+    address[] public members;
+    mapping(address => string) public participantRoles; // Track roles: "creator", "contributor", "observer", etc.
+    mapping(address => uint256) public participantWeights; // Voting weights per participant
+    mapping(address => uint256) public joinedAt; // Timestamp when participant joined
+    
     // Round tracking
     uint256 public currentRound;
 
@@ -127,6 +134,8 @@ contract Project {
     event JoinRequestRejected(address indexed requester, address indexed rejector, uint256 timestamp);
     event ALContractsDeployed(address votingContract, address storageContract);
     event ParticipantAdded(address indexed participant);
+    event ParticipantAutoAdded(address indexed participant, string role, uint256 weight); // New event for auto-registration
+    event ParticipantUpdated(address indexed participant, string role, uint256 weight);
     event RoundIncremented(uint256 newRound);
     event ALRoundTriggered(uint256 round, string reason, uint256 timestamp);
     event AutoLabelStored(string sampleId, string label, uint256 round, uint256 timestamp);
@@ -136,6 +145,7 @@ contract Project {
     event MemberAdded(address indexed member, string role, uint256 timestamp);
     event ALBatchStarted(uint256 round, uint256 sampleCount, uint256 timestamp);
     event ALBatchCompleted(uint256 round, uint256 completedSamples, uint256 timestamp);
+    event VotersUpdated(uint256 round, uint256 voterCount, uint256 timestamp); // New event for voter updates
     
     // DAL Events for labeling interface
     event VotingSessionStarted(string sampleId, uint256 round, uint256 timeout, uint256 timestamp);
@@ -167,7 +177,16 @@ contract Project {
         createdAt = block.timestamp;
         lastModified = block.timestamp;
         isActive = true;
+        
+        // Initialize creator as first member
+        members.push(_creator);
+        isParticipant[_creator] = true;
+        participantRoles[_creator] = "creator";
+        participantWeights[_creator] = 1;
+        joinedAt[_creator] = block.timestamp;
+        
         emit ProjectCreated(_creator, block.timestamp);
+        emit ParticipantAdded(_creator);
     }
     
     // --- Metadata Setters ---
@@ -234,11 +253,17 @@ contract Project {
     
     function approveJoinRequest(address _requester) external onlyCreator {
         require(joinRequests[_requester].exists, "No request");
+        
+        // Get the role from the join request
+        string memory requestedRole = joinRequests[_requester].role;
+        
+        // Add as member with the requested role and default weight
+        _addMemberInternal(_requester, requestedRole, 1);
+        
+        // Clean up the join request
         delete joinRequests[_requester];
-        // Add as participant
-        isParticipant[_requester] = true;
+        
         emit JoinRequestApproved(_requester, msg.sender, block.timestamp);
-        emit ParticipantAdded(_requester);
     }
     
     function rejectJoinRequest(address _requester) external onlyCreator {
@@ -298,8 +323,123 @@ contract Project {
     // --- Participant Registry ---
     function addParticipant(address _participant) external onlyCreator {
         require(!isParticipant[_participant], "Already participant");
+        _addMemberInternal(_participant, "contributor", 1);
+    }
+    
+    /**
+     * @dev Internal function to add a member with role and weight
+     */
+    function _addMemberInternal(address _participant, string memory _role, uint256 _weight) internal {
+        require(!isParticipant[_participant], "Already participant");
+        require(_weight > 0, "Weight must be positive");
+        
+        members.push(_participant);
         isParticipant[_participant] = true;
+        participantRoles[_participant] = _role;
+        participantWeights[_participant] = _weight;
+        joinedAt[_participant] = block.timestamp;
+        
         emit ParticipantAdded(_participant);
+        emit MemberAdded(_participant, _role, block.timestamp);
+    }
+    
+    /**
+     * @dev Internal function for auto-adding members (emits different event)
+     */
+    function _autoAddMemberInternal(address _participant, string memory _role, uint256 _weight) internal {
+        require(!isParticipant[_participant], "Already participant");
+        require(_weight > 0, "Weight must be positive");
+        
+        members.push(_participant);
+        isParticipant[_participant] = true;
+        participantRoles[_participant] = _role;
+        participantWeights[_participant] = _weight;
+        joinedAt[_participant] = block.timestamp;
+        
+        emit ParticipantAutoAdded(_participant, _role, _weight);
+        emit MemberAdded(_participant, _role, block.timestamp);
+    }
+    
+    /**
+     * @dev Add participant with specific role and weight
+     */
+    function addParticipantWithRole(address _participant, string memory _role, uint256 _weight) external onlyCreator {
+        require(bytes(_role).length > 0, "Empty role");
+        _addMemberInternal(_participant, _role, _weight);
+    }
+    
+    /**
+     * @dev Update participant role or weight
+     */
+    function updateParticipant(address _participant, string memory _role, uint256 _weight) external onlyCreator {
+        require(isParticipant[_participant], "Not a participant");
+        require(bytes(_role).length > 0, "Empty role");
+        require(_weight > 0, "Weight must be positive");
+        
+        participantRoles[_participant] = _role;
+        participantWeights[_participant] = _weight;
+        lastModified = block.timestamp;
+        
+        emit ParticipantUpdated(_participant, _role, _weight);
+    }
+    
+    /**
+     * @dev Get all members and their details
+     */
+    function getAllMembers() external view returns (
+        address[] memory memberAddresses,
+        string[] memory roles,
+        uint256[] memory weights,
+        uint256[] memory joinTimestamps
+    ) {
+        uint256 memberCount = members.length;
+        memberAddresses = new address[](memberCount);
+        roles = new string[](memberCount);
+        weights = new uint256[](memberCount);
+        joinTimestamps = new uint256[](memberCount);
+        
+        for (uint256 i = 0; i < memberCount; i++) {
+            address member = members[i];
+            memberAddresses[i] = member;
+            roles[i] = participantRoles[member];
+            weights[i] = participantWeights[member];
+            joinTimestamps[i] = joinedAt[member];
+        }
+        
+        return (memberAddresses, roles, weights, joinTimestamps);
+    }
+    
+    /**
+     * @dev Get eligible voters (contributors and creators)
+     */
+    function getEligibleVoters() external view returns (address[] memory voters, uint256[] memory weights) {
+        // Count eligible voters first
+        uint256 eligibleCount = 0;
+        for (uint256 i = 0; i < members.length; i++) {
+            string memory role = participantRoles[members[i]];
+            if (keccak256(bytes(role)) == keccak256(bytes("creator")) ||
+                keccak256(bytes(role)) == keccak256(bytes("contributor"))) {
+                eligibleCount++;
+            }
+        }
+        
+        // Build arrays of eligible voters
+        voters = new address[](eligibleCount);
+        weights = new uint256[](eligibleCount);
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < members.length; i++) {
+            address member = members[i];
+            string memory role = participantRoles[member];
+            if (keccak256(bytes(role)) == keccak256(bytes("creator")) ||
+                keccak256(bytes(role)) == keccak256(bytes("contributor"))) {
+                voters[index] = member;
+                weights[index] = participantWeights[member];
+                index++;
+            }
+        }
+        
+        return (voters, weights);
     }
     
     // --- Round Tracking ---
@@ -330,11 +470,18 @@ contract Project {
     }
     
     // --- Voting Management ---
+    /**
+     * @dev DEPRECATED: Manually set voters (use addParticipant/addParticipantWithRole instead)
+     * This function is deprecated as the new system automatically manages voters from project members
+     */
     function setProjectVoters(address[] memory _voters, uint256[] memory _weights) external onlyCreator {
         require(votingContract != address(0), "Voting contract not set");
         
-        // Call via interface instead of direct call
+        // This is now deprecated - startBatchVoting automatically sets voters from members
+        // Kept for backward compatibility but not recommended
         IALProjectVoting(votingContract).setVoters(_voters, _weights);
+        
+        emit VotersUpdated(currentRound, _voters.length, block.timestamp);
     }
 
     function startVotingSession(string memory sampleId) external onlyCreator {
@@ -350,6 +497,7 @@ contract Project {
     /**
      * @dev Start batch voting for AL iteration samples
      * Always use this method (even for single samples) for consistent event handling
+     * Automatically sets voters from project members
      */
     function startBatchVoting(string[] memory sampleIds) external onlyCreator {
         require(votingContract != address(0), "Voting contract not set");
@@ -358,7 +506,16 @@ contract Project {
         // Increment round for new batch
         currentRound += 1;
         
-        // Call via interface - supports any batch size including 1
+        // Get eligible voters from project members
+        (address[] memory eligibleVoters, uint256[] memory voterWeights) = this.getEligibleVoters();
+        require(eligibleVoters.length > 0, "No eligible voters found");
+        
+        // Set voters in the voting contract for this round
+        IALProjectVoting(votingContract).setVoters(eligibleVoters, voterWeights);
+        
+        emit VotersUpdated(currentRound, eligibleVoters.length, block.timestamp);
+        
+        // Start the batch voting session
         IALProjectVoting(votingContract).startBatchVoting(sampleIds, currentRound);
         
         emit ALBatchStarted(currentRound, sampleIds.length, block.timestamp);
@@ -414,6 +571,7 @@ contract Project {
     /**
      * @dev Submit vote for a sample (DAL interface method)
      * This is the main entry point for DAL to submit votes
+     * Auto-adds users as project members if they're not already members
      */
     function submitVote(string memory sampleId, string memory label) external {
         require(votingContract != address(0), "Voting contract not set");
@@ -423,16 +581,28 @@ contract Project {
         // Verify the sample is currently active for voting
         require(activeSamples[sampleId], "Sample not active for voting");
         
-        // Submit vote to ALProjectVoting contract
-        // Note: ALProjectVoting will handle voter authorization and validation
-        // This requires ALProjectVoting to have a submitVote function that accepts any caller
-        // and handles the authorization internally
+        // Auto-add user as project member if not already a member
+        if (!isParticipant[msg.sender]) {
+            _autoAddMemberInternal(msg.sender, "contributor", 1);
+            
+            // Since we added a new member, we need to update voters in the voting contract
+            // Get the current eligible voters (including the new member)
+            (address[] memory eligibleVoters, uint256[] memory voterWeights) = this.getEligibleVoters();
+            IALProjectVoting(votingContract).setVoters(eligibleVoters, voterWeights);
+        }
         
-        // For now, we'll emit the event and assume the vote will be processed
+        // Verify user is now eligible to vote (should be after auto-add)
+        require(isParticipant[msg.sender], "Not a project participant");
+        
+        // Check if user is registered in voting contract
+        uint256 voterWeight = IALProjectVoting(votingContract).voterWeights(msg.sender);
+        require(voterWeight > 0, "Voter not registered in voting contract");
+        
+        // Emit Project-level event
         emit VoteSubmitted(sampleId, msg.sender, label, block.timestamp);
         
-        // TODO: Once ALProjectVoting has a public submitVote method, call it here:
-        // IALProjectVoting(votingContract).submitVote(sampleId, label, msg.sender);
+        // Forward vote to ALProjectVoting contract
+        IALProjectVoting(votingContract).submitVoteOnBehalf(sampleId, label, msg.sender);
     }
     
     /**
