@@ -120,17 +120,36 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
   const handleDownload = async (hash: string) => {
     try {
       setLoading(true);
-      const blob = await ipfsService.downloadFile(hash);
       
-      // Create download link
+      // Find the asset info to get the name and type
+      const asset = assets.find(a => a.ipfsHash === hash);
+      const assetName = asset?.name || `ipfs-${hash}`;
+      const assetType = asset?.assetType || 'unknown';
+      
+      console.log(`Downloading asset: ${assetName} (${assetType})`);
+      const blob = await ipfsService.downloadFile(hash, assetType);
+      
+      // Create download link with appropriate filename
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `ipfs-${hash}.bin`;
+      
+      // Determine filename based on asset type
+      if (assetType === 'ro-crate') {
+        // RO-Crates are directories, so they're downloaded as tar.gz
+        a.download = `${assetName}.tar.gz`;
+      } else {
+        // Individual files (datasets, models, etc.) - preserve or guess extension
+        const hasExtension = assetName.includes('.');
+        a.download = hasExtension ? assetName : `${assetName}.bin`;
+      }
+      
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      
+      console.log(`Successfully downloaded: ${a.download}`);
     } catch (error) {
       console.error('Download failed:', error);
       setError(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);

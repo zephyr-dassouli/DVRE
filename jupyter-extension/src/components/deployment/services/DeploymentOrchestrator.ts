@@ -10,7 +10,7 @@ import { localFileDownloadService } from './LocalFileDownloadService';
 // Import blockchain dependencies  
 import { ethers } from 'ethers';
 import Project from '../../../abis/Project.json';
-import globalConfig from '../../../config';
+import { AssetService } from '../../../utils/AssetService';
 
 /**
  * Deployment results interface
@@ -126,57 +126,39 @@ export class DeploymentOrchestrator {
         // 2.5. Asset Contract Storage (for RO-Crate as a blockchain asset)
         console.log('📋 Step 2.5: Storing RO-Crate in blockchain asset contract...');
         try {
-          // Use the existing blockchain connection instead of creating new AssetService
-          console.log('🔗 Using existing blockchain connection for asset creation...');
+          // Use the working AssetService but ensure wallet is connected first
+          console.log('🔗 Using working AssetService (same as IPFS component)...');
           
-          // Get blockchain connection (same as used elsewhere in deployment)
+          // Get blockchain connection to ensure wallet is ready
           const provider = new ethers.BrowserProvider((window as any).ethereum);
           const signer = await provider.getSigner();
-          console.log('✅ Wallet connection established for asset creation');
+          const signerAddress = await signer.getAddress();
+          console.log('✅ Wallet connection established:', signerAddress);
           
-          // Import AssetFactory ABI and create contract instance directly
-          const AssetFactoryABI = (await import('../../../abis/AssetFactory.json')).default;
-          const assetFactoryAddress = globalConfig.blockchain.assetFactoryAddress;
+          // Create AssetService instance (it will use its own initialization)
+          const assetService = new AssetService();
           
-          console.log('🏭 Connecting to AssetFactory contract:', assetFactoryAddress);
-          const assetFactoryContract = new ethers.Contract(
-            assetFactoryAddress,
-            AssetFactoryABI.abi,
-            signer
-          );
+          // Wait a moment for AssetService to initialize its provider
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          console.log('🔧 AssetService initialized, checking configuration...');
           
           // Create asset name in the format: ro-crate-<project-address>-initial
           const assetName = `ro-crate-${projectId}-initial`;
           const assetType = 'ro-crate';
           
           console.log(`🔗 Creating blockchain asset: "${assetName}" with IPFS hash: ${result.roCrateHash}`);
-          
-          // Create the asset using AssetFactory contract
-          const tx = await assetFactoryContract.createAsset(assetName, assetType, result.roCrateHash);
-          console.log('⏳ Asset creation transaction sent, waiting for confirmation...');
-          
-          const receipt = await tx.wait();
-          console.log('✅ Asset creation transaction confirmed:', receipt.hash);
-          
-          // Extract the asset address from the event
-          const event = receipt.logs?.find((log: any) => {
-            try {
-              const parsed = assetFactoryContract.interface.parseLog(log);
-              return parsed?.name === 'AssetCreated';
-            } catch {
-              return false;
-            }
+          console.log('📋 Function parameters:', {
+            name: assetName,
+            type: assetType,
+            ipfsHash: result.roCrateHash,
+            nameLength: assetName.length,
+            typeLength: assetType.length,
+            hashLength: result.roCrateHash?.length || 0
           });
           
-          let assetContractAddress = null;
-          if (event) {
-            const parsed = assetFactoryContract.interface.parseLog(event);
-            assetContractAddress = parsed?.args?.assetAddress;
-          }
-          
-          if (!assetContractAddress) {
-            throw new Error('Failed to extract asset address from transaction receipt');
-          }
+          // Create the asset using the working AssetService
+          const assetContractAddress = await assetService.createAsset(assetName, assetType, result.roCrateHash);
           
           result.assetContractAddress = assetContractAddress;
           result.steps.assetContractStorage = 'success';

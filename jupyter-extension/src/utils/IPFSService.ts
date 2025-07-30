@@ -89,14 +89,68 @@ export class IPFSService {
     return data;
   }
 
-  async downloadFile(hash: string): Promise<Blob> {
-    const response = await fetch(`${this.baseUrl}/cat?arg=${hash}`, {
-      method: 'POST',
-      headers: this.getHeaders()
+  async downloadFile(hash: string, assetType?: string): Promise<Blob> {
+    // Use asset type to determine download method (avoids CORS issues with /ls endpoint)
+    if (assetType === 'ro-crate') {
+      // RO-Crates are always directories - download as tar archive
+      console.log(`Downloading RO-Crate directory ${hash} as tar archive...`);
+      return await this.downloadDirectory(hash);
+    } else {
+      // For datasets and other files, use single file download
+      console.log(`Downloading file ${hash}...`);
+      return await this.downloadSingleFile(hash);
+    }
+  }
+
+  private async downloadSingleFile(hash: string): Promise<Blob> {
+    try {
+      const response = await fetch(`${this.baseUrl}/cat?arg=${hash}`, {
+        method: 'POST',
+        headers: this.getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.blob();
+    } catch (error) {
+      console.warn('IPFS API /cat blocked by CORS or failed, falling back to public gateway:', error);
+      // Fallback to public gateway download
+      return await this.downloadViaPublicGateway(hash);
+    }
+  }
+
+  private async downloadDirectory(hash: string): Promise<Blob> {
+    try {
+      const response = await fetch(`${this.baseUrl}/get?arg=${hash}&archive=true&compress=true`, {
+        method: 'POST',
+        headers: this.getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.blob();
+    } catch (error) {
+      console.warn('IPFS API /get blocked by CORS, falling back to public gateway:', error);
+      // Fallback to public gateway download
+      return await this.downloadViaPublicGateway(hash);
+    }
+  }
+
+  private async downloadViaPublicGateway(hash: string): Promise<Blob> {
+    // Use the public gateway URL - this should work for both files and directories
+    const publicUrl = `${this.publicUrl}/${hash}`;
+    console.log(`Downloading via public gateway: ${publicUrl}`);
+    
+    const response = await fetch(publicUrl, {
+      method: 'GET'
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`Public gateway download failed! status: ${response.status}`);
     }
 
     return await response.blob();
