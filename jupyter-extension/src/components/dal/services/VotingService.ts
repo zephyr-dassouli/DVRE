@@ -84,7 +84,7 @@ export class VotingService {
             try {
               // Get voting session info
               const sessionInfo = await votingContract.getVotingSession(sampleId);
-              const [startTime, isActive, isFinalized, finalLabel] = sessionInfo;
+              const [startTime, , isFinalized, finalLabel] = sessionInfo; // Skip isActive with comma
 
               // Only include finalized samples (completed voting)
               if (!isFinalized || !finalLabel) {
