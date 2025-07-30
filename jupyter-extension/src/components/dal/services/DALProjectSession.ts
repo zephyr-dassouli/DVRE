@@ -277,7 +277,10 @@ export class DALProjectSession extends EventEmitter {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ iteration })
+        body: JSON.stringify({ 
+          iteration,
+          project_id: this.state.projectId // Add the missing project_id!
+        })
       });
 
       if (!response.ok) {

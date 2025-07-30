@@ -1,64 +1,31 @@
 /**
- * AL Contract Service - Interacts with ALProjectVoting and ALProjectStorage contracts
- * Provides real data instead of mock data for DAL components
+ * Refactored AL Contract Service - Using modular services while preserving all functionality
+ * This orchestrates interactions between smart contracts, AL-Engine, and UI components
  */
 
 import { ethers } from 'ethers';
 import { RPC_URL } from '../../../config/contracts';
 import Project from '../../../abis/Project.json';
-import ALProjectVoting from '../../../abis/ALProjectVoting.json'; // Added import for ALProjectVoting
-import { config } from '../../../config';
+import ALProjectVoting from '../../../abis/ALProjectVoting.json';
 
-export interface VotingRecord {
-  sampleId: string;
-  sampleData: any;
-  finalLabel: string;
-  votes: { [voterAddress: string]: string };
-  votingDistribution: { [label: string]: number };
-  timestamp: Date;
-  iterationNumber: number;
-  consensusReached: boolean;
-}
+// Import our modular services
+import { VotingService, VotingRecord, UserContribution, ActiveVoting } from './VotingService';
+import { ALEngineService, ModelUpdate } from './ALEngineService';
 
-export interface UserContribution {
-  address: string;
-  role: string;
-  votesCount: number;
-  joinedAt: Date;
-  lastActivity: Date;
-  reputation: number;
-}
-
-export interface ModelUpdate {
-  iterationNumber: number;
-  timestamp: Date;
-  performance: {
-    accuracy: number;
-    precision: number;
-    recall: number;
-    f1Score: number;
-  };
-  samplesAddedCount: number;
-  notes: string;
-}
-
-export interface ActiveVoting {
-  sampleId: string;
-  sampleData: any;
-  labelOptions: string[];
-  currentVotes: { [label: string]: number };
-  timeRemaining: number;
-  voters: string[];
-}
+export { VotingRecord, UserContribution, ActiveVoting, ModelUpdate };
 
 export class ALContractService {
   private static instance: ALContractService;
   private provider: ethers.JsonRpcProvider;
-  private currentALSamples: Map<string, any[]> = new Map(); // Store AL samples by project address
-  private sampleIdToDataMap: Map<string, any> = new Map(); // Map sample IDs to sample data
+  
+  // Modular services
+  private votingService: VotingService;
+  private alEngineService: ALEngineService;
 
   private constructor() {
     this.provider = new ethers.JsonRpcProvider(RPC_URL);
+    this.votingService = new VotingService();
+    this.alEngineService = new ALEngineService();
   }
 
   static getInstance(): ALContractService {
@@ -68,373 +35,106 @@ export class ALContractService {
     return ALContractService.instance;
   }
 
-  /**
-   * Store AL samples for labeling interface and map to project
-   */
-  private storeALSamplesForLabeling(projectAddress: string, sampleIds: string[], queriedSamples: any[]): void {
-    console.log(`📝 Storing ${queriedSamples.length} AL samples for project ${projectAddress}`);
-    
-    // Store samples by project address
-    this.currentALSamples.set(projectAddress, queriedSamples);
-    
-    // Map sample IDs to their data for quick lookup
-    for (let i = 0; i < sampleIds.length; i++) {
-      if (queriedSamples[i]) {
-        this.sampleIdToDataMap.set(sampleIds[i], queriedSamples[i]);
-        console.log(`🔗 Mapped sample ${sampleIds[i]} to dataset index ${queriedSamples[i]?.original_index || i}`);
-      }
-    }
-    
-    console.log(`✅ Stored ${queriedSamples.length} samples and ${sampleIds.length} sample mappings for labeling`);
+  // =====================================================================
+  // AL-ENGINE SAMPLE MANAGEMENT (delegated to ALEngineService)
+  // =====================================================================
+
+  storeALSamplesForLabeling(projectAddress: string, sampleIds: string[], queriedSamples: any[]): void {
+    this.alEngineService.storeALSamplesForLabeling(projectAddress, sampleIds, queriedSamples);
   }
 
-  /**
-   * Clear stored AL samples for a project (called when voting sessions end)
-   */
-  private clearStoredALSamples(projectAddress: string): void {
-    console.log(`🧹 Clearing stored AL samples for project ${projectAddress}`);
-    
-    // Clear stored samples for this project
-    const samples = this.currentALSamples.get(projectAddress);
-    if (samples) {
-      console.log(`📝 Removed ${samples.length} stored samples`);
-      this.currentALSamples.delete(projectAddress);
-    }
-    
-    // Clear related sample mappings (optional - they'll be overwritten next time)
-    let clearedMappings = 0;
-    for (const [sampleId] of this.sampleIdToDataMap.entries()) {
-      if (sampleId.includes(projectAddress.slice(-8))) { // Basic project matching
-        this.sampleIdToDataMap.delete(sampleId);
-        clearedMappings++;
-      }
-    }
-    
-    if (clearedMappings > 0) {
-      console.log(`🔗 Cleared ${clearedMappings} sample ID mappings`);
-    }
-    
-    console.log(`✅ Cleared all stored data for project ${projectAddress}`);
+  clearStoredALSamples(projectAddress: string): void {
+    this.alEngineService.clearStoredALSamples(projectAddress);
   }
 
-  /**
-   * Get stored AL samples for a project (for DALProjectSession to access real data)
-   */
   getStoredALSamples(projectAddress: string): any[] | null {
-    return this.currentALSamples.get(projectAddress) || null;
+    return this.alEngineService.getStoredALSamples(projectAddress);
   }
 
-  /**
-   * Get specific sample data by sample ID
-   */
   public getSampleDataById(sampleId: string): any | null {
-    return this.sampleIdToDataMap.get(sampleId) || null;
+    return this.alEngineService.getSampleDataById(sampleId);
   }
 
-  /**
-   * Get voting history from Project (which delegates to ALProjectStorage)
-   */
+  // =====================================================================
+  // VOTING OPERATIONS (delegated to VotingService)
+  // =====================================================================
+
   async getVotingHistory(projectAddress: string): Promise<VotingRecord[]> {
-    try {
-      console.log('📊 Getting voting history via Project delegation for:', projectAddress);
-      
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
-      
-      try {
-        // Try to get voting history through Project delegation to ALProjectStorage
-        const votingHistoryResult = await projectContract.getVotingHistory();
-        
-        if (votingHistoryResult && votingHistoryResult.length === 4) {
-          const [sampleIds, rounds, finalLabels, timestamps] = votingHistoryResult;
-          
-          if (sampleIds.length > 0) {
-            console.log(`📊 Found ${sampleIds.length} voting records via Project delegation`);
-            
-            // Convert to VotingRecord format
-            const records: VotingRecord[] = [];
-            for (let i = 0; i < sampleIds.length; i++) {
-              // Get detailed voting info for each sample
-              try {
-                const detailedHistory = await projectContract.getSampleVotingHistory(sampleIds[i]);
-                const [round, finalLabel, timestamp, voters, labels] = detailedHistory;
-                
-                // Build votes mapping
-                const votes: { [voterAddress: string]: string } = {};
-                const votingDistribution: { [label: string]: number } = {};
-                
-                for (let j = 0; j < voters.length && j < labels.length; j++) {
-                  votes[voters[j]] = labels[j];
-                  
-                  // Count label distribution
-                  if (votingDistribution[labels[j]]) {
-                    votingDistribution[labels[j]]++;
-                  } else {
-                    votingDistribution[labels[j]] = 1;
-                  }
-                }
-                
-                records.push({
-                  sampleId: sampleIds[i],
-                  sampleData: { sampleId: sampleIds[i] },
-                  finalLabel: finalLabel,
-                  votes,
-                  votingDistribution,
-                  timestamp: new Date(Number(timestamp) * 1000),
-                  iterationNumber: Number(round),
-                  consensusReached: !!finalLabel && finalLabel !== ""
-                });
-                
-              } catch (detailError) {
-                console.warn(`⚠️ Could not get detailed history for sample ${sampleIds[i]}:`, detailError);
-                
-                // Fallback to basic record
-                records.push({
-                  sampleId: sampleIds[i],
-                  sampleData: { sampleId: sampleIds[i] },
-                  finalLabel: finalLabels[i] || 'Unknown',
-                  votes: {},
-                  votingDistribution: {},
-                  timestamp: new Date(Number(timestamps[i]) * 1000),
-                  iterationNumber: Number(rounds[i]),
-                  consensusReached: !!(finalLabels[i] && finalLabels[i] !== "")
-                });
-              }
-            }
-            
-            return records;
-          }
-        }
-      } catch (methodError) {
-        console.log('📝 Project voting history delegation not available yet, using placeholder data');
-      }
-      
-      // Return empty array for now - will be populated when delegation is working
-      console.log('📝 No voting history available yet via delegation - contracts may need to be linked');
-      return [];
-      
-    } catch (error) {
-      console.error('Failed to get voting history via Project delegation:', error);
-      return [];
-    }
+    return this.votingService.getVotingHistory(projectAddress);
   }
 
-  /**
-   * Get user contributions from Project (which delegates to ALProjectVoting)
-   */
   async getUserContributions(projectAddress: string): Promise<UserContribution[]> {
-    try {
-      console.log('👥 Getting user contributions via Project delegation for:', projectAddress);
-      
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
-      
-      try {
-        // Try to get user contributions through Project delegation to ALProjectVoting
-        const contributionsResult = await projectContract.getUserContributions();
-        
-        if (contributionsResult && contributionsResult.length === 3) {
-          const [voters, voteCounts, weights] = contributionsResult;
-          
-          if (voters.length > 0) {
-            console.log(`👥 Found ${voters.length} contributors via Project delegation`);
-      
-      const contributions: UserContribution[] = [];
-            for (let i = 0; i < voters.length; i++) {
-              // Get additional voter stats
-              try {
-                const voterStats = await projectContract.getVoterStats(voters[i]);
-                const [weight, totalVotes, isRegistered] = voterStats;
-                
-                contributions.push({
-                  address: voters[i],
-                  role: isRegistered ? 'contributor' : 'observer',
-                  votesCount: Number(voteCounts[i]) || Number(totalVotes) || 0,
-                  joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000), // Estimate
-                  lastActivity: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000), // Estimate
-                  reputation: Math.min(100, Math.max(50, Number(weight) || 50))
-                });
-                
-              } catch (statsError) {
-                console.warn(`⚠️ Could not get stats for voter ${voters[i]}:`, statsError);
-                
-                // Fallback to basic record
-                contributions.push({
-                  address: voters[i],
-                  role: 'contributor',
-                  votesCount: Number(voteCounts[i]) || 0,
-                  joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-                  lastActivity: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-                  reputation: Number(weights[i]) || 50
-                });
-              }
-            }
-            
-            return contributions;
-          }
-        }
-      } catch (methodError) {
-        console.log('📝 Project user contributions delegation not available yet, using placeholder data');
-      }
-      
-      // Return empty array for now - will be populated when delegation is working
-      console.log('📝 No user contributions available yet via delegation - contracts may need to be linked');
-      return [];
-      
-    } catch (error) {
-      console.error('Failed to get user contributions via Project delegation:', error);
-      return [];
-    }
+    return this.votingService.getUserContributions(projectAddress);
   }
 
-  /**
-   * Get model updates (placeholder - would integrate with ML service/IPFS)
-   */
+  async submitBatchVote(projectAddress: string, sampleIds: string[], labels: string[], userAddress: string): Promise<boolean> {
+    return this.votingService.submitBatchVote(projectAddress, sampleIds, labels, userAddress);
+  }
+
+  async getVotingSessionStatus(projectAddress: string, sampleId: string) {
+    return this.votingService.getVotingSessionStatus(projectAddress, sampleId);
+  }
+
+  async getVoterInformation(projectAddress: string) {
+    return this.votingService.getVoterInformation(projectAddress);
+  }
+
+  // =====================================================================
+  // AL-ENGINE OPERATIONS (delegated to ALEngineService)
+  // =====================================================================
+
   async getModelUpdates(projectAddress: string): Promise<ModelUpdate[]> {
-    try {
-      // In a real implementation, this would:
-      // 1. Query AL engine for model performance data
-      // 2. Read model artifacts from IPFS
-      // 3. Parse AL iteration logs
-      
-      // For now, we'll derive some data from voting history
-      const votingHistory = await this.getVotingHistory(projectAddress);
-      
-      // Group voting history by iteration
-      const iterationMap = new Map<number, VotingRecord[]>();
-      for (const record of votingHistory) {
-        const iteration = record.iterationNumber;
-        if (!iterationMap.has(iteration)) {
-          iterationMap.set(iteration, []);
-        }
-        iterationMap.get(iteration)!.push(record);
-      }
-
-      const modelUpdates: ModelUpdate[] = [];
-      
-      for (const [iteration, records] of iterationMap.entries()) {
-        if (records.length === 0) continue;
-        
-        // Calculate basic metrics from consensus
-        const consensusReached = records.filter(r => r.consensusReached).length;
-        const accuracy = consensusReached / records.length;
-        
-        const modelUpdate: ModelUpdate = {
-          iterationNumber: iteration,
-          timestamp: new Date(Math.max(...records.map(r => r.timestamp.getTime()))),
-          performance: {
-            accuracy: Math.round(accuracy * 100) / 100,
-            precision: Math.round((accuracy + Math.random() * 0.1 - 0.05) * 100) / 100,
-            recall: Math.round((accuracy + Math.random() * 0.1 - 0.05) * 100) / 100,
-            f1Score: Math.round((accuracy + Math.random() * 0.05) * 100) / 100
-          },
-          samplesAddedCount: records.length,
-          notes: `Iteration ${iteration}: ${consensusReached}/${records.length} samples reached consensus`
-        };
-        
-        modelUpdates.push(modelUpdate);
-      }
-
-      return modelUpdates.sort((a, b) => b.iterationNumber - a.iterationNumber);
-    } catch (error) {
-      console.error('Failed to get model updates:', error);
-      return [];
-    }
+    const votingHistory = await this.getVotingHistory(projectAddress);
+    return this.alEngineService.getModelUpdates(projectAddress, votingHistory);
   }
 
-  /**
-   * Get current active voting session from Project (which manages AL contracts internally)
-   */
+  async triggerPythonALEngine(projectId: string, iteration: number, alConfig: any) {
+    return this.alEngineService.triggerPythonALEngine(projectId, iteration, alConfig);
+  }
+
+  // =====================================================================
+  // PROJECT STATUS & SMART CONTRACT OPERATIONS
+  // =====================================================================
+
   async getActiveVoting(projectAddress: string): Promise<ActiveVoting | null> {
     try {
-      console.log('🗳️ Getting active voting via Project for:', projectAddress);
-      
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
-      try {
-        // Try to get active voting through Project contract first
-        const activeVoting = await projectContract.getActiveVoting();
-        
-        if (activeVoting && activeVoting.sampleId) {
-          console.log(`🗳️ Found active voting session via Project contract: ${activeVoting.sampleId}`);
-          
-          // Return the actual sample data if available
-          const sampleData = this.getSampleDataById(activeVoting.sampleId);
-          if (sampleData) {
-            return {
-              sampleId: activeVoting.sampleId,
-              sampleData: sampleData,
-              labelOptions: activeVoting.labelOptions || ['positive', 'negative'],
-              currentVotes: activeVoting.currentVotes || {},
-              timeRemaining: Number(activeVoting.timeRemaining) || 3600,
-              voters: activeVoting.voters || []
-            };
-          } else {
-            console.warn('📝 No sample data found for active voting session, returning placeholder');
-            return {
-              sampleId: activeVoting.sampleId,
-              sampleData: 'Sample data for voting (placeholder)',
-              labelOptions: activeVoting.labelOptions || ['positive', 'negative'],
-              currentVotes: activeVoting.currentVotes || {},
-              timeRemaining: Number(activeVoting.timeRemaining) || 3600,
-              voters: activeVoting.voters || []
-            };
-          }
-        } else {
-          console.log('📝 No active voting session found via Project contract');
-        }
-      } catch (methodError) {
-        console.log('📝 Project getActiveVoting method not available yet:', methodError instanceof Error ? methodError.message : 'Unknown error');
+      // Check if project has AL contracts
+      const hasALContracts = await projectContract.hasALContracts();
+      if (!hasALContracts) {
+        return null;
       }
+
+      const currentBatch = await projectContract.getCurrentBatchProgress();
       
-      // FALLBACK: Check stored AL samples only if Project contract doesn't have active voting
-      const storedSamples = this.currentALSamples.get(projectAddress);
-      if (storedSamples && storedSamples.length > 0) {
-        console.log('🔄 No contract-level active voting found, checking stored AL samples');
-        
-        console.log(`📊 Found ${storedSamples.length} stored AL samples, creating fallback active voting session`);
-        
-        // Create a sample ID for the first unlabeled sample
-        const firstSample = storedSamples[0];
-        const sampleId = `sample_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        // Store this mapping for voting
-        this.sampleIdToDataMap.set(sampleId, firstSample);
-        
-        console.log(`📊 Created fallback active voting session for stored sample: ${sampleId}`);
-        
-        // Determine if this is an iris sample and set appropriate label options
-        const isIrisSample = firstSample && 
-          typeof firstSample === 'object' && 
-          'sepal length (cm)' in firstSample;
-        
-        const labelOptions = isIrisSample 
-          ? ['setosa', 'versicolor', 'virginica']
-          : (firstSample.metadata?.label_space || ['positive', 'negative']);
-        
-        console.log(`🌸 Sample type: ${isIrisSample ? 'Iris flower' : 'Generic'}, labels: ${labelOptions}`);
-        
-        return {
-          sampleId: sampleId,
-          sampleData: firstSample,
-          labelOptions: labelOptions,
-          currentVotes: {},
-          timeRemaining: 3600, // 1 hour default
-          voters: []
-        };
+      if (!currentBatch.batchActive) {
+        return null;
       }
-    
-      // No active voting found anywhere
-      console.log('📝 No active voting session found (contract or stored samples)');
-      return null;
+
+      const activeBatch = await projectContract.getActiveBatch();
+      if (!activeBatch.sampleIds || activeBatch.sampleIds.length === 0) {
+        return null;
+      }
+
+      // For batch voting, return the first active sample as representative
+      const sampleId = activeBatch.sampleIds[0];
+      const sampleData = this.getSampleDataById(sampleId) || { sampleId, data: 'Sample data' };
       
+      return {
+        sampleId,
+        sampleData,
+        labelOptions: activeBatch.labelOptions,
+        currentVotes: {},
+        timeRemaining: Number(activeBatch.timeRemaining),
+        voters: []
+      };
     } catch (error) {
-      console.error('❌ Error getting active voting:', error);
+      console.error('Error getting active voting:', error);
       return null;
     }
   }
 
-  /**
-   * Get current project iteration status and state
-   */
   async getProjectStatus(projectAddress: string): Promise<{
     currentIteration: number;
     maxIterations: number;
@@ -444,40 +144,25 @@ export class ALContractService {
     try {
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
-      // Get currentRound directly (it's a public variable)
       const currentRound = await projectContract.currentRound();
-      
-      // Get project metadata for max iterations
       const metadata = await projectContract.getProjectMetadata();
-      
-      // Get active voting session
       const activeVoting = await this.getActiveVoting(projectAddress);
 
-      // Check if project is active by trying to get basic info
       let isActive = true;
       try {
-        // Try to get project info if method exists
-        const projectInfo = await projectContract.getProjectInfo();
-        isActive = projectInfo.isActive;
-      } catch (error) {
-        // Method doesn't exist, check isActive directly
-        try {
-          isActive = await projectContract.isActive();
-        } catch (activeError) {
-          console.log('📝 isActive method not available, assuming project is active');
-          isActive = true;
-        }
+        isActive = await projectContract.isActive();
+      } catch (activeError) {
+        console.log('📝 isActive method not available, assuming project is active');
       }
 
       return {
         currentIteration: Number(currentRound),
-        maxIterations: Number(metadata._maxIteration || 10),
+        maxIterations: Number(metadata._maxIteration) || 10,
         isActive,
         activeVoting
       };
-      
     } catch (error) {
-      console.error('Failed to get project status:', error);
+      console.error('Error getting project status:', error);
       return {
         currentIteration: 0,
         maxIterations: 10,
@@ -487,796 +172,177 @@ export class ALContractService {
     }
   }
 
-  /**
-   * Start next AL iteration following the complete flow:
-   * 1. Trigger AL-Engine to query new samples
-   * 2. Start batch voting for those samples (regardless of batch size)
-   * 3. Set up event listeners for completion
-   * Only communicates with Project
-   */
   async startNextIteration(projectAddress: string, userAddress: string): Promise<boolean> {
     try {
-      console.log('🚀 Starting next AL iteration via Project for project:', projectAddress);
+      console.log(`🚀 Starting next AL iteration for project ${projectAddress}`);
       
-      // Get current round directly from Project contract
+      // Get project metadata for AL configuration
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
-      const currentRound = await projectContract.currentRound();
-      const nextIteration = Number(currentRound) + 1;
-      
-      console.log(`📊 Starting AL iteration ${nextIteration} (current: ${currentRound})`);
-
-      // Check iteration limits
       const metadata = await projectContract.getProjectMetadata();
-      const maxIterations = Number(metadata._maxIteration || 10);
-      if (nextIteration > maxIterations) {
-        throw new Error(`Maximum iterations (${maxIterations}) reached`);
+      const currentRound = await projectContract.currentRound();
+      const iterationNumber = Number(currentRound) + 1;
+
+      console.log(`🔬 Current round: ${currentRound}, starting iteration: ${iterationNumber}`);
+
+      // Trigger AL-Engine with sample generation
+      const alResult = await this.triggerALEngineWithSampleGeneration(
+        projectAddress, 
+        iterationNumber, 
+        metadata
+      );
+
+      if (!alResult.success) {
+        console.error('❌ AL-Engine execution failed:', alResult.error);
+        return false;
       }
 
-      // Get signer for transaction
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
-      
-      // Use the actual signer address instead of strict validation
-      const signerAddress = await signer.getAddress();
-      console.log(`🔐 Using signer address: ${signerAddress} (provided: ${userAddress})`);
-      // Note: Removed strict validation to handle wallet connection edge cases
-
-      // **STEP 1: Trigger AL-Engine to generate sample queries**
-      console.log('🤖 Step 1: Triggering AL-Engine for sample generation...');
-      const alResult = await this.triggerALEngineWithSampleGeneration(projectAddress, nextIteration, metadata);
-      
-      if (!alResult.success || !alResult.sampleIds || alResult.sampleIds.length === 0) {
-        throw new Error(`AL-Engine failed to generate samples: ${alResult.error}`);
-      }
-
-      const sampleIds = alResult.sampleIds;
-      const batchSize = sampleIds.length;
-      console.log(`🎯 AL-Engine generated ${batchSize} samples for voting:`, sampleIds);
-
-      // **IMPORTANT: Store the actual AL samples for the labeling interface**
-      if (alResult.queriedSamples && alResult.queriedSamples.length > 0) {
-        console.log('💾 Storing AL samples for labeling interface...');
-        this.storeALSamplesForLabeling(projectAddress, sampleIds, alResult.queriedSamples);
-        
-        // Debug: Log sample data structure
-        console.log('📋 Sample data structure:', {
-          sampleCount: alResult.queriedSamples.length,
-          firstSample: alResult.queriedSamples[0],
-          sampleFields: Object.keys(alResult.queriedSamples[0] || {})
-        });
-      }
-
-      // **STEP 2: Always use batch voting (even for batch size 1)**
-      console.log(`🗳️  Step 2: Starting batch voting session for ${batchSize} sample(s)...`);
-      const projectWithSigner = new ethers.Contract(projectAddress, Project.abi, signer);
-      
-      try {
-        // Try to call the enhanced batch voting function
-        const tx = await projectWithSigner.startBatchVoting(sampleIds);
-        await tx.wait();
-        
-        console.log(`✅ Batch voting started for Round ${nextIteration} with ${batchSize} sample(s)`);
-        console.log(`📋 Batch details: ${batchSize === 1 ? 'Single sample batch' : 'Multi-sample batch'}`);
-      } catch (batchError) {
-        console.warn('⚠️ Batch voting not available, falling back to individual sessions');
-        
-        // Fallback: Start individual voting sessions for each sample
-        for (let i = 0; i < sampleIds.length; i++) {
-          const sampleId = sampleIds[i];
-          try {
-            const tx = await projectWithSigner.startVotingSession(sampleId);
-            await tx.wait();
-            console.log(`✅ Individual voting session started for sample ${i + 1}/${sampleIds.length}: ${sampleId}`);
-          } catch (individualError) {
-            console.error(`❌ Failed to start voting for sample ${sampleId}:`, individualError);
-          }
-        }
-        
-        console.log(`✅ Fallback voting sessions started for ${batchSize} sample(s)`);
-        console.log(`📝 Project should emit VotingSessionStarted events for DAL to listen to`);
-      }
-
-      // **STEP 3: Set up event listeners for completion (via Project)**
-      this.setupProjectEventListeners(projectAddress, nextIteration, sampleIds);
-
-      return true;
-      
-    } catch (error) {
-      console.error('❌ Failed to start AL iteration via Project:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Submit batch vote for multiple samples - this is now the ONLY voting method!
-   * Works for batch size 1 or more, providing consistency and simplification
-   */
-  async submitBatchVote(projectAddress: string, sampleIds: string[], labels: string[], userAddress: string): Promise<boolean> {
-    try {
-      console.log(`🗳️ Submitting BATCH vote (${sampleIds.length} samples) via Project:`, { projectAddress, sampleIds, labels, userAddress });
-      
-      // Validate inputs
-      if (sampleIds.length !== labels.length) {
-        throw new Error('Sample IDs and labels arrays must have the same length');
-      }
-      
-      if (sampleIds.length === 0) {
-        throw new Error('No samples provided for batch voting');
-      }
-      
-      // Get signer for transaction
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
-      
-      // Use the actual signer address
-      const signerAddress = await signer.getAddress();
-      console.log(`🔐 Using signer address for batch vote: ${signerAddress} (provided: ${userAddress})`);
-      
-      // Check voter registration status (informational)
-      try {
-        const votingContractAddress = await projectContract.votingContract();
-        if (votingContractAddress && votingContractAddress !== ethers.ZeroAddress) {
-          const votingContract = new ethers.Contract(
-            votingContractAddress, 
-            ['function voterWeights(address) view returns (uint256)'], 
-            provider
-          );
-          const currentWeight = await votingContract.voterWeights(signerAddress);
-          
-          if (currentWeight === BigInt(0)) {
-            console.log('ℹ️ User will be auto-registered as voter (first-time batch voting)');
-          } else {
-            console.log(`ℹ️ User already registered with weight: ${currentWeight}`);
-          }
-        }
-      } catch (checkError) {
-        console.log('ℹ️ Could not check voter registration status (proceeding with batch vote)');
-      }
-
-      // Submit batch vote through Project (Project will handle auto-registration and AL contract interaction)
-      const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
-      console.log(`📤 Submitting ${batchType} vote for ${sampleIds.length} samples - Project will auto-register if needed...`);
-      const tx = await projectContract.submitBatchVote(sampleIds, labels);
-      console.log('📡 Batch vote transaction submitted via Project:', tx.hash);
-      
-      // Wait for confirmation
-      const receipt = await tx.wait();
-      console.log('✅ Batch vote confirmed in block:', receipt.blockNumber);
-      console.log('🎉 Batch vote successfully processed (including any auto-registration)');
-      
-      // Handle local session completion for all samples
-      for (let i = 0; i < sampleIds.length; i++) {
-        await this.handleVoteSubmissionComplete(projectAddress, sampleIds[i], labels[i]);
-      }
-      
+      console.log('✅ AL iteration started successfully');
       return true;
     } catch (error) {
-      console.error('❌ Failed to submit batch vote via Project:', error);
-      
-      // Provide helpful error messages
-      if (error instanceof Error) {
-        if (error.message.includes('Mismatched arrays')) {
-          throw new Error('The number of samples and labels must match.');
-        } else if (error.message.includes('Sample not active for voting')) {
-          throw new Error('One or more samples are not currently active for voting.');
-        } else if (error.message.includes('Already voted')) {
-          throw new Error('You have already voted on one or more of these samples.');
-        } else if (error.message.includes('user rejected')) {
-          throw new Error('Transaction was rejected. Please try again.');
-        }
-      }
-      
-      throw error;
+      console.error('❌ Failed to start next iteration:', error);
+      return false;
     }
   }
 
-  /**
-   * End project - deactivate and finalize
-   */
-  async endProject(projectAddress: string, userAddress: string): Promise<boolean> {
-    try {
-      console.log('🏁 Ending AL project:', projectAddress);
-      
-      // Get signer for transaction
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
-      
-      // Use the actual signer address for authorization
-      const signerAddress = await signer.getAddress();
-      console.log(`🔐 Using signer address for project end: ${signerAddress} (provided: ${userAddress})`);
-
-      // Check if user is the project creator/coordinator
-      const projectInfo = await projectContract.getProjectInfo();
-      if (projectInfo.creator.toLowerCase() !== signerAddress.toLowerCase()) {
-        throw new Error('Only project coordinator can end the project');
-      }
-
-      // Deactivate project
-      const tx = await projectContract.deactivateProject();
-      console.log('📡 Project deactivation transaction submitted:', tx.hash);
-      
-      // Wait for confirmation
-      const receipt = await tx.wait();
-      console.log('✅ Project ended successfully in block:', receipt.blockNumber);
-      
-      // Notify orchestration server to cleanup/finalize
-      await this.notifyProjectEnd(projectAddress);
-      
-      return true;
-    } catch (error) {
-      console.error('❌ Failed to end project:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Remove orchestration server notification (not needed for local mode)
-   */
-  private async notifyProjectEnd(projectAddress: string): Promise<void> {
-    console.log('📢 Project ended - triggering cleanup procedures');
-    
-    // In integrated mode, we handle project termination seamlessly
-    try {
-      console.log('✅ Project terminated successfully - no additional cleanup required');
-    } catch (error) {
-      console.warn('⚠️ Project termination warning:', error);
-    }
-  }
-
-  /**
-   * Trigger AL-Engine to generate samples for voting
-   * Returns sample IDs that need to be labeled
-   */
   private async triggerALEngineWithSampleGeneration(
     projectAddress: string, 
     iterationNumber: number, 
     metadata: any
   ): Promise<{success: boolean, sampleIds?: string[], queriedSamples?: any[], error?: string}> {
     try {
-      console.log('🤖 Generating AL samples for iteration', iterationNumber);
-      
-      // Create AL configuration
+      // Trigger Python AL-Engine
       const alConfig = {
-        project_id: projectAddress,
-        iteration: iterationNumber,
-        query_strategy: metadata._queryStrategy || 'uncertainty_sampling',
-        scenario: metadata._alScenario || 'pool_based',
-        max_iterations: Number(metadata._maxIteration) || 10,
-        query_batch_size: Number(metadata._queryBatchSize) || 2,
-        label_space: metadata._labelSpace || ['positive', 'negative'],
-        computation_mode: 'local',
-        timestamp: new Date().toISOString()
+        n_queries: Number(metadata._queryBatchSize) || 2,
+        query_strategy: metadata._queryStrategy || 'uncertainty_sampling',  
+        label_space: metadata._labelSpace || ['positive', 'negative']
       };
 
-      // Execute AL-Engine to generate sample queries
-      const alResult = await this.executeLocalALEngine(alConfig);
+      const pythonResult = await this.triggerPythonALEngine(projectAddress, iterationNumber, alConfig);
       
-      if (alResult.success && alResult.queriedSamples) {
-        // Generate sample IDs for voting
-        const sampleIds = alResult.queriedSamples.map((sample: any, index: number) => 
-          `sample_${iterationNumber}_${index + 1}_${Date.now()}`
-        );
-        
-        console.log(`🎯 Generated ${sampleIds.length} samples for voting:`, sampleIds);
-        
-        // Store sample data locally for now (skip storage contract call)
-        console.log('📦 Sample data generated and ready for voting');
-        
-        return { success: true, sampleIds, queriedSamples: alResult.queriedSamples };
+      if (!pythonResult.success) {
+        console.error('❌ Python AL-Engine failed:', pythonResult.error);
+        return { success: false, error: pythonResult.error };
       }
+
+      console.log('✅ Python AL-Engine completed successfully');
+
+      // Read actual samples from generated file
+      const realSamples = await this.alEngineService.readQuerySamplesFromFile(projectAddress, iterationNumber);
       
-      return { success: false, error: 'AL-Engine failed to generate samples' };
+      if (realSamples.length === 0) {
+        return { success: false, error: 'No samples generated by AL-Engine' };
+      }
+
+      // Generate sample IDs
+      const timestamp = Date.now();
+      const sampleIds = realSamples.map((_: any, index: number) => 
+        `sample_${iterationNumber}_${index + 1}_${timestamp}`
+      );
+
+      console.log(`📊 Generated ${sampleIds.length} samples for iteration ${iterationNumber}`);
+
+      // Store samples for labeling
+      this.storeALSamplesForLabeling(projectAddress, sampleIds, realSamples);
+
+      // Setup event listeners and start batch voting
+      this.setupProjectEventListeners(projectAddress, iterationNumber, sampleIds);
+
+      // Start batch voting in smart contract
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
+      const tx = await projectContract.startBatchVoting(sampleIds);
+      await tx.wait();
+
+      console.log('✅ Batch voting started on blockchain');
+
+      return { 
+        success: true, 
+        sampleIds, 
+        queriedSamples: realSamples 
+      };
     } catch (error) {
-      console.error('❌ Failed to generate AL samples:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      console.error('❌ Error in AL-Engine sample generation:', error);
+      return { success: false, error: String(error) };
     }
   }
 
-  /**
-   * Set up event listeners for project events (via Project only)
-   */
   private setupProjectEventListeners(projectAddress: string, round: number, sampleIds: string[]): void {
     try {
-      console.log(`👂 Setting up Project event listeners for Round ${round}`);
-      
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
-      
-      // Try to listen to actual Project events
-      try {
-        // Listen for VotingSessionStarted events from Project
-        projectContract.on('VotingSessionStarted', (sampleId: string, round: number) => {
-          console.log(`🗳️ Project: Voting session started for sample ${sampleId} in Round ${round}`);
-          // UI can refresh to show active voting
-          window.dispatchEvent(new CustomEvent('dal-voting-started', {
-            detail: { round, sampleId }
-          }));
-        });
 
-        // Listen for VotingSessionEnded events from Project  
-        projectContract.on('VotingSessionEnded', (sampleId: string, finalLabel: string, round: number) => {
+      const votingSessionEndedFilter = projectContract.filters.VotingSessionEnded();
+      const batchCompletedFilter = projectContract.filters.ALBatchCompleted();
+
+      console.log(`🎧 Setting up event listeners for project ${projectAddress}, round ${round}`);
+
+      // Listen for individual voting session completions
+      projectContract.on(votingSessionEndedFilter, (sampleId, finalLabel, currentRound, timestamp) => {
+        if (Number(currentRound) === round) {
           console.log(`✅ Project: Voting session ended for sample ${sampleId} with label ${finalLabel}`);
           
-          // For single-sample batches, clear stored samples immediately to prevent continued voting
-          if (sampleIds.length === 1) {
-            console.log('🧹 Single-sample batch detected, clearing stored samples immediately');
-            this.clearStoredALSamples(projectAddress);
-          }
-          
-          window.dispatchEvent(new CustomEvent('dal-sample-completed', {
-            detail: { round, sampleId, finalLabel, remaining: 0, total: sampleIds.length }
-          }));
-        });
-
-        // Listen for ALBatchCompleted events from Project
-        projectContract.on('ALBatchCompleted', (round: number, completedSamples: number) => {
-          console.log(`🎉 Project: Batch completed for Round ${round} with ${completedSamples} samples`);
-          
-          // Clear stored AL samples when the entire batch is complete
-          this.clearStoredALSamples(projectAddress);
-          
-          window.dispatchEvent(new CustomEvent('dal-iteration-completed', {
-            detail: { 
-              round, 
-              projectAddress, 
-              labeledSamples: completedSamples,
-              message: 'Current AL iteration is done'
-            }
-          }));
-        });
-
-        console.log(`✅ Project event listeners set up for Round ${round}`);
-        
-      } catch (eventError) {
-        console.log('📝 Project events not available in current deployment');
-        console.log('⚠️  Labeling will work when Project is updated with proper events');
-        
-        // For now, show a message that the feature is pending contract update
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('dal-pending-contract-update', {
-            detail: { 
-              message: 'Voting interface pending Project contract update',
-              missingEvents: ['VotingSessionStarted', 'VotingSessionEnded', 'ALBatchCompleted']
-            }
-          }));
-        }, 1000);
-      }
-      
-    } catch (error) {
-      console.error('❌ Failed to set up project event listeners:', error);
-    }
-  }
-
-  /**
-   * Execute local AL-Engine using actual Python/CWL coordination
-   * Triggers the real AL-Engine to generate actual samples for labeling
-   */
-  private async executeLocalALEngine(config: any): Promise<{success: boolean, queriedSamples?: any[], error?: string}> {
-    try {
-      console.log('🤖 Executing AL-Engine with real coordination...');
-      
-      const projectId = config.project_id;
-      const iteration = config.iteration;
-      const batchSize = config.query_batch_size || 2;
-      
-      // Step 1: Prepare AL-Engine configuration
-      const alEngineConfig = {
-        project_id: projectId,
-        iteration: iteration,
-        query_strategy: config.query_strategy || 'uncertainty_sampling',
-        scenario: config.scenario || 'pool_based',
-        max_iterations: config.max_iterations || 10,
-        n_queries: batchSize,
-        label_space: config.label_space || ['positive', 'negative']
-      };
-      
-      // Step 2: Save configuration to al-engine directory
-      const configPath = `al-engine/ro-crates/${projectId}/config.json`;
-      console.log(`💾 Saving AL config to: ${configPath}`);
-      
-      try {
-        // In a real implementation, we would write the config file
-        // For now, log the configuration that would be used
-        console.log('📋 AL-Engine Configuration:', alEngineConfig);
-      } catch (configError) {
-        console.warn('⚠️ Could not save AL config file:', configError);
-      }
-      
-      // Step 3: Execute AL-Engine Python script
-      console.log('🐍 Triggering AL-Engine Python script...');
-      
-      try {
-        // This would execute: python al-engine/main.py --project_id <project_id> --config <config_path> --iteration <iteration>
-        const alEngineResult = await this.triggerPythonALEngine(projectId, iteration, alEngineConfig);
-        
-        if (alEngineResult.success && alEngineResult.queriedSamples) {
-          console.log('✅ AL-Engine execution successful');
-          
-          // Use the real iris samples directly from AL-Engine
-          console.log(`🌸 Using ${alEngineResult.queriedSamples.length} real iris samples from AL-Engine`);
-          return {
-            success: true, 
-            queriedSamples: alEngineResult.queriedSamples 
-          };
-        } else if (alEngineResult.success && alEngineResult.queryIndices) {
-          console.log('✅ AL-Engine execution successful (indices only)');
-          
-          // Step 4: Load the actual queried samples from the dataset using indices
-          const actualSamples = await this.loadQueriedSamplesFromDataset(
-            projectId, 
-            alEngineResult.queryIndices, 
-            alEngineConfig
-          );
-
-          return {
-            success: true, 
-            queriedSamples: actualSamples 
-          };
-        } else {
-          console.error('❌ AL-Engine execution failed:', alEngineResult.error);
-          return { 
-            success: false, 
-            error: alEngineResult.error || 'No query indices or samples returned' 
-          };
+          // Trigger custom event for UI updates
+          const event = new CustomEvent('dal-sample-completed', {
+            detail: { projectAddress, sampleId, finalLabel, round: Number(currentRound) }
+          });
+          window.dispatchEvent(event);
         }
-        
-      } catch (executionError) {
-        console.error('❌ Failed to execute AL-Engine:', executionError);
-        
-        // Fallback: Generate samples based on actual dataset if available
-        console.log('🔄 Falling back to dataset-based sample generation...');
-        const fallbackSamples = await this.generateSamplesFromDataset(projectId, batchSize, alEngineConfig);
-        
-        if (fallbackSamples.length > 0) {
-          return { 
-            success: true, 
-            queriedSamples: fallbackSamples 
-          };
-        } else {
-          return { 
-            success: false, 
-            error: 'AL-Engine failed and no dataset available for fallback' 
-          };
-        }
-      }
-      
-    } catch (error) {
-      console.error('❌ Failed to execute AL-Engine coordination:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      };
-    }
-  }
-
-  /**
-   * Trigger the Python AL-Engine via HTTP API
-   */
-  private async triggerPythonALEngine(projectId: string, iteration: number, alConfig: any): Promise<{success: boolean, queryIndices?: number[], queriedSamples?: any[], error?: string}> {
-    try {
-      console.log(`🌐 Triggering Python AL-Engine via HTTP API for project ${projectId}, iteration ${iteration}`);
-      
-      const alEngineUrl = config.alEngine.apiUrl || 'http://localhost:5050'; // AL-Engine API server
-      
-      // Step 1: Check if AL-Engine server is running
-      try {
-        const healthResponse = await fetch(`${alEngineUrl}/health`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (!healthResponse.ok) {
-          throw new Error(`AL-Engine health check failed: ${healthResponse.status}`);
-        }
-        
-        const healthData = await healthResponse.json();
-        console.log('✅ AL-Engine server is healthy:', healthData);
-        
-      } catch (healthError) {
-        console.error('❌ AL-Engine server is not running or unreachable:', healthError);
-        console.log('💡 Please start AL-Engine server with:');
-        console.log(`   cd al-engine && python main.py --project_id ${projectId} --config ro-crates/${projectId}/config.json --server --port 5050`);
-        
-        // Fall back to simulation but include real samples if available
-        const fallbackResult = this.fallbackToSimulation(alConfig, iteration);
-        const realSamples = await this.readQuerySamplesFromFile(projectId, iteration);
-        return { 
-          ...fallbackResult, 
-          queriedSamples: realSamples.length > 0 ? realSamples : undefined 
-        };
-      }
-      
-      // Step 2: Send start_iteration request
-      const requestData = {
-        iteration: iteration,
-        project_id: projectId,
-        config_override: {
-          n_queries: alConfig.n_queries || 2,
-          query_strategy: alConfig.query_strategy || 'uncertainty_sampling',
-          label_space: alConfig.label_space || ['positive', 'negative']
-        }
-      };
-      
-      console.log('📤 Sending start_iteration request to AL-Engine API...');
-      console.log('📋 Request data:', requestData);
-      
-      const startResponse = await fetch(`${alEngineUrl}/start_iteration`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
       });
-      
-      if (!startResponse.ok) {
-        const errorData = await startResponse.json();
-        throw new Error(`AL-Engine API error: ${errorData.error || startResponse.statusText}`);
-      }
-      
-      const resultData = await startResponse.json();
-      console.log('✅ AL-Engine API response:', resultData);
-      
-      if (resultData.success && resultData.result) {
-        // After successful AL-Engine execution, read the actual query samples from the generated file
-        console.log('📁 AL-Engine completed, reading actual iris samples from output file...');
-        const realSamples = await this.readQuerySamplesFromFile(projectId, iteration);
-        
-        if (realSamples.length > 0) {
-          console.log(`✅ Successfully loaded ${realSamples.length} real iris samples`);
-          console.log('🌸 First sample from file:', realSamples[0]);
+
+      // Listen for complete batch completion
+      projectContract.on(batchCompletedFilter, (completedRound, completedSamples, timestamp) => {
+        if (Number(completedRound) === round) {
+          console.log(`🎉 Project: Batch ${completedRound} completed with ${completedSamples} samples`);
           
-          // Extract query indices for backward compatibility (though we have the real samples now)
-          const queryIndices = realSamples.map((sample: any, index: number) => 
-            sample.original_index !== undefined ? sample.original_index : index
-          );
-          
-          return {
-            success: true,
-            queryIndices: queryIndices,
-            queriedSamples: realSamples  // The actual iris samples!
-          };
-        } else {
-          // Fallback to extracting indices if samples file not available
-          const queryIndices = this.extractQueryIndicesFromResult(resultData.result);
-          console.log(`⚠️ No samples file found, using query indices: [${queryIndices.join(', ')}]`);
-          
-          return {
-            success: true,
-            queryIndices: queryIndices
-          };
+          // Trigger custom event for UI updates
+          const event = new CustomEvent('dal-iteration-completed', {
+            detail: { projectAddress, round: Number(completedRound), completedSamples: Number(completedSamples) }
+          });
+          window.dispatchEvent(event);
         }
-      } else {
-        console.error('❌ AL-Engine API returned failure:', resultData.error);
-        return {
-          success: false,
-          error: resultData.error || 'AL-Engine API returned failure'
-        };
-      }
-      
+      });
+
     } catch (error) {
-      console.error('❌ Failed to communicate with AL-Engine API:', error);
-      console.log('🔄 Falling back to real samples if available...');
-      
-      // Try to get real samples even if API failed
-      const realSamples = await this.readQuerySamplesFromFile(projectId, iteration);
-      if (realSamples.length > 0) {
-        console.log(`✅ Found ${realSamples.length} real samples despite API failure`);
-        const queryIndices = realSamples.map((sample: any, index: number) => 
-          sample.original_index !== undefined ? sample.original_index : index
-        );
-        return {
-          success: true,
-          queryIndices: queryIndices,
-          queriedSamples: realSamples
-        };
-      }
-      
-      // Final fallback to simulation
-      return this.fallbackToSimulation(alConfig, iteration);
+      console.error('❌ Error setting up event listeners:', error);
     }
   }
 
-  /**
-   * Extract query indices from AL-Engine result
-   */
-  private extractQueryIndicesFromResult(result: any): number[] {
+  async endProject(projectAddress: string, userAddress: string): Promise<boolean> {
     try {
-      // Check different possible locations for query indices
-      if (result.outputs && result.outputs.query_indices) {
-        // If it's a file path, we can't read it from browser, so simulate
-        console.log('📁 Query indices available as file:', result.outputs.query_indices);
-        const batchSize = 2; // Default batch size
-        return Array.from({ length: batchSize }, (_, i) => i);
-      }
+      console.log(`🏁 Ending project ${projectAddress}`);
       
-      if (result.query_indices) {
-        return Array.isArray(result.query_indices) ? result.query_indices : [result.query_indices];
-      }
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
-      if (result.queriedSamples) {
-        return result.queriedSamples.map((_: any, index: number) => index);
-      }
+      const tx = await projectContract.deactivateProject();
+      await tx.wait();
       
-      // Default fallback
-      console.log('⚠️ No query indices found in result, using default indices');
-      return [0, 1]; // Default 2 samples
-      
+      console.log('✅ Project ended successfully');
+      await this.notifyProjectEnd(projectAddress);
+      return true;
     } catch (error) {
-      console.error('❌ Error extracting query indices:', error);
-      return [0, 1]; // Default fallback
+      console.error('❌ Failed to end project:', error);
+      return false;
     }
   }
 
-  /**
-   * Fallback to simulation when AL-Engine API is not available
-   */
-  private fallbackToSimulation(alConfig: any, iteration: number): {success: boolean, queryIndices: number[], error?: string} {
-    console.log('🔄 Using simulation fallback for AL-Engine');
+  private async notifyProjectEnd(projectAddress: string): Promise<void> {
+    // Clear stored samples
+    this.clearStoredALSamples(projectAddress);
     
-    const batchSize = alConfig.n_queries || 2;
-    const simulatedIndices = Array.from({ length: batchSize }, (_, i) => i + (iteration - 1) * batchSize);
-    
-    console.log(`🎯 Simulated query indices: [${simulatedIndices.join(', ')}]`);
-    
-    return {
-      success: true,
-      queryIndices: simulatedIndices
-    };
+    // Trigger custom event for UI cleanup
+    const event = new CustomEvent('dal-project-ended', {
+      detail: { projectAddress }
+    });
+    window.dispatchEvent(event);
   }
 
-  /**
-   * Load actual sample data using query indices from the dataset
-   */
-  private async loadQueriedSamplesFromDataset(projectId: string, queryIndices: number[], alConfig: any): Promise<any[]> {
-    try {
-      console.log(`📊 Loading actual samples from dataset using indices: [${queryIndices.join(', ')}]`);
-      
-      // In a real implementation, this would:
-      // 1. Read from al-engine/ro-crates/<projectId>/inputs/datasets/<dataset.csv>
-      // 2. Extract the rows corresponding to queryIndices
-      // 3. Return the actual sample data for labeling
-      
-      const expectedDatasetPath = `al-engine/ro-crates/${projectId}/inputs/datasets/`;
-      console.log(`🔍 Loading from dataset path: ${expectedDatasetPath}`);
-      
-      // For now, generate realistic sample data based on the indices
-      const actualSamples = queryIndices.map((index, i) => ({
-        index: index,
-        features: `Actual sample data from row ${index} of the dataset`,
-        text: `This is the actual text content from dataset row ${index}. Query strategy: ${alConfig.query_strategy}`,
-        metadata: {
-          dataset_index: index,
-          query_strategy: alConfig.query_strategy,
-          iteration: alConfig.iteration,
-          uncertainty_score: 0.8 + (Math.random() * 0.2), // Realistic uncertainty
-          batch_position: i + 1,
-          batch_size: queryIndices.length,
-          label_space: alConfig.label_space,
-          generated_at: new Date().toISOString(),
-          source: 'actual_dataset'
-        }
-      }));
-      
-      console.log(`✅ Loaded ${actualSamples.length} actual samples from dataset`);
-      return actualSamples;
-      
-    } catch (error) {
-      console.error('❌ Failed to load samples from dataset:', error);
-      return [];
-    }
-  }
+  // =====================================================================
+  // ENHANCED PROJECT STATUS (preserving original comprehensive method)
+  // =====================================================================
 
-  /**
-   * Fallback: Generate samples from actual dataset files if AL-Engine fails
-   */
-  private async generateSamplesFromDataset(projectId: string, batchSize: number, alConfig: any): Promise<any[]> {
-    try {
-      console.log(`🔄 Generating fallback samples from dataset for project ${projectId}`);
-      
-      // This would read from the actual CSV files in al-engine/ro-crates/<projectId>/inputs/datasets/
-      // and return real sample data for labeling
-      
-      const fallbackSamples = Array.from({ length: batchSize }, (_, i) => ({
-        index: i,
-        features: `Real dataset sample ${i + 1} (fallback mode)`,
-        text: `This is actual content from the dataset, sample ${i + 1}. Strategy: ${alConfig.query_strategy}`,
-        metadata: {
-          query_strategy: alConfig.query_strategy,
-          iteration: alConfig.iteration,
-          uncertainty_score: Math.random(),
-          batch_position: i + 1,
-          batch_size: batchSize,
-          label_space: alConfig.label_space,
-          generated_at: new Date().toISOString(),
-          source: 'dataset_fallback'
-        }
-      }));
-      
-      console.log(`🔄 Generated ${fallbackSamples.length} fallback samples from dataset`);
-      return fallbackSamples;
-      
-    } catch (error) {
-      console.error('❌ Failed to generate fallback samples:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Read actual query samples from the JSON file generated by AL-Engine
-   */
-  private async readQuerySamplesFromFile(projectId: string, iteration: number): Promise<any[]> {
-    try {
-      console.log(`📁 Reading real query samples for project ${projectId}, iteration ${iteration}`);
-      
-      // Construct the path to the actual query samples file
-      const samplesPath = `al-engine/ro-crates/${projectId}/outputs/query_samples_round_${iteration}.json`;
-      console.log(`🔍 Looking for samples file: ${samplesPath}`);
-      
-      // In a browser environment, we can't directly read files from filesystem
-      // So we'll make a request to a local file server or use the AL-Engine API to serve the file
-      try {
-        // Try to fetch the file content via local file server
-        const fileResponse = await fetch(`http://localhost:3001/read-file?path=${encodeURIComponent(samplesPath)}`);
-        
-        if (fileResponse.ok) {
-          const samplesData = await fileResponse.json();
-          console.log(`✅ Successfully read ${samplesData.length} real samples from file`);
-          console.log('🌸 First sample from file:', samplesData[0]);
-          return samplesData;
-        }
-      } catch (fileError) {
-        console.warn('⚠️ Local file server not available, falling back to AL-Engine API');
-      }
-      
-      // Fallback: Try to get the samples from AL-Engine API
-      try {
-        const alEngineUrl = config.alEngine.apiUrl || 'http://localhost:5050';
-        const apiResponse = await fetch(`${alEngineUrl}/results/${iteration}?project_id=${projectId}`);
-        
-        if (apiResponse.ok) {
-          const apiData = await apiResponse.json();
-          if (apiData.query_samples && Array.isArray(apiData.query_samples)) {
-            console.log(`✅ Got ${apiData.query_samples.length} samples from AL-Engine API`);
-            return apiData.query_samples;
-          }
-        }
-      } catch (apiError) {
-        console.warn('⚠️ AL-Engine API not available for results');
-      }
-      
-      // Last fallback: Return empty array
-      console.warn(`⚠️ Could not read query samples for iteration ${iteration}`);
-      return [];
-      
-    } catch (error) {
-      console.error('❌ Failed to read query samples from file:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Handle completion of a vote submission
-   */
-  private async handleVoteSubmissionComplete(projectAddress: string, sampleId: string, label: string): Promise<void> {
-    try {
-      console.log(`✅ Vote submitted for sample: ${sampleId} with label: ${label}`);
-      
-      // Project should emit VotingSessionEnded event
-      // DAL will listen to that event rather than handling completion here
-      console.log('📝 Waiting for Project to emit VotingSessionEnded event...');
-      
-    } catch (error) {
-      console.error('❌ Failed to handle vote submission completion:', error);
-    }
-  }
-
-  /**
-   * Get active batch for batch voting UI - returns all samples to vote on at once
-   */
   async getActiveBatch(projectAddress: string): Promise<{
     sampleIds: string[];
     sampleData: any[];
@@ -1286,61 +352,45 @@ export class ALContractService {
     batchSize: number;
   } | null> {
     try {
-      console.log('🗳️ Getting active batch for simultaneous voting:', projectAddress);
-      
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
-      try {
-        // Get active batch from Project contract
-        const [sampleIds, sampleData, labelOptions, timeRemaining, round] = 
-          await projectContract.getActiveBatch();
-        
-        if (sampleIds.length === 0) {
-          console.log('📝 No active batch found');
-          return null;
-        }
-        
-        console.log(`🗳️ Found active batch with ${sampleIds.length} samples for simultaneous voting`);
-        
-        // Get actual sample data from stored AL samples if available
-        const actualSampleData = [];
-        for (let i = 0; i < sampleIds.length; i++) {
-          const storedData = this.getSampleDataById(sampleIds[i]);
-          if (storedData) {
-            actualSampleData.push(storedData);
-          } else {
-            // Fallback to contract-provided data
-            actualSampleData.push({
-              sampleId: sampleIds[i],
-              data: sampleData[i] || `Sample ${i + 1}`,
-              placeholder: true
-            });
-          }
-        }
-        
-        return {
-          sampleIds: sampleIds,
-          sampleData: actualSampleData,
-          labelOptions: labelOptions,
-          timeRemaining: Number(timeRemaining),
-          round: Number(round),
-          batchSize: sampleIds.length
-        };
-        
-      } catch (methodError) {
-        console.log('📝 Project getActiveBatch method not available yet:', methodError instanceof Error ? methodError.message : 'Unknown error');
+      // Check if project has AL contracts
+      const hasALContracts = await projectContract.hasALContracts();
+      if (!hasALContracts) {
+        console.log('📝 Project has no AL contracts');
         return null;
       }
+
+      // Get active batch from Project contract
+      const activeBatch = await projectContract.getActiveBatch();
       
+      if (!activeBatch.sampleIds || activeBatch.sampleIds.length === 0) {
+        console.log('📝 No active batch found');
+        return null;
+      }
+
+      console.log(`📊 Active batch found with ${activeBatch.sampleIds.length} samples`);
+
+      // Get sample data for each sample
+      const sampleData = activeBatch.sampleIds.map((sampleId: string) => {
+        const storedData = this.getSampleDataById(sampleId);
+        return storedData || { sampleId, data: `Sample data for ${sampleId}` };
+      });
+
+      return {
+        sampleIds: activeBatch.sampleIds,
+        sampleData: sampleData,
+        labelOptions: activeBatch.labelOptions,
+        timeRemaining: Number(activeBatch.timeRemaining),
+        round: Number(activeBatch.round),
+        batchSize: activeBatch.sampleIds.length
+      };
     } catch (error) {
-      console.error('❌ Error getting active batch:', error);
+      console.error('Could not fetch active batch:', error);
       return null;
     }
   }
 
-  /**
-   * Get comprehensive project status including AL configuration and batch progress
-   */
   async getEnhancedProjectStatus(projectAddress: string): Promise<{
     // Basic project info
     isActive: boolean;
@@ -1382,155 +432,74 @@ export class ALContractService {
     };
   }> {
     try {
-      const contract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
-      // Get basic project status
-      const [isActive, created, modified, creator] = await contract.getProjectStatus();
-      
-      // Get AL configuration
-      const [queryStrategy, alScenario, maxIteration, currentRound, queryBatchSize, votingTimeout, labelSpace] = 
-        await contract.getALConfiguration();
-      
-      // Get current batch progress from Project contract
-      const [batchRound, totalSamples, activeSamplesCount, completedSamples, sampleIds, batchActive] = 
-        await contract.getCurrentBatchProgress();
-      
-      // Get member information
-      const [memberAddresses, roles, weights, joinTimestamps] = await contract.getAllMembers();
-      
-      // Get active voting session if any
+      // Get basic project info
+      const isActive = await projectContract.getIsActive();
+      const alConfig = await projectContract.getALConfiguration();
+      const currentBatch = await projectContract.getCurrentBatchProgress();
+      const participants = await projectContract.getAllParticipants();
+
+      // Try to get active batch if available
       let activeVoting;
-      const [activeVotingSampleId, sampleData, labelOptions, timeRemaining, voters] = 
-        await contract.getActiveVoting();
-      
-      if (activeVotingSampleId && activeVotingSampleId !== '') {
-        // Get current votes from voting contract if available
-        const votingContract = await contract.votingContract();
-        let currentVotes: Record<string, number> = {};
-        
-        if (votingContract && votingContract !== ethers.ZeroAddress) {
-          try {
-            const votingContractInstance = new ethers.Contract(votingContract, ALProjectVoting.abi, this.provider);
-            const [labels, voteCounts, voteWeights] = await votingContractInstance.getVotingDistribution(activeVotingSampleId);
-            
-            for (let i = 0; i < labels.length; i++) {
-              currentVotes[labels[i] as string] = Number(voteCounts[i]);
-            }
-          } catch (error) {
-            console.warn('Could not fetch voting distribution:', error);
-          }
+      try {
+        const activeBatch = await projectContract.getActiveBatch();
+        if (activeBatch.sampleIds && activeBatch.sampleIds.length > 0) {
+          const sampleId = activeBatch.sampleIds[0];
+          const sampleData = this.getSampleDataById(sampleId) || { sampleId, data: 'Sample data' };
+          
+          activeVoting = {
+            sampleId,
+            sampleData,
+            labelOptions: activeBatch.labelOptions,
+            timeRemaining: Number(activeBatch.timeRemaining),
+            currentVotes: {}
+          };
         }
-        
-        activeVoting = {
-          sampleId: activeVotingSampleId,
-          sampleData: JSON.parse(sampleData || '{}'),
-          labelOptions: labelOptions,
-          timeRemaining: Number(timeRemaining),
-          currentVotes
-        };
+      } catch (error) {
+        console.log('📝 No active voting session');
       }
-      
+
       return {
+        // Basic project info
         isActive,
-        currentIteration: Number(currentRound),
-        maxIterations: Number(maxIteration),
-        queryStrategy,
-        alScenario,
-        queryBatchSize: Number(queryBatchSize),
-        votingTimeout: Number(votingTimeout),
-        labelSpace: labelSpace,
+        currentIteration: Number(alConfig._currentRound),
+        maxIterations: Number(alConfig._maxIteration) || 10,
+        
+        // AL Configuration  
+        queryStrategy: alConfig._queryStrategy || 'uncertainty_sampling',
+        alScenario: alConfig._alScenario || 'pool_based',
+        queryBatchSize: Number(alConfig._queryBatchSize) || 2,
+        votingTimeout: Number(alConfig._votingTimeout) || 3600,
+        labelSpace: alConfig._labelSpace || [],
+        
+        // Current batch info
         currentBatch: {
-          round: Number(batchRound),
-          totalSamples: Number(totalSamples),
-          activeSamples: Number(activeSamplesCount),
-          completedSamples: Number(completedSamples),
-          sampleIds: sampleIds,
-          batchActive: batchActive
+          round: Number(currentBatch.round),
+          totalSamples: Number(currentBatch.totalSamples),
+          activeSamples: Number(currentBatch.activeSamplesCount),
+          completedSamples: Number(currentBatch.completedSamples),
+          sampleIds: currentBatch.sampleIds,
+          batchActive: currentBatch.batchActive
         },
+        
+        // Member info
         members: {
-          addresses: memberAddresses,
-          roles: roles,
-          weights: weights.map((w: any) => Number(w)),
-          joinTimestamps: joinTimestamps.map((t: any) => Number(t))
+          addresses: participants.participantAddresses,
+          roles: participants.roles,
+          weights: participants.weights.map((w: any) => Number(w)),
+          joinTimestamps: participants.joinTimestamps.map((t: any) => Number(t))
         },
+        
+        // Active voting (if any)
         activeVoting
       };
-      
     } catch (error) {
-      console.error('Failed to get enhanced project status:', error);
+      console.error('Error getting enhanced project status:', error);
       throw error;
     }
   }
 
-  /**
-   * Get detailed voting session status from ALProjectVoting contract
-   */
-  async getVotingSessionStatus(projectAddress: string, sampleId: string): Promise<{
-    isActive: boolean;
-    isFinalized: boolean;
-    finalLabel: string;
-    startTime: number;
-    timeRemaining: number;
-    votedCount: number;
-    totalVoters: number;
-    round: number;
-    labelDistribution: { label: string; votes: number; weights: number }[];
-  } | null> {
-    try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
-      const votingContractAddress = await projectContract.votingContract();
-      
-      if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
-        return null;
-      }
-      
-      const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
-      
-      // Get session status
-      const [isActive, isFinalized, finalLabel, startTime, timeRemaining, votedCount, totalVoters] = 
-        await votingContract.getVotingSessionStatus(sampleId);
-      
-      // Get session details including round
-      const [sessionStartTime, sessionIsActive, sessionIsFinalized, sessionFinalLabel] = 
-        await votingContract.getVotingSession(sampleId);
-      
-      // Get voting distribution
-      const [labels, voteCounts, voteWeights] = await votingContract.getVotingDistribution(sampleId);
-      
-      const labelDistribution = [];
-      for (let i = 0; i < labels.length; i++) {
-        labelDistribution.push({
-          label: labels[i],
-          votes: Number(voteCounts[i]),
-          weights: Number(voteWeights[i])
-        });
-      }
-      
-      // Get round from voting sessions mapping (we need to add this to the contract)
-      // For now, get it from current round
-      const round = await votingContract.currentRound();
-      
-      return {
-        isActive: isActive,
-        isFinalized: isFinalized,
-        finalLabel: finalLabel,
-        startTime: Number(startTime),
-        timeRemaining: Number(timeRemaining),
-        votedCount: Number(votedCount),
-        totalVoters: Number(totalVoters),
-        round: Number(round),
-        labelDistribution
-      };
-      
-    } catch (error) {
-      console.error('Failed to get voting session status:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Get batch progress from ALProjectVoting contract
-   */
   async getBatchProgressFromVotingContract(projectAddress: string): Promise<{
     round: number;
     isActive: boolean;
@@ -1540,73 +509,32 @@ export class ALContractService {
   } | null> {
     try {
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
-      const votingContractAddress = await projectContract.votingContract();
       
-      if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
+      const hasALContracts = await projectContract.hasALContracts();
+      if (!hasALContracts) {
         return null;
       }
+
+      const votingContract = await projectContract.votingContract();
+      const votingContractInstance = new ethers.Contract(votingContract, ALProjectVoting.abi, this.provider);
       
-      const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
-      
-      const [round, isActive, totalSamples, completedSamples, sampleIds] = 
-        await votingContract.getCurrentBatchProgress();
+      const batchProgress = await votingContractInstance.getCurrentBatchProgress();
       
       return {
-        round: Number(round),
-        isActive: isActive,
-        totalSamples: Number(totalSamples),
-        completedSamples: Number(completedSamples),
-        sampleIds: sampleIds
+        round: Number(batchProgress.round),
+        isActive: batchProgress.isActive,
+        totalSamples: Number(batchProgress.totalSamples),
+        completedSamples: Number(batchProgress.completedSamples),
+        sampleIds: batchProgress.sampleIds
       };
       
     } catch (error) {
-      console.error('Failed to get batch progress from voting contract:', error);
+      console.error('Error getting batch progress from voting contract:', error);
       return null;
     }
   }
 
-  /**
-   * Get voter information from ALProjectVoting contract
-   */
-  async getVoterInformation(projectAddress: string): Promise<{
-    voters: { address: string; weight: number }[];
-    currentUserWeight: number;
-    isCurrentUserRegistered: boolean;
-  }> {
-    try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
-      const votingContractAddress = await projectContract.votingContract();
-      
-      if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
-        return { voters: [], currentUserWeight: 0, isCurrentUserRegistered: false };
-      }
-      
-      const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
-      
-      // Get all voters
-      const voterList = await votingContract.getVoterList();
-      const voters = voterList.map((voter: any) => ({
-        address: voter.addr,
-        weight: Number(voter.weight)
-      }));
-      
-      // Get current user's weight
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
-      const currentUserAddress = await signer.getAddress();
-      const currentUserWeight = await votingContract.voterWeights(currentUserAddress);
-      
-      return {
-        voters,
-        currentUserWeight: Number(currentUserWeight),
-        isCurrentUserRegistered: Number(currentUserWeight) > 0
-      };
-      
-    } catch (error) {
-      console.error('Failed to get voter information:', error);
-      return { voters: [], currentUserWeight: 0, isCurrentUserRegistered: false };
-    }
-  }
 }
 
+// Export singleton instance
 export const alContractService = ALContractService.getInstance(); 

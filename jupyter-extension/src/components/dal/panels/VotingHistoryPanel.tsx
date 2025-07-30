@@ -1,9 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { VotingHistoryPanelProps } from './PanelTypes';
+import { VotingService, VotingRecord } from '../services/VotingService';
 
 export const VotingHistoryPanel: React.FC<VotingHistoryPanelProps> = ({
-  votingHistory
+  votingHistory: propVotingHistory,
+  projectAddress
 }) => {
+  const [votingHistory, setVotingHistory] = useState<VotingRecord[]>(propVotingHistory || []);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const votingService = new VotingService();
+
+  useEffect(() => {
+    if (projectAddress) {
+      fetchVotingHistory();
+    }
+  }, [projectAddress]);
+
+  const fetchVotingHistory = async () => {
+    if (!projectAddress) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('🔍 Fetching voting history for project:', projectAddress);
+      const history = await votingService.getVotingHistory(projectAddress);
+      setVotingHistory(history);
+      console.log(`✅ Loaded ${history.length} voting records`);
+    } catch (error) {
+      console.error('❌ Failed to fetch voting history:', error);
+      setError('Failed to load voting history');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatTimeAgo = (date: Date): string => {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -26,11 +59,51 @@ export const VotingHistoryPanel: React.FC<VotingHistoryPanelProps> = ({
   return (
     <div className="voting-history-panel">
       <div className="panel-header">
-        <h3>Voting History</h3>
-        <p>All samples with their voting statistics and final labels</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3>Voting History</h3>
+            <p>All samples with their voting statistics and final labels</p>
+          </div>
+          <button
+            onClick={fetchVotingHistory}
+            disabled={loading}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: loading ? '#ccc' : '#007acc',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}
+          >
+            {loading ? '⚙️ Loading...' : '🔄 Refresh'}
+          </button>
+        </div>
       </div>
       <div className="history-list">
-        {votingHistory.length > 0 ? (
+        {loading ? (
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚙️</div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
+              Loading Voting History...
+            </div>
+            <div style={{ color: '#666', fontSize: '14px' }}>
+              This might take a moment depending on the network.
+            </div>
+          </div>
+        ) : error ? (
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+            <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
+              Error: {error}
+            </div>
+            <div style={{ color: '#666', fontSize: '14px' }}>
+              Please check the console for more details.
+            </div>
+          </div>
+        ) : votingHistory.length > 0 ? (
           votingHistory.map(record => (
             <div key={record.sampleId} className="history-item" style={{
               border: '1px solid #d1d5db',

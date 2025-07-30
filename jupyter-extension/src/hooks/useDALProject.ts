@@ -397,8 +397,8 @@ export const useDALProject = (projectAddress?: string) => {
       // Import ALContractService
       const { alContractService } = await import('../components/dal/services/ALContractService');
       
-      // Submit vote using the contract service
-      const success = await alContractService.submitVote(projectAddress, sampleId, label, account);
+      // Submit vote using the contract service (now batch-only)
+      const success = await alContractService.submitBatchVote(projectAddress, [sampleId], [label], account);
       
       if (success) {
         // Reload project data to reflect the vote

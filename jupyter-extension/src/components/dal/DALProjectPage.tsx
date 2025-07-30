@@ -712,6 +712,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             currentUser={currentUser}
             isCoordinator={isCoordinator}
             votingHistory={votingHistory}
+            projectAddress={project.contractAddress}
             onRefresh={handleRefreshData}
             onError={setError}
           />
