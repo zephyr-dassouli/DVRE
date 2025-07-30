@@ -68,28 +68,52 @@ export class ALContractService {
   }
 
   /**
-   * Store AL samples with their corresponding sample IDs for labeling interface
+   * Store AL samples for labeling interface and map to project
    */
   private storeALSamplesForLabeling(projectAddress: string, sampleIds: string[], queriedSamples: any[]): void {
-    console.log('💾 Storing AL samples for labeling interface...');
+    console.log(`📝 Storing ${queriedSamples.length} AL samples for project ${projectAddress}`);
     
-    // Store samples by project
+    // Store samples by project address
     this.currentALSamples.set(projectAddress, queriedSamples);
     
-    // Map each sample ID to its data
-    for (let i = 0; i < sampleIds.length && i < queriedSamples.length; i++) {
-      const sampleId = sampleIds[i];
-      const sampleData = queriedSamples[i];
-      this.sampleIdToDataMap.set(sampleId, sampleData);
-      
-      console.log(`📋 Mapped sample ID ${sampleId} to data:`, {
-        index: sampleData.index,
-        features: sampleData.features?.substring(0, 50) + '...',
-        source: sampleData.metadata?.source
-      });
+    // Map sample IDs to their data for quick lookup
+    for (let i = 0; i < sampleIds.length; i++) {
+      if (queriedSamples[i]) {
+        this.sampleIdToDataMap.set(sampleIds[i], queriedSamples[i]);
+        console.log(`🔗 Mapped sample ${sampleIds[i]} to dataset index ${queriedSamples[i]?.original_index || i}`);
+      }
     }
     
-    console.log(`✅ Stored ${sampleIds.length} samples for labeling`);
+    console.log(`✅ Stored ${queriedSamples.length} samples and ${sampleIds.length} sample mappings for labeling`);
+  }
+
+  /**
+   * Clear stored AL samples for a project (called when voting sessions end)
+   */
+  private clearStoredALSamples(projectAddress: string): void {
+    console.log(`🧹 Clearing stored AL samples for project ${projectAddress}`);
+    
+    // Clear stored samples for this project
+    const samples = this.currentALSamples.get(projectAddress);
+    if (samples) {
+      console.log(`📝 Removed ${samples.length} stored samples`);
+      this.currentALSamples.delete(projectAddress);
+    }
+    
+    // Clear related sample mappings (optional - they'll be overwritten next time)
+    let clearedMappings = 0;
+    for (const [sampleId] of this.sampleIdToDataMap.entries()) {
+      if (sampleId.includes(projectAddress.slice(-8))) { // Basic project matching
+        this.sampleIdToDataMap.delete(sampleId);
+        clearedMappings++;
+      }
+    }
+    
+    if (clearedMappings > 0) {
+      console.log(`🔗 Cleared ${clearedMappings} sample ID mappings`);
+    }
+    
+    console.log(`✅ Cleared all stored data for project ${projectAddress}`);
   }
 
   /**
@@ -325,24 +349,25 @@ export class ALContractService {
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
       try {
-        // Try to get active voting through Project
+        // Try to get active voting through Project contract first
         const activeVoting = await projectContract.getActiveVoting();
         
         if (activeVoting && activeVoting.sampleId) {
-          console.log(`🗳️ Found active voting session via Project: ${activeVoting.sampleId}`);
+          console.log(`🗳️ Found active voting session via Project contract: ${activeVoting.sampleId}`);
+          
           // Return the actual sample data if available
           const sampleData = this.getSampleDataById(activeVoting.sampleId);
           if (sampleData) {
             return {
               sampleId: activeVoting.sampleId,
-              sampleData: sampleData, // Return the actual sample for now, or all if needed
+              sampleData: sampleData,
               labelOptions: activeVoting.labelOptions || ['positive', 'negative'],
               currentVotes: activeVoting.currentVotes || {},
               timeRemaining: Number(activeVoting.timeRemaining) || 3600,
               voters: activeVoting.voters || []
             };
           } else {
-            console.warn('📝 No AL samples found for active voting session, returning placeholder data.');
+            console.warn('📝 No sample data found for active voting session, returning placeholder');
             return {
               sampleId: activeVoting.sampleId,
               sampleData: 'Sample data for voting (placeholder)',
@@ -352,15 +377,19 @@ export class ALContractService {
               voters: activeVoting.voters || []
             };
           }
+        } else {
+          console.log('📝 No active voting session found via Project contract');
         }
       } catch (methodError) {
-        console.log('📝 Project active voting method not available yet');
+        console.log('📝 Project getActiveVoting method not available yet:', methodError instanceof Error ? methodError.message : 'Unknown error');
       }
       
-      // If smart contract method is not available, check if we have stored AL samples waiting to be labeled
+      // FALLBACK: Check stored AL samples only if Project contract doesn't have active voting
       const storedSamples = this.currentALSamples.get(projectAddress);
       if (storedSamples && storedSamples.length > 0) {
-        console.log('🔄 Smart contract active voting not available, but found stored AL samples');
+        console.log('🔄 No contract-level active voting found, checking stored AL samples');
+        
+        console.log(`📊 Found ${storedSamples.length} stored AL samples, creating fallback active voting session`);
         
         // Create a sample ID for the first unlabeled sample
         const firstSample = storedSamples[0];
@@ -369,7 +398,7 @@ export class ALContractService {
         // Store this mapping for voting
         this.sampleIdToDataMap.set(sampleId, firstSample);
         
-        console.log(`📊 Created active voting session for stored sample: ${sampleId}`);
+        console.log(`📊 Created fallback active voting session for stored sample: ${sampleId}`);
         
         // Determine if this is an iris sample and set appropriate label options
         const isIrisSample = firstSample && 
@@ -392,13 +421,13 @@ export class ALContractService {
         };
       }
     
-      // Return null for now - will be populated when Project has the method or AL samples are available
-      console.log('📝 No active voting session found and no stored AL samples');
+      // No active voting found anywhere
+      console.log('📝 No active voting session found (contract or stored samples)');
       return null;
       
     } catch (error) {
-      console.error('Failed to get active voting via Project:', error);
-        return null;
+      console.error('❌ Error getting active voting:', error);
+      return null;
     }
   }
 
@@ -757,6 +786,13 @@ export class ALContractService {
         // Listen for VotingSessionEnded events from Project  
         projectContract.on('VotingSessionEnded', (sampleId: string, finalLabel: string, round: number) => {
           console.log(`✅ Project: Voting session ended for sample ${sampleId} with label ${finalLabel}`);
+          
+          // For single-sample batches, clear stored samples immediately to prevent continued voting
+          if (sampleIds.length === 1) {
+            console.log('🧹 Single-sample batch detected, clearing stored samples immediately');
+            this.clearStoredALSamples(projectAddress);
+          }
+          
           window.dispatchEvent(new CustomEvent('dal-sample-completed', {
             detail: { round, sampleId, finalLabel, remaining: 0, total: sampleIds.length }
           }));
@@ -765,6 +801,10 @@ export class ALContractService {
         // Listen for ALBatchCompleted events from Project
         projectContract.on('ALBatchCompleted', (round: number, completedSamples: number) => {
           console.log(`🎉 Project: Batch completed for Round ${round} with ${completedSamples} samples`);
+          
+          // Clear stored AL samples when the entire batch is complete
+          this.clearStoredALSamples(projectAddress);
+          
           window.dispatchEvent(new CustomEvent('dal-iteration-completed', {
             detail: { 
               round, 

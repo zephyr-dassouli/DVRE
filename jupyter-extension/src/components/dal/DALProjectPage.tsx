@@ -74,6 +74,10 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         completedSamples: total - remaining,
         currentSampleIndex: prev.currentSampleIndex + 1
       } : null);
+      
+      // FIXED: Force refresh project data when sample completes to update activeVoting state
+      console.log('🔄 Sample completed, triggering project data refresh to clear activeVoting');
+      triggerRefresh();
     };
 
     // Listen for iteration completion events

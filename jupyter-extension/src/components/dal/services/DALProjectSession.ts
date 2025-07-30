@@ -55,6 +55,7 @@ export interface SessionState {
     completedSamples: number;
     currentSampleIndex: number;
     sampleIds: string[];
+    round: number; // FIXED: Made round required for proper tracking
   };
   querySamples?: QuerySample[];
   error?: string;
@@ -119,6 +120,13 @@ export class DALProjectSession extends EventEmitter {
       console.log(`🚀 Starting AL iteration ${nextIteration}`);
       const samples = await this.startNextIteration(nextIteration);
       
+      // Step 2: Start batch voting on smart contracts (this increments currentRound in Project)
+      await this.startBatchVoting(samples);
+      
+      // Step 3: Get the updated round number from Project contract after voting started
+      const actualRound = await this.getCurrentIterationFromContract();
+      console.log(`🔄 Synchronized round: AL iteration ${nextIteration} → Project round ${actualRound}`);
+      
       this.updateState({
         phase: 'voting',
         querySamples: samples,
@@ -126,16 +134,14 @@ export class DALProjectSession extends EventEmitter {
           totalSamples: samples.length,
           completedSamples: 0,
           currentSampleIndex: 0,
-          sampleIds: samples.map((_, index) => `sample_${nextIteration}_${index}`)
+          sampleIds: samples.map((_, index) => `sample_${nextIteration}_${index}_${Date.now()}`),
+          round: actualRound // FIXED: Use actual round from Project contract
         }
       });
 
       this.emit('samples-generated', samples);
 
-      // Step 2: Start batch voting on smart contracts
-      await this.startBatchVoting(samples);
-
-      console.log(`✅ AL iteration ${nextIteration} workflow started`);
+      console.log(`✅ AL iteration ${nextIteration} workflow started (Project round ${actualRound})`);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to start iteration';
@@ -432,13 +438,13 @@ export class DALProjectSession extends EventEmitter {
   private setupContractEventListeners(): void {
     console.log('📡 Setting up smart contract event listeners');
 
-    // Listen for voting session started events
+    // Listen for voting session started events - FIXED: Use correct event names
     const onVotingStarted = (event: any) => {
-      console.log('📢 Voting session started:', event);
+      const { round, sampleId } = event.detail || event;
+      console.log('📢 Voting session started:', { round, sampleId });
       
       if (this.state.batchProgress && this.state.querySamples) {
         const currentSample = this.state.querySamples[this.state.batchProgress.currentSampleIndex];
-        const sampleId = this.state.batchProgress.sampleIds[this.state.batchProgress.currentSampleIndex];
         
         this.emit('voting-started', sampleId, currentSample);
       }
@@ -452,19 +458,20 @@ export class DALProjectSession extends EventEmitter {
       this.emit('vote-submitted', sampleId, voter, label);
     };
 
-    // Listen for voting session ended events (sample completed)
+    // Listen for voting session ended events (sample completed) - FIXED: Use correct event name
     const onVotingEnded = async (event: any) => {
-      const { sampleId, finalLabel } = event.detail || event;
-      console.log('📢 Voting session ended:', { sampleId, finalLabel });
+      const { round, sampleId, finalLabel } = event.detail || event;
+      console.log('📢 Voting session ended:', { round, sampleId, finalLabel });
       
       this.emit('sample-completed', sampleId, finalLabel);
       
-      // Update batch progress
+      // Update batch progress with round synchronization
       if (this.state.batchProgress) {
         const updatedProgress = {
           ...this.state.batchProgress,
           completedSamples: this.state.batchProgress.completedSamples + 1,
-          currentSampleIndex: this.state.batchProgress.currentSampleIndex + 1
+          currentSampleIndex: this.state.batchProgress.currentSampleIndex + 1,
+          round: round // FIXED: Sync round number from Project contract
         };
 
         this.updateState({
@@ -478,16 +485,29 @@ export class DALProjectSession extends EventEmitter {
       }
     };
 
-    // Add event listeners
-    window.addEventListener('voting-session-started', onVotingStarted);
-    window.addEventListener('vote-submitted', onVoteSubmitted);
-    window.addEventListener('voting-session-ended', onVotingEnded);
+    // Listen for iteration completed events - NEW: Handle AL batch completion
+    const onIterationCompleted = async (event: any) => {
+      const { round, projectAddress, labeledSamples, message } = event.detail || event;
+      console.log('📢 AL iteration completed:', { round, projectAddress, labeledSamples, message });
+      
+      // Ensure batch completion is handled if not already done
+      if (this.state.phase === 'voting' || this.state.phase === 'aggregating') {
+        await this.handleBatchCompleted();
+      }
+    };
+
+    // FIXED: Add event listeners with correct event names matching ALContractService
+    window.addEventListener('dal-voting-started', onVotingStarted);
+    window.addEventListener('vote-submitted', onVoteSubmitted); // Keep this one as is
+    window.addEventListener('dal-sample-completed', onVotingEnded);
+    window.addEventListener('dal-iteration-completed', onIterationCompleted);
 
     // Store cleanup functions
     this.contractListeners = [
-      () => window.removeEventListener('voting-session-started', onVotingStarted),
+      () => window.removeEventListener('dal-voting-started', onVotingStarted),
       () => window.removeEventListener('vote-submitted', onVoteSubmitted),
-      () => window.removeEventListener('voting-session-ended', onVotingEnded)
+      () => window.removeEventListener('dal-sample-completed', onVotingEnded),
+      () => window.removeEventListener('dal-iteration-completed', onIterationCompleted)
     ];
   }
 
@@ -545,12 +565,17 @@ export class DALProjectSession extends EventEmitter {
     originalIndex: number;
   }>> {
     try {
+      console.log('📊 Collecting labeled samples from completed voting sessions');
+      
       // Get finalized labels from smart contracts
       const labeledSamples = [];
       
       if (this.state.batchProgress && this.state.querySamples) {
+        console.log(`🔍 Processing ${this.state.batchProgress.totalSamples} samples from batch`);
+        
         // Get voting history to extract final labels
         const votingHistory = await alContractService.getVotingHistory(this.state.projectId);
+        console.log(`📚 Found ${votingHistory.length} voting records in history`);
         
         for (let i = 0; i < this.state.batchProgress.totalSamples; i++) {
           const sampleId = this.state.batchProgress.sampleIds[i];
@@ -558,17 +583,34 @@ export class DALProjectSession extends EventEmitter {
           
           // Find the final label from voting history
           const votingRecord = votingHistory.find(record => record.sampleId === sampleId);
-          const finalLabel = votingRecord?.finalLabel || 'unknown';
           
-          labeledSamples.push({
-            sampleId,
-            sampleData,
-            label: finalLabel,
-            originalIndex: sampleData.original_index
-          });
+          if (votingRecord && votingRecord.finalLabel) {
+            const finalLabel = votingRecord.finalLabel;
+            console.log(`✅ Sample ${i + 1}/${this.state.batchProgress.totalSamples}: ${sampleId} → ${finalLabel}`);
+            
+            labeledSamples.push({
+              sampleId,
+              sampleData,
+              label: finalLabel,
+              originalIndex: sampleData.original_index || i
+            });
+          } else {
+            console.warn(`⚠️ No final label found for sample ${sampleId}, using fallback`);
+            
+            // Fallback: Try to get from ALContractService or use 'unknown'
+            const fallbackLabel = 'unknown';
+            
+            labeledSamples.push({
+              sampleId,
+              sampleData,
+              label: fallbackLabel,
+              originalIndex: sampleData.original_index || i
+            });
+          }
         }
       }
       
+      console.log(`📋 Collected ${labeledSamples.length} labeled samples for AL-Engine submission`);
       return labeledSamples;
       
     } catch (error) {

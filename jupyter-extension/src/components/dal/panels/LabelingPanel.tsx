@@ -132,13 +132,28 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
       <div className="panel-header">
         <h3>Sample Labeling</h3>
         <div className="iteration-info">
-          AL Iteration Round: {project.currentRound}
-          {batchProgress && (
-            <div className="batch-progress">
-              {batchProgress.totalSamples === 1 
-                ? `Sample Status: ${batchProgress.completedSamples > 0 ? 'Completed' : 'In Progress'}`
-                : `Batch Progress: ${batchProgress.completedSamples}/${batchProgress.totalSamples} samples completed`
-              }
+          {/* FIXED: Use synchronized round from batchProgress when available */}
+          {batchProgress?.round ? (
+            <div>
+              AL Iteration Round: {batchProgress.round}
+              <div className="batch-progress">
+                {batchProgress.totalSamples === 1 
+                  ? `Sample Status: ${batchProgress.completedSamples > 0 ? 'Completed' : 'In Progress'}`
+                  : `Batch Progress: ${batchProgress.completedSamples}/${batchProgress.totalSamples} samples completed`
+                }
+              </div>
+            </div>
+          ) : (
+            <div>
+              AL Iteration Round: {project.currentRound}
+              {batchProgress && (
+                <div className="batch-progress">
+                  {batchProgress.totalSamples === 1 
+                    ? `Sample Status: ${batchProgress.completedSamples > 0 ? 'Completed' : 'In Progress'}`
+                    : `Batch Progress: ${batchProgress.completedSamples}/${batchProgress.totalSamples} samples completed`
+                  }
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -178,8 +193,8 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
           <div className="batch-header">
             <h4>
               {batchProgress.totalSamples === 1 
-                ? `Sample Voting - Round ${batchProgress.round}` 
-                : `Batch Voting - Round ${batchProgress.round}`
+                ? `Sample Voting - Round ${batchProgress.round || project.currentRound}` 
+                : `Batch Voting - Round ${batchProgress.round || project.currentRound}`
               }
             </h4>
             {batchProgress.totalSamples > 1 && (
