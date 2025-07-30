@@ -1,2 +1,0 @@
-# Placeholder for trained model files
-# Models will be saved as model_round_1.pkl, model_round_2.pkl, etc.

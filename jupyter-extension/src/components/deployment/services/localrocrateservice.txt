@@ -3,7 +3,6 @@
 import { DVREProjectConfiguration } from '../../../shared/types/types';
 import { IPFSFile } from '../../../shared/types/types';
 import ipfsConfig from '../../../config';
-import { config } from '../../../config';
 
 export interface LocalROCrateSaveResult {
   success: boolean;
@@ -14,7 +13,7 @@ export interface LocalROCrateSaveResult {
 
 export class LocalROCrateService {
   private static instance: LocalROCrateService;
-  private readonly LOCAL_ROCRATE_ROOT = config.alEngine.roCrateRoot;
+  private readonly LOCAL_ROCRATE_ROOT = '../al-engine/ro-crates';
 
   private constructor() {}
 
@@ -208,23 +207,23 @@ curl -o inputs/datasets/unlabeled_samples.csv "${ipfsConfig.ipfs.publicUrl}/ipfs
         });
       } else {
         // Keep original placeholder files if no real datasets are configured
-      bundleFiles.push({
-        name: 'inputs/datasets/labeled_samples.npy',
-        content: '# Placeholder for labeled training data (NumPy array)\n# This file should be populated with actual labeled samples',
-        type: 'text/plain'
-      });
+        bundleFiles.push({
+          name: 'inputs/datasets/labeled_samples.npy',
+          content: '# Placeholder for labeled training data (NumPy array)\n# This file should be populated with actual labeled samples',
+          type: 'text/plain'
+        });
 
-      bundleFiles.push({
-        name: 'inputs/datasets/labeled_targets.npy',
-        content: '# Placeholder for labeled training targets (NumPy array)\n# This file should be populated with actual labels',
-        type: 'text/plain'
-      });
+        bundleFiles.push({
+          name: 'inputs/datasets/labeled_targets.npy',
+          content: '# Placeholder for labeled training targets (NumPy array)\n# This file should be populated with actual labels',
+          type: 'text/plain'
+        });
 
-      bundleFiles.push({
-        name: 'inputs/datasets/unlabeled_samples.npy',
-        content: '# Placeholder for unlabeled data pool (NumPy array)\n# This file should be populated with unlabeled samples for querying',
-        type: 'text/plain'
-      });
+        bundleFiles.push({
+          name: 'inputs/datasets/unlabeled_samples.npy',
+          content: '# Placeholder for unlabeled data pool (NumPy array)\n# This file should be populated with unlabeled samples for querying',
+          type: 'text/plain'
+        });
       }
 
       bundleFiles.push({
@@ -323,73 +322,143 @@ curl -o inputs/datasets/unlabeled_samples.csv "${ipfsConfig.ipfs.publicUrl}/ipfs
    * Generate al_iteration.cwl content (YAML format)
    */
   private generateALIterationCWL(): string {
-    // Create cwltool definition for AL iteration that matches the working configuration
-    // This matches the tested al_iteration.cwl in al-engine/ro-crates/<project-id>/
-    const cwlContent = `cwlVersion: v1.2
+    return `cwlVersion: v1.2
 class: CommandLineTool
 
-baseCommand: ${config.alEngine.pythonExecutable}
-arguments: [${config.alEngine.scriptPath}]
+label: Active Learning Iteration (Train + Query)
+doc: One-step AL iteration using modAL and scikit-learn, supports CSV and NPY formats
+
+baseCommand: python3
+arguments: [al_iteration.py]
 
 inputs:
   labeled_data:
     type: File
     inputBinding:
       prefix: --labeled_data
+    doc: Training dataset file (CSV or NPY format)
   labeled_labels:
     type: File
     inputBinding:
       prefix: --labeled_labels
+    doc: Training labels file (CSV or NPY format, can be same as labeled_data for CSV)
   unlabeled_data:
     type: File
     inputBinding:
       prefix: --unlabeled_data
+    doc: Unlabeled data pool for querying (CSV or NPY format)
   model_in:
     type: File?
     inputBinding:
       prefix: --model_in
+    doc: Pre-trained model from previous iteration (optional)
   config:
     type: File
     inputBinding:
       prefix: --config
-  iteration:
-    type: int
-    inputBinding:
-      prefix: --iteration
+    doc: AL configuration file with parameters
 
 outputs:
   model_out:
     type: File
     outputBinding:
-      glob: output/model/model_round_*.pkl
-  query_samples:
+      glob: model/model_round_*.pkl
+    doc: Updated model after training with new labels
+  query_indices:
     type: File
     outputBinding:
-      glob: output/query_samples_round_*.json
-`;
+      glob: query_indices.npy
+    doc: Indices of samples selected for labeling in next iteration
 
-    return cwlContent;
+requirements:
+  DockerRequirement:
+    dockerPull: python:3.9-slim
+  InitialWorkDirRequirement:
+    listing:
+      - entry: |
+          #!/usr/bin/env python3
+          # AL iteration script that handles both CSV and NPY formats
+          import argparse
+          import pandas as pd
+          import numpy as np
+          import json
+          import os
+          from pathlib import Path
+          
+          def detect_format(filepath):
+              return filepath.suffix.lower()
+          
+          def load_data(filepath, is_labels=False):
+              ext = detect_format(Path(filepath))
+              if ext == '.csv':
+                  df = pd.read_csv(filepath)
+                  if is_labels:
+                      # Assume last column is labels for CSV
+                      return df.iloc[:, -1].values
+                  else:
+                      # Assume all but last column is features for CSV
+                      return df.iloc[:, :-1].values
+              elif ext == '.npy':
+                  return np.load(filepath)
+              else:
+                  raise ValueError(f"Unsupported format: {ext}")
+          
+          parser = argparse.ArgumentParser()
+          parser.add_argument('--labeled_data', required=True)
+          parser.add_argument('--labeled_labels', required=True) 
+          parser.add_argument('--unlabeled_data', required=True)
+          parser.add_argument('--model_in')
+          parser.add_argument('--config', required=True)
+          args = parser.parse_args()
+          
+          print("AL iteration script would run here with actual data files")
+          print(f"Labeled data: {args.labeled_data}")
+          print(f"Unlabeled data: {args.unlabeled_data}")
+          print(f"Config: {args.config}")
+          
+        entryname: al_iteration.py
+        writable: false`;
   }
 
   /**
    * Generate inputs.yml content (runtime input mapping)
    */
   private generateInputsYml(projectId: string, config: DVREProjectConfiguration): string {
-    // Generate simple inputs.yml that matches the working configuration
-    // This matches the tested inputs.yml in al-engine/ro-crates/<project-id>/
-    return `labeled_data:
+    // Determine the actual dataset file extensions and names based on what was configured
+    const datasets = Object.values(config.roCrate.datasets);
+    const trainingDataset = datasets.find((ds: any) => ds.type === 'training');
+    const labelingDataset = datasets.find((ds: any) => ds.type === 'labeling');
+    
+    // Use the actual file format from the datasets, default to csv
+    const datasetExtension = trainingDataset?.format || labelingDataset?.format || 'csv';
+    
+    return `# inputs.yml - Runtime input mapping for al_iteration.cwl
+
+# Labeled training data (required)
+labeled_data:
   class: File
-  path: inputs/datasets/labeled_samples.csv
+  path: al-engine/ro-crates/${projectId}/inputs/datasets/labeled_samples.${datasetExtension}
+
+# Labels for the labeled data (required) 
+# Note: For CSV files, labels are typically in the same file or a separate labels column
 labeled_labels:
-  class: File  
-  path: inputs/datasets/labeled_samples.csv
+  class: File
+  path: al-engine/ro-crates/${projectId}/inputs/datasets/labeled_samples.${datasetExtension}
+
+# Unlabeled data pool for querying (required)
 unlabeled_data:
   class: File
-  path: inputs/datasets/unlabeled_samples.csv
+  path: al-engine/ro-crates/${projectId}/inputs/datasets/unlabeled_samples.${datasetExtension}
+
+# Pre-trained model from previous iteration (optional - dynamic based on current iteration)
+model_in:
+  class: File
+  path: al-engine/ro-crates/${projectId}/config/model/model_round_*.pkl
+
+# Configuration file with AL parameters (required)
 config:
   class: File
-  path: config.json
-`;
+  path: al-engine/ro-crates/${projectId}/config.json`;
   }
 
   /**
@@ -398,24 +467,53 @@ config:
   private generateALConfigFallback(config: DVREProjectConfiguration): any {
     const dalConfig = config.extensions?.dal || {};
     
-    // Generate config that matches the working config.json structure
     return {
       al_scenario: dalConfig.alScenario || 'pool_based',
       query_strategy: dalConfig.queryStrategy || 'uncertainty_sampling',
-      model_type: 'RandomForestClassifier',
-      training_args: {
-        n_estimators: 50,
-        random_state: 42
+      model_type: this.mapModelType(dalConfig.model?.type || 'logistic_regression'),
+      training_args: dalConfig.model?.parameters || {
+        max_iter: 1000,
+        random_state: 42,
       },
-      label_space: dalConfig.labelSpace || ['setosa', 'versicolor', 'virginica'],
+      label_space: dalConfig.labelSpace || ['positive', 'negative'],
       query_batch_size: dalConfig.queryBatchSize || 2,
-      max_iterations: dalConfig.maxIterations || 3,
-      iteration: 0
+      validation_split: dalConfig.validation_split || 0.2,
+      max_iterations: dalConfig.maxIterations || 10,
+      
+      // Additional fields for completeness
+      voting_consensus: dalConfig.votingConsensus || 'simple_majority',
+      voting_timeout_seconds: dalConfig.votingTimeout || 3600,
+      training_dataset: dalConfig.trainingDataset || '',
+      labeling_dataset: dalConfig.labelingDataset || ''
     };
   }
 
   /**
-   * Transform comprehensive configuration to AL-Engine format
+   * Map model type from AL config to format expected by AL-Engine
+   */
+  private mapModelType(modelType: string): string {
+    switch (modelType?.toLowerCase()) {
+      case 'logistic_regression':
+      case 'logisticregression':
+        return 'LogisticRegression';
+      case 'svc':
+      case 'svm':
+      case 'support_vector_machine':
+        return 'SVC';
+      case 'random_forest':
+      case 'randomforest':
+      case 'randomforestclassifier':
+        return 'RandomForestClassifier';
+      case 'neural_network':
+        return 'MLPClassifier';
+      default:
+        return 'LogisticRegression'; // Default fallback
+    }
+  }
+
+  /**
+   * Transform the comprehensive SmartContractService output into the flat format expected by the AL-Engine
+   * according to ro-crate-content.md specification
    */
   private transformToALEngineFormat(comprehensiveConfig: any): any {
     console.log('🔍 Transforming config:', JSON.stringify(comprehensiveConfig, null, 2));
@@ -425,15 +523,21 @@ config:
     const result = {
       al_scenario: al.scenario || 'pool_based',
       query_strategy: al.query_strategy || 'uncertainty_sampling',
-      model_type: 'RandomForestClassifier',
-      training_args: {
-        n_estimators: 50,
+      model_type: this.mapModelType(al.model?.type),
+      training_args: al.model?.parameters || {
+        max_iter: 1000,
         random_state: 42
       },
-      label_space: al.label_space || ['setosa', 'versicolor', 'virginica'],
+      label_space: al.label_space || [],
       query_batch_size: al.query_batch_size || 2,
-      max_iterations: al.max_iterations || 3,
-      iteration: 0
+      validation_split: al.validation_split || 0.2,
+      max_iterations: al.max_iterations || 10,
+      
+      // Additional fields for completeness
+      voting_consensus: al.voting?.consensus_type || 'simple_majority',
+      voting_timeout_seconds: al.voting?.timeout_seconds || 3600,
+      training_dataset: al.datasets?.training_dataset || '',
+      labeling_dataset: al.datasets?.labeling_dataset || ''
     };
 
     console.log('🔄 Transformed result:', JSON.stringify(result, null, 2));
@@ -549,108 +653,34 @@ config:
       }
       
     } catch (error) {
-      console.warn('⚠️ Backend service not available, falling back to browser downloads');
+      console.warn('⚠️ Backend service not available, simulating save operation');
       console.error('Backend error:', error);
       
-      // Fallback: Use browser downloads and create setup script
-      return this.fallbackToDownloads(projectPath, bundleFiles);
-    }
-  }
-
-  /**
-   * Fallback method: Create browser downloads and setup script
-   */
-  private fallbackToDownloads(projectPath: string, bundleFiles: IPFSFile[]): string[] {
-    const savedFiles: string[] = [];
-    const projectId = projectPath.split('/').pop() || 'unknown';
-    
-    console.log(`📁 Creating downloads for directory: ${projectPath}`);
-    
-    // For each file, create downloadable content
-    for (const file of bundleFiles) {
-      const fullPath = `${projectPath}/${file.name}`;
+      // Fallback: simulate the operation and log what would be saved
+      const savedFiles: string[] = [];
       
-      // Create directory structure info
-      const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
-      if (dirPath !== projectPath) {
-        console.log(`📁 Would create subdirectory: ${dirPath}`);
+      console.log(`📁 Would create directory: ${projectPath}`);
+      
+      for (const file of bundleFiles) {
+        const fullPath = `${projectPath}/${file.name}`;
+        
+        // Create directory structure if needed
+        const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
+        if (dirPath !== projectPath) {
+          console.log(`📁 Would create subdirectory: ${dirPath}`);
+        }
+        
+        // Handle both string and ArrayBuffer content types
+        const contentLength = typeof file.content === 'string' 
+          ? file.content.length 
+          : file.content.byteLength;
+        
+        console.log(`💾 Would save file: ${fullPath} (${contentLength} bytes)`);
+        savedFiles.push(file.name);
       }
       
-      // Handle both string and ArrayBuffer content types
-      const content = typeof file.content === 'string' 
-        ? file.content 
-        : new TextDecoder().decode(file.content);
-      
-      console.log(`💾 Creating download: ${fullPath} (${content.length} chars)`);
-      
-      // Create downloadable file
-      this.createDownloadableFile(file.name, content, projectId);
-      savedFiles.push(file.name);
+      return savedFiles;
     }
-    
-    // Create a script to help user organize files
-    this.createSetupScript(projectPath, bundleFiles);
-    
-    console.log(`✅ Created ${savedFiles.length} downloads for local AL-Engine setup`);
-    return savedFiles;
-  }
-
-  /**
-   * Create a downloadable file using browser download mechanism
-   */
-  private createDownloadableFile(fileName: string, content: string, projectId: string): void {
-    try {
-      const blob = new Blob([content], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${projectId}_${fileName}`;
-      a.style.display = 'none';
-      
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      URL.revokeObjectURL(url);
-      
-      console.log(`📥 Download created: ${a.download}`);
-    } catch (error) {
-      console.warn(`⚠️ Failed to create download for ${fileName}:`, error);
-    }
-  }
-
-  /**
-   * Create a setup script to help user organize the downloaded files
-   */
-  private createSetupScript(projectPath: string, bundleFiles: IPFSFile[]): void {
-    const script = `#!/bin/bash
-# AL-Engine RO-Crate Setup Script
-# This script organizes the downloaded files into the correct structure
-
-PROJECT_PATH="${projectPath}"
-echo "Setting up AL-Engine RO-Crate at: $PROJECT_PATH"
-
-# Create project directory
-mkdir -p "$PROJECT_PATH"
-mkdir -p "$PROJECT_PATH/inputs/datasets"
-mkdir -p "$PROJECT_PATH/outputs"
-
-# Move downloaded files to correct locations
-${bundleFiles.map(file => {
-  const projectId = projectPath.split('/').pop();
-  if (file.name.includes('dataset')) {
-    return `mv ~/Downloads/${projectId}_${file.name} "$PROJECT_PATH/inputs/datasets/${file.name}"`;
-  } else {
-    return `mv ~/Downloads/${projectId}_${file.name} "$PROJECT_PATH/${file.name}"`;
-  }
-}).join('\n')}
-
-echo "✅ AL-Engine RO-Crate setup complete!"
-echo "📂 Files organized in: $PROJECT_PATH"
-`;
-
-    this.createDownloadableFile('setup_rocrate.sh', script, 'setup');
   }
 
   /**

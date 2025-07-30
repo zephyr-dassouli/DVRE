@@ -38,8 +38,12 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
   // Trigger to force data refresh
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Use the real hooks
-  const { startNextIteration, endProject, submitVote } = useDALProject(project.contractAddress);
+  // DAL Project Session - Bridge between smart contracts and AL-Engine
+  const [dalSession, setDalSession] = useState<DALProjectSession | null>(null);
+  const [sessionState, setSessionState] = useState<SessionState | null>(null);
+
+  // Use the real hooks  
+  const { endProject } = useDALProject(project.contractAddress);
   const { account } = useAuth();
 
   const isCoordinator = project.userRole === 'coordinator';
@@ -149,9 +153,70 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     loadProjectData();
     setupBatchEventListeners();
     
+    // Create DAL session after a small delay to prevent state conflicts
+    const sessionTimer = setTimeout(() => {
+      if (currentUser) {
+        console.log('🔗 Creating DAL Project Session for:', currentUser);
+        const session = createDALProjectSession(project.contractAddress, currentUser);
+        setDalSession(session);
+
+        // Set up session event listeners
+        const handleStateChange = (newState: SessionState) => {
+          console.log('📊 Session state changed:', newState);
+          setSessionState(newState);
+          
+          if (newState.batchProgress) {
+            setBatchProgress({
+              round: project.currentRound,
+              isActive: newState.isActive,
+              totalSamples: newState.batchProgress.totalSamples,
+              completedSamples: newState.batchProgress.completedSamples,
+              sampleIds: newState.batchProgress.sampleIds,
+              currentSampleIndex: newState.batchProgress.currentSampleIndex
+            });
+          } else {
+            setBatchProgress(null);
+          }
+        };
+
+        const handleIterationComplete = (iteration: number, samplesLabeled: number) => {
+          console.log(`🎉 Iteration ${iteration} completed with ${samplesLabeled} samples`);
+          setIterationCompleted(true);
+          setIterationMessage(`AL Iteration ${iteration} completed successfully! ${samplesLabeled} samples were labeled.`);
+          
+          // Trigger data refresh after a delay
+          setTimeout(() => {
+            triggerRefresh();
+          }, 1000);
+        };
+
+        const handleSessionError = (errorMessage: string) => {
+          console.error('❌ DAL Session error:', errorMessage);
+          setError(`Session Error: ${errorMessage}`);
+        };
+
+        session.on('state-changed', handleStateChange);
+        session.on('iteration-completed', handleIterationComplete);
+        session.on('error', handleSessionError);
+
+        // Check AL-Engine health
+        session.checkALEngineHealth().catch(err => {
+          console.warn('⚠️ AL-Engine health check failed:', err);
+          setError('AL-Engine is not responsive. Please ensure it is running on localhost:5050');
+        });
+      }
+    }, 100); // Small delay to prevent state conflicts
+    
     // Cleanup event listeners on unmount
     return () => {
+      clearTimeout(sessionTimer);
       cleanupBatchEventListeners();
+      if (dalSession) {
+        console.log('🧹 Cleaning up DAL Session');
+        dalSession.removeAllListeners();
+        dalSession.endSession().catch(console.error);
+        setDalSession(null);
+      }
     };
   }, [currentUser, refreshTrigger]); // Add refreshTrigger to dependencies
 
@@ -185,53 +250,26 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     );
   }
 
-  // Load current batch progress from smart contracts
-  const loadBatchProgress = async () => {
-    try {
-      // Use existing project data instead of accessing private methods
-      // In a real implementation, this would be exposed through a public API
-      
-      // For now, simulate batch progress based on project state
-      if (project.currentRound > 0) {
-        const mockProgress = {
-          round: project.currentRound,
-          isActive: true,
-          totalSamples: 2, // From query batch size configuration
-          completedSamples: 0,
-          sampleIds: [`sample_${project.currentRound}_1`, `sample_${project.currentRound}_2`],
-          currentSampleIndex: 0
-        };
-        
-        setBatchProgress(mockProgress);
-        console.log('📊 Batch progress loaded:', mockProgress);
-      }
-      
-    } catch (error) {
-      console.error('Failed to load batch progress:', error);
-    }
-  };
-
   const handleStartNextIteration = async () => {
     if (!isCoordinator) {
       setError('Only coordinators can start iterations');
       return;
     }
 
+    if (!dalSession) {
+      setError('DAL Session not initialized. Please wait a moment and try again.');
+      return;
+    }
+
     try {
       setError(null);
       setIterationCompleted(false);
-      console.log('🚀 Starting next AL iteration with batch voting from UI');
+      console.log('🚀 Starting next AL iteration via DAL Session bridge');
       
-      // Start the enhanced AL iteration
-      await startNextIteration(project.contractAddress);
+      // Use the DAL Session bridge to orchestrate the complete workflow
+      await dalSession.startIteration();
       
-      // Fetch and set initial batch progress
-      await loadBatchProgress();
-      
-      // Trigger data refresh
-      triggerRefresh();
-      
-      console.log('✅ AL iteration with batch voting started successfully');
+      console.log('✅ AL iteration workflow started successfully via DAL Session');
       
     } catch (error) {
       console.error('❌ Failed to start next AL iteration:', error);
@@ -270,23 +308,24 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
   };
 
   const handleVoteSubmission = async (sampleId: string, label: string) => {
+    if (!dalSession) {
+      setError('DAL Session not initialized. Please wait a moment and try again.');
+      return;
+    }
+
     try {
       setError(null);
-      console.log('🗳️ Submitting vote from UI');
+      console.log('🗳️ Submitting vote via DAL Session bridge');
       
-      await submitVote(project.contractAddress, sampleId, label);
+      // Use the DAL Session bridge for vote submission
+      await dalSession.submitVote(sampleId, label);
       
-      // Reload project data to show updated voting state
-      triggerRefresh(); // Trigger data refresh
-      
-      // Show success message
-      alert('Vote submitted successfully!');
+      console.log('✅ Vote submitted successfully via DAL Session');
       
     } catch (error) {
       console.error('❌ Failed to submit vote:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to submit vote';
       setError(errorMessage);
-      alert(`Failed to submit vote: ${errorMessage}`);
     }
   };
 
@@ -416,16 +455,16 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           <span style={{ color: '#10b981', fontWeight: 'bold' }}>
             🔗 Smart Contract Data ({votingHistory.length + userContributions.length + modelUpdates.length} records)
           </span>
-          {project.activeVoting && (
+          {sessionState && (
             <>
               <span>•</span>
               <span style={{ 
-                color: project.activeVoting.timeRemaining > 0 ? '#10b981' : '#ef4444', 
+                color: sessionState.phase === 'error' ? '#ef4444' : '#10b981', 
                 fontWeight: 'bold' 
               }}>
-                🤖 AL-Engine: {project.activeVoting.timeRemaining > 0 ? 'Active' : 'Inactive'}
-                {project.activeVoting.timeRemaining > 0 && 
-                  ` (${project.activeVoting.timeRemaining / 60}m ${project.activeVoting.timeRemaining % 60}s)`
+                🤖 AL-Engine: {sessionState.phase.replace('_', ' ').toUpperCase()}
+                {sessionState.phase === 'voting' && sessionState.batchProgress && 
+                  ` (${sessionState.batchProgress.completedSamples}/${sessionState.batchProgress.totalSamples})`
                 }
               </span>
             </>

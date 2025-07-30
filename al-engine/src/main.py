@@ -24,12 +24,38 @@ class ALEngineServer:
     AL-Engine with HTTP API server for DAL communication (Local execution only)
     """
     
-    def __init__(self, project_id, config_path, port=5050):
+    def __init__(self, project_id=None, config_path=None, port=5050):
         self.project_id = project_id
         self.config_path = config_path
         self.port = port
         self.workflow_runner = WorkflowRunner()
         self.running = False
+        
+        # These will be initialized when needed via API calls
+        self.config = None
+        self.work_dir = None
+        self.signal_dir = None
+        
+        # Initialize project-specific resources if provided
+        if project_id and config_path:
+            self._initialize_project(project_id, config_path)
+        
+        # Initialize Flask app
+        self.app = Flask(__name__)
+        self.setup_routes()
+        
+        logger.info(f"AL-Engine Server initialized")
+        logger.info(f"Computation mode: local (only)")
+        logger.info(f"API server port: {port}")
+        if project_id:
+            logger.info(f"Project: {project_id}")
+        else:
+            logger.info("Server mode: waiting for project-specific API calls")
+
+    def _initialize_project(self, project_id, config_path):
+        """Initialize project-specific resources"""
+        self.project_id = project_id
+        self.config_path = config_path
         
         # Load configuration
         self.config = self._load_config()
@@ -42,14 +68,8 @@ class ALEngineServer:
         self.signal_dir = Path(f"./al-engine/ro-crates/{project_id}/signals")
         self.signal_dir.mkdir(parents=True, exist_ok=True)
         
-        # Initialize Flask app
-        self.app = Flask(__name__)
-        self.setup_routes()
-        
-        logger.info(f"AL-Engine Server initialized for project {project_id}")
-        logger.info(f"Computation mode: local (only)")
+        logger.info(f"Initialized project resources for {project_id}")
         logger.info(f"Working directory: {self.work_dir}")
-        logger.info(f"API server port: {port}")
 
     def _load_config(self):
         """Load AL configuration from file"""
@@ -236,6 +256,16 @@ class ALEngineServer:
         logger.info(f"🤖 Executing AL iteration {iteration_number} locally via API")
         
         try:
+            # Check if we need to initialize project from request data
+            project_id = request_data.get('project_id')
+            if not self.project_id and project_id:
+                # Initialize project dynamically from request
+                config_path = f"../al-engine/ro-crates/{project_id}/config.json"
+                logger.info(f"Dynamically initializing project: {project_id}")
+                self._initialize_project(project_id, config_path)
+            elif not self.project_id:
+                raise ValueError("No project_id provided in request and server not initialized with a project")
+            
             # Use the original config file - inject iteration at runtime
             original_config_file = Path(self.config_path)
             
@@ -1069,8 +1099,8 @@ class ALEngine:
 
 def main():
     parser = argparse.ArgumentParser(description="AL-Engine - Active Learning Engine (Local execution only)")
-    parser.add_argument('--project_id', type=str, required=True, help='Project identifier')
-    parser.add_argument('--config', type=str, required=True, help='AL configuration file')
+    parser.add_argument('--project_id', type=str, help='Project identifier (required for non-server modes)')
+    parser.add_argument('--config', type=str, help='AL configuration file (required for non-server modes)')
     parser.add_argument('--iteration', type=int, help='Run specific iteration (default: run all)')
     parser.add_argument('--workflow', action='store_true', help='Run full workflow')
     parser.add_argument('--service', action='store_true', help='Run in service mode (wait for DAL signals)')
@@ -1079,11 +1109,15 @@ def main():
     
     args = parser.parse_args()
     
+    # Validate required arguments for non-server modes
+    if not args.server and (not args.project_id or not args.config):
+        parser.error("--project_id and --config are required for non-server modes")
+    
     try:
         if args.server:
             # Run HTTP API server mode
             logger.info("🚀 Starting AL-Engine in HTTP API server mode...")
-            server = ALEngineServer(args.project_id, args.config, args.port)
+            server = ALEngineServer(port=args.port)
             server.start_server()
         else:
             # Initialize legacy AL-Engine
@@ -1105,7 +1139,7 @@ def main():
                 logger.error("Please specify --iteration, --workflow, --service, or --server")
                 print("\nUsage examples:")
                 print(f"  # HTTP API server mode (recommended):")
-                print(f"  python main.py --project_id <addr> --config <config.json> --server --port 5050")
+                print(f"  python main.py --server --port 5050")
                 print(f"  ")
                 print(f"  # File-based service mode:")
                 print(f"  python main.py --project_id <addr> --config <config.json> --service")

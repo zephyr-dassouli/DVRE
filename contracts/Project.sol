@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 // AL Contract Interfaces (no imports needed - just interfaces)
 interface IALProjectVoting {
     function startVotingSession(string memory sampleId) external;
-    function startBatchVoting(string[] memory sampleIds, uint256 round) external;
+    function startBatchVoting(string[] memory sampleIds, uint256 round) external; // Internal call to voting contract
     function endVotingSession(string memory sampleId) external;
     function setVoters(address[] memory _voters, uint256[] memory _weights) external;
     function projectContract() external view returns (address);
