@@ -71,6 +71,8 @@ contract ALProjectVoting {
     event BatchStarted(uint256 round, string[] sampleIds, uint256 startTime);
     event BatchCompleted(uint256 round, uint256 completedSamples, uint256 timestamp);
     event BatchSampleCompleted(uint256 round, string sampleId, string finalLabel, uint256 remainingSamples);
+    event VoterRegistered(address indexed voter, uint256 weight, uint256 timestamp);
+    event VoterUnregistered(address indexed voter, uint256 timestamp);
     
     modifier onlyProject() {
         require(msg.sender == project, "Only main project can call");
@@ -108,6 +110,42 @@ contract ALProjectVoting {
             voterWeights[_voters[i]] = _weights[i];
             voterList.push(_voters[i]);
         }
+    }
+    
+    /**
+     * @dev Allow voters to self-register with default weight of 1
+     * This enables decentralized voter registration
+     */
+    function registerAsVoter() external {
+        require(voterWeights[msg.sender] == 0, "Already registered as voter");
+        
+        // Register with default weight of 1
+        voterWeights[msg.sender] = 1;
+        voterList.push(msg.sender);
+        
+        emit VoterRegistered(msg.sender, 1, block.timestamp);
+    }
+    
+    /**
+     * @dev Allow voters to unregister themselves
+     */
+    function unregisterAsVoter() external {
+        require(voterWeights[msg.sender] > 0, "Not registered as voter");
+        
+        // Remove from voter weights
+        voterWeights[msg.sender] = 0;
+        
+        // Remove from voter list (simplified - in production might want more efficient removal)
+        for (uint256 i = 0; i < voterList.length; i++) {
+            if (voterList[i] == msg.sender) {
+                // Replace with last element and pop
+                voterList[i] = voterList[voterList.length - 1];
+                voterList.pop();
+                break;
+            }
+        }
+        
+        emit VoterUnregistered(msg.sender, block.timestamp);
     }
     
     function startVotingSession(string memory sampleId) external onlyProject {

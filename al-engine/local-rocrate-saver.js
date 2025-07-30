@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // local-rocrate-saver.js - Node.js service to save RO-Crate files locally
+// Test comment to verify edit tool functionality
 
 const fs = require('fs').promises;
 const path = require('path');
@@ -171,6 +172,45 @@ class LocalROCrateSaver {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success }));
 
+        } else if (method === 'GET' && pathname === '/read-file') {
+          // Read query samples JSON files for frontend
+          try {
+            const filePath = url.searchParams.get('path');
+            if (!filePath) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'File path is required' }));
+              return;
+            }
+
+            console.log(`📁 Reading file: ${filePath}`);
+
+            // Security check: only allow reading from al-engine/ro-crates directory
+            if (!filePath.includes('al-engine/ro-crates/') || filePath.includes('..')) {
+              res.writeHead(403, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Access denied: Invalid file path' }));
+              return;
+            }
+
+            // Construct absolute path
+            const absolutePath = path.resolve(__dirname, '../', filePath);
+            const fileContent = await fs.readFile(absolutePath, 'utf8');
+            
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+              success: true, 
+              content: fileContent,
+              path: filePath
+            }));
+            
+          } catch (error) {
+            console.error('Failed to read file:', error);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+              success: false, 
+              error: error.message 
+            }));
+          }
+
         } else {
           res.writeHead(404, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Not found' }));
@@ -191,6 +231,7 @@ class LocalROCrateSaver {
       console.log('  GET /projects - List all projects');
       console.log('  GET /projects/:id - Check if project exists');
       console.log('  DELETE /projects/:id - Remove project');
+      console.log('  GET /read-file?path=<filepath> - Read files from ro-crates directory');
     });
 
     return server;

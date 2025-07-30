@@ -1,0 +1,265 @@
+import React from 'react';
+import { ControlPanelProps } from './PanelTypes';
+
+export const ControlPanel: React.FC<ControlPanelProps> = ({
+  project,
+  currentUser,
+  isCoordinator,
+  onStartNextIteration,
+  onEndProject,
+  onError
+}) => {
+
+  const handleStartNextIteration = async () => {
+    try {
+      await onStartNextIteration();
+    } catch (error) {
+      console.error('❌ Failed to start next iteration:', error);
+      onError(error instanceof Error ? error.message : 'Failed to start iteration');
+    }
+  };
+
+  const handleEndProject = async () => {
+    const confirmed = window.confirm('Are you sure you want to end this project? This action cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      await onEndProject();
+    } catch (error) {
+      console.error('❌ Failed to end project:', error);
+      onError(error instanceof Error ? error.message : 'Failed to end project');
+    }
+  };
+
+  if (!isCoordinator) {
+    return (
+      <div className="control-panel">
+        <div className="panel-header">
+          <h3>Control Panel</h3>
+          <p>Access restricted to project coordinators</p>
+        </div>
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '60px',
+          backgroundColor: '#f9fafb',
+          borderRadius: '8px'
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+          <h4>Coordinator Access Required</h4>
+          <p style={{ color: '#666' }}>
+            Only project coordinators can access the control panel to manage AL iterations.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="control-panel">
+      <div className="panel-header">
+        <h3>Control Panel</h3>
+        <p>Coordinator controls for project management</p>
+      </div>
+      
+      <div className="control-actions" style={{ 
+        display: 'grid', 
+        gap: '20px', 
+        marginBottom: '30px' 
+      }}>
+        <div className="action-card" style={{
+          border: '1px solid #d1d5db',
+          borderRadius: '8px',
+          padding: '24px',
+          backgroundColor: 'white'
+        }}>
+          <h4 style={{ marginBottom: '12px', color: '#1f2937' }}>🚀 Start Next Iteration</h4>
+          <p style={{ color: '#666', marginBottom: '16px', lineHeight: '1.5' }}>
+            Trigger a new Active Learning round. This will:
+            <br />• Train the model with newly labeled samples
+            <br />• Generate new samples for labeling  
+            <br />• Start batch voting for the next round
+          </p>
+          <button 
+            className="primary-btn"
+            onClick={handleStartNextIteration}
+            disabled={!project.isActive}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: project.isActive ? '#10b981' : '#9ca3af',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: project.isActive ? 'pointer' : 'not-allowed',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (project.isActive) {
+                e.currentTarget.style.backgroundColor = '#059669';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (project.isActive) {
+                e.currentTarget.style.backgroundColor = '#10b981';
+              }
+            }}
+          >
+            {project.isActive ? 'Start Next Iteration' : 'Project Inactive'}
+          </button>
+          {!project.isActive && (
+            <div style={{ 
+              fontSize: '12px', 
+              color: '#ef4444', 
+              marginTop: '8px' 
+            }}>
+              Project must be active to start iterations
+            </div>
+          )}
+        </div>
+        
+        <div className="action-card" style={{
+          border: '1px solid #fca5a5',
+          borderRadius: '8px',
+          padding: '24px',
+          backgroundColor: '#fef2f2'
+        }}>
+          <h4 style={{ marginBottom: '12px', color: '#dc2626' }}>🏁 End Project</h4>
+          <p style={{ color: '#666', marginBottom: '16px', lineHeight: '1.5' }}>
+            Manually end the project. This will:
+            <br />• Deactivate the project permanently
+            <br />• Finalize all voting sessions
+            <br />• Trigger final results collection
+            <br />• <strong>This action cannot be undone!</strong>
+          </p>
+          <button 
+            className="danger-btn"
+            onClick={handleEndProject}
+            disabled={!project.isActive}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: project.isActive ? '#dc2626' : '#9ca3af',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: project.isActive ? 'pointer' : 'not-allowed',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (project.isActive) {
+                e.currentTarget.style.backgroundColor = '#b91c1c';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (project.isActive) {
+                e.currentTarget.style.backgroundColor = '#dc2626';
+              }
+            }}
+          >
+            {project.isActive ? 'End Project' : 'Project Already Ended'}
+          </button>
+        </div>
+      </div>
+      
+      <div className="project-status-summary" style={{
+        border: '1px solid #d1d5db',
+        borderRadius: '8px',
+        padding: '24px',
+        backgroundColor: '#f8fafc'
+      }}>
+        <h4 style={{ marginBottom: '16px', color: '#1f2937' }}>📊 Project Status Summary</h4>
+        <div className="status-grid" style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+          gap: '16px' 
+        }}>
+          <div className="status-item">
+            <label style={{ 
+              display: 'block', 
+              fontSize: '12px', 
+              fontWeight: 'bold', 
+              color: '#6b7280', 
+              marginBottom: '4px' 
+            }}>
+              Current Status:
+            </label>
+            <span className={`status-value ${project.status}`} style={{
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              backgroundColor: project.status === 'running' ? '#dcfce7' : '#fef3c7',
+              color: project.status === 'running' ? '#166534' : '#92400e'
+            }}>
+              {project.status.toUpperCase()}
+            </span>
+          </div>
+          
+          <div className="status-item">
+            <label style={{ 
+              display: 'block', 
+              fontSize: '12px', 
+              fontWeight: 'bold', 
+              color: '#6b7280', 
+              marginBottom: '4px' 
+            }}>
+              Active:
+            </label>
+            <span className={`status-value ${project.isActive ? 'active' : 'inactive'}`} style={{
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              backgroundColor: project.isActive ? '#dcfce7' : '#fee2e2',
+              color: project.isActive ? '#166534' : '#dc2626'
+            }}>
+              {project.isActive ? 'Yes' : 'No'}
+            </span>
+          </div>
+          
+          <div className="status-item">
+            <label style={{ 
+              display: 'block', 
+              fontSize: '12px', 
+              fontWeight: 'bold', 
+              color: '#6b7280', 
+              marginBottom: '4px' 
+            }}>
+              Progress:
+            </label>
+            <span className="status-value" style={{
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#1f2937'
+            }}>
+              Round {project.currentRound} of {project.totalRounds} ({Math.round((project.currentRound / project.totalRounds) * 100)}%)
+            </span>
+          </div>
+          
+          <div className="status-item">
+            <label style={{ 
+              display: 'block', 
+              fontSize: '12px', 
+              fontWeight: 'bold', 
+              color: '#6b7280', 
+              marginBottom: '4px' 
+            }}>
+              Contract Address:
+            </label>
+            <span className="status-value" style={{
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              color: '#6b7280'
+            }}>
+              {project.contractAddress.slice(0, 10)}...{project.contractAddress.slice(-8)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ControlPanel; 

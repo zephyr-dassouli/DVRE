@@ -93,21 +93,17 @@ export class ALContractService {
   }
 
   /**
+   * Get stored AL samples for a project (for DALProjectSession to access real data)
+   */
+  getStoredALSamples(projectAddress: string): any[] | null {
+    return this.currentALSamples.get(projectAddress) || null;
+  }
+
+  /**
    * Get specific sample data by sample ID
    */
-  private getSampleData(sampleId: string): any | null {
-    const sampleData = this.sampleIdToDataMap.get(sampleId);
-    if (sampleData) {
-      console.log(`📊 Retrieved sample data for ${sampleId}:`, {
-        hasText: !!sampleData.text,
-        hasFeatures: !!sampleData.features,
-        hasMetadata: !!sampleData.metadata
-      });
-      return sampleData;
-    } else {
-      console.warn(`⚠️ No sample data found for sample ID: ${sampleId}`);
-      return null;
-    }
+  public getSampleDataById(sampleId: string): any | null {
+    return this.sampleIdToDataMap.get(sampleId) || null;
   }
 
   /**
@@ -335,7 +331,7 @@ export class ALContractService {
         if (activeVoting && activeVoting.sampleId) {
           console.log(`🗳️ Found active voting session via Project: ${activeVoting.sampleId}`);
           // Return the actual sample data if available
-          const sampleData = this.getSampleData(activeVoting.sampleId);
+          const sampleData = this.getSampleDataById(activeVoting.sampleId);
           if (sampleData) {
             return {
               sampleId: activeVoting.sampleId,
@@ -375,10 +371,21 @@ export class ALContractService {
         
         console.log(`📊 Created active voting session for stored sample: ${sampleId}`);
         
+        // Determine if this is an iris sample and set appropriate label options
+        const isIrisSample = firstSample && 
+          typeof firstSample === 'object' && 
+          'sepal length (cm)' in firstSample;
+        
+        const labelOptions = isIrisSample 
+          ? ['setosa', 'versicolor', 'virginica']
+          : (firstSample.metadata?.label_space || ['positive', 'negative']);
+        
+        console.log(`🌸 Sample type: ${isIrisSample ? 'Iris flower' : 'Generic'}, labels: ${labelOptions}`);
+        
         return {
           sampleId: sampleId,
           sampleData: firstSample,
-          labelOptions: firstSample.metadata?.label_space || ['positive', 'negative'],
+          labelOptions: labelOptions,
           currentVotes: {},
           timeRemaining: 3600, // 1 hour default
           voters: []
@@ -794,17 +801,26 @@ export class ALContractService {
         // This would execute: python al-engine/main.py --project_id <project_id> --config <config_path> --iteration <iteration>
         const alEngineResult = await this.triggerPythonALEngine(projectId, iteration, alEngineConfig);
         
-        if (alEngineResult.success && alEngineResult.queryIndices) {
+        if (alEngineResult.success && alEngineResult.queriedSamples) {
           console.log('✅ AL-Engine execution successful');
           
-          // Step 4: Load the actual queried samples from the dataset
+          // Use the real iris samples directly from AL-Engine
+          console.log(`🌸 Using ${alEngineResult.queriedSamples.length} real iris samples from AL-Engine`);
+          return {
+            success: true, 
+            queriedSamples: alEngineResult.queriedSamples 
+          };
+        } else if (alEngineResult.success && alEngineResult.queryIndices) {
+          console.log('✅ AL-Engine execution successful (indices only)');
+          
+          // Step 4: Load the actual queried samples from the dataset using indices
           const actualSamples = await this.loadQueriedSamplesFromDataset(
             projectId, 
             alEngineResult.queryIndices, 
             alEngineConfig
           );
 
-      return {
+          return {
             success: true, 
             queriedSamples: actualSamples 
           };
@@ -812,7 +828,7 @@ export class ALContractService {
           console.error('❌ AL-Engine execution failed:', alEngineResult.error);
           return { 
             success: false, 
-            error: alEngineResult.error || 'No query indices returned' 
+            error: alEngineResult.error || 'No query indices or samples returned' 
           };
         }
         
@@ -848,7 +864,7 @@ export class ALContractService {
   /**
    * Trigger the Python AL-Engine via HTTP API
    */
-  private async triggerPythonALEngine(projectId: string, iteration: number, alConfig: any): Promise<{success: boolean, queryIndices?: number[], error?: string}> {
+  private async triggerPythonALEngine(projectId: string, iteration: number, alConfig: any): Promise<{success: boolean, queryIndices?: number[], queriedSamples?: any[], error?: string}> {
     try {
       console.log(`🌐 Triggering Python AL-Engine via HTTP API for project ${projectId}, iteration ${iteration}`);
       
@@ -875,8 +891,13 @@ export class ALContractService {
         console.log('💡 Please start AL-Engine server with:');
         console.log(`   cd al-engine && python main.py --project_id ${projectId} --config ro-crates/${projectId}/config.json --server --port 5050`);
         
-        // Fall back to simulation
-        return this.fallbackToSimulation(alConfig, iteration);
+        // Fall back to simulation but include real samples if available
+        const fallbackResult = this.fallbackToSimulation(alConfig, iteration);
+        const realSamples = await this.readQuerySamplesFromFile(projectId, iteration);
+        return { 
+          ...fallbackResult, 
+          queriedSamples: realSamples.length > 0 ? realSamples : undefined 
+        };
       }
       
       // Step 2: Send start_iteration request
@@ -910,15 +931,34 @@ export class ALContractService {
       console.log('✅ AL-Engine API response:', resultData);
       
       if (resultData.success && resultData.result) {
-        // Extract query indices from the result
-        const queryIndices = this.extractQueryIndicesFromResult(resultData.result);
+        // After successful AL-Engine execution, read the actual query samples from the generated file
+        console.log('📁 AL-Engine completed, reading actual iris samples from output file...');
+        const realSamples = await this.readQuerySamplesFromFile(projectId, iteration);
         
-        console.log(`✅ AL-Engine completed successfully. Query indices: [${queryIndices.join(', ')}]`);
-        
-        return {
-          success: true,
-          queryIndices: queryIndices
-        };
+        if (realSamples.length > 0) {
+          console.log(`✅ Successfully loaded ${realSamples.length} real iris samples`);
+          console.log('🌸 First sample from file:', realSamples[0]);
+          
+          // Extract query indices for backward compatibility (though we have the real samples now)
+          const queryIndices = realSamples.map((sample: any, index: number) => 
+            sample.original_index !== undefined ? sample.original_index : index
+          );
+          
+          return {
+            success: true,
+            queryIndices: queryIndices,
+            queriedSamples: realSamples  // The actual iris samples!
+          };
+        } else {
+          // Fallback to extracting indices if samples file not available
+          const queryIndices = this.extractQueryIndicesFromResult(resultData.result);
+          console.log(`⚠️ No samples file found, using query indices: [${queryIndices.join(', ')}]`);
+          
+          return {
+            success: true,
+            queryIndices: queryIndices
+          };
+        }
       } else {
         console.error('❌ AL-Engine API returned failure:', resultData.error);
         return {
@@ -929,9 +969,23 @@ export class ALContractService {
       
     } catch (error) {
       console.error('❌ Failed to communicate with AL-Engine API:', error);
-      console.log('🔄 Falling back to simulation...');
+      console.log('🔄 Falling back to real samples if available...');
       
-      // Fall back to simulation
+      // Try to get real samples even if API failed
+      const realSamples = await this.readQuerySamplesFromFile(projectId, iteration);
+      if (realSamples.length > 0) {
+        console.log(`✅ Found ${realSamples.length} real samples despite API failure`);
+        const queryIndices = realSamples.map((sample: any, index: number) => 
+          sample.original_index !== undefined ? sample.original_index : index
+        );
+        return {
+          success: true,
+          queryIndices: queryIndices,
+          queriedSamples: realSamples
+        };
+      }
+      
+      // Final fallback to simulation
       return this.fallbackToSimulation(alConfig, iteration);
     }
   }
@@ -1057,6 +1111,59 @@ export class ALContractService {
       
     } catch (error) {
       console.error('❌ Failed to generate fallback samples:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Read actual query samples from the JSON file generated by AL-Engine
+   */
+  private async readQuerySamplesFromFile(projectId: string, iteration: number): Promise<any[]> {
+    try {
+      console.log(`📁 Reading real query samples for project ${projectId}, iteration ${iteration}`);
+      
+      // Construct the path to the actual query samples file
+      const samplesPath = `al-engine/ro-crates/${projectId}/outputs/query_samples_round_${iteration}.json`;
+      console.log(`🔍 Looking for samples file: ${samplesPath}`);
+      
+      // In a browser environment, we can't directly read files from filesystem
+      // So we'll make a request to a local file server or use the AL-Engine API to serve the file
+      try {
+        // Try to fetch the file content via local file server
+        const fileResponse = await fetch(`http://localhost:3001/read-file?path=${encodeURIComponent(samplesPath)}`);
+        
+        if (fileResponse.ok) {
+          const samplesData = await fileResponse.json();
+          console.log(`✅ Successfully read ${samplesData.length} real samples from file`);
+          console.log('🌸 First sample from file:', samplesData[0]);
+          return samplesData;
+        }
+      } catch (fileError) {
+        console.warn('⚠️ Local file server not available, falling back to AL-Engine API');
+      }
+      
+      // Fallback: Try to get the samples from AL-Engine API
+      try {
+        const alEngineUrl = config.alEngine.apiUrl || 'http://localhost:5050';
+        const apiResponse = await fetch(`${alEngineUrl}/results/${iteration}?project_id=${projectId}`);
+        
+        if (apiResponse.ok) {
+          const apiData = await apiResponse.json();
+          if (apiData.query_samples && Array.isArray(apiData.query_samples)) {
+            console.log(`✅ Got ${apiData.query_samples.length} samples from AL-Engine API`);
+            return apiData.query_samples;
+          }
+        }
+      } catch (apiError) {
+        console.warn('⚠️ AL-Engine API not available for results');
+      }
+      
+      // Last fallback: Return empty array
+      console.warn(`⚠️ Could not read query samples for iteration ${iteration}`);
+      return [];
+      
+    } catch (error) {
+      console.error('❌ Failed to read query samples from file:', error);
       return [];
     }
   }

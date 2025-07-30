@@ -9,6 +9,14 @@ import { useDALProject } from '../../hooks/useDALProject';
 import { useAuth } from '../../hooks/useAuth';
 import { alContractService } from './services/ALContractService';
 import { createDALProjectSession, type DALProjectSession, type SessionState } from './services/DALProjectSession';
+import {
+  LabelingPanel,
+  ControlPanel,
+  ConfigurationPanel,
+  ModelUpdatesPanel,
+  UserDashboardPanel,
+  VotingHistoryPanel
+} from './panels';
 
 /**
  * DAL Project Page Component
@@ -250,6 +258,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     );
   }
 
+  // Handler functions for panel callbacks
   const handleStartNextIteration = async () => {
     if (!isCoordinator) {
       setError('Only coordinators can start iterations');
@@ -283,9 +292,6 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
       setError('Only coordinators can end projects');
       return;
     }
-
-    const confirmed = window.confirm('Are you sure you want to end this project? This action cannot be undone.');
-    if (!confirmed) return;
 
     try {
       setError(null);
@@ -329,15 +335,6 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     }
   };
 
-  const handleSubmitVote = async (label: string) => {
-    if (!project.activeVoting) {
-      setError('No active voting session');
-      return;
-    }
-    
-    await handleVoteSubmission(project.activeVoting.sampleId, label);
-  };
-
   const handleRefreshData = async () => {
     console.log('Refreshing all project data from smart contracts...');
     
@@ -345,6 +342,21 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     triggerRefresh();
     
     console.log('✅ Project data refresh triggered');
+  };
+
+  const formatTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) {
+      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    } else if (diffHours > 0) {
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    } else {
+      return 'Recently';
+    }
   };
 
   if (loading) {
@@ -393,25 +405,6 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
       </div>
     );
   }
-
-  const formatTimeAgo = (date: Date): string => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffDays > 0) {
-      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    } else if (diffHours > 0) {
-      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    } else {
-      return 'Recently';
-    }
-  };
-
-  const formatAddress = (address: string): string => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
 
   return (
     <div className="dal-project-page">
@@ -516,483 +509,77 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         </button>
       </div>
 
-      {/* Tab Content */}
+      {/* Tab Content - Using Panel Components */}
       <div className="tab-content">
-        {/* Enhanced Labeling Panel with Batch Support */}
-        {activeTab === 'labeling' && (
-          <div className="labeling-panel">
-            <div className="panel-header">
-              <h3>Sample Labeling</h3>
-              <div className="iteration-info">
-                AL Iteration Round: {project.currentRound}
-                {batchProgress && (
-                  <div className="batch-progress">
-                    {batchProgress.totalSamples === 1 
-                      ? `Sample Status: ${batchProgress.completedSamples > 0 ? 'Completed' : 'In Progress'}`
-                      : `Batch Progress: ${batchProgress.completedSamples}/${batchProgress.totalSamples} samples completed`
-                    }
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Show iteration completion message */}
-            {iterationCompleted && (
-              <div className="iteration-completed">
-                <div className="completion-message">
-                  <h4>✅ {iterationMessage}</h4>
-                  {isCoordinator ? (
-                    <p>You may start the next iteration or end the project in the Control Panel.</p>
-                  ) : (
-                    <p>Wait for the project Coordinator to start a new round.</p>
-                  )}
-                  <button 
-                    onClick={() => setIterationCompleted(false)}
-                    style={{ 
-                      marginTop: '10px', 
-                      padding: '8px 16px', 
-                      backgroundColor: '#10b981', 
-                      color: 'white', 
-                      border: 'none', 
-                      borderRadius: '4px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Acknowledge
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {/* Batch voting in progress */}
-            {batchProgress && batchProgress.isActive && !iterationCompleted && (
-              <div className="batch-voting">
-                <div className="batch-header">
-                  <h4>
-                    {batchProgress.totalSamples === 1 
-                      ? `Sample Voting - Round ${batchProgress.round}` 
-                      : `Batch Voting - Round ${batchProgress.round}`
-                    }
-                  </h4>
-                  {batchProgress.totalSamples > 1 && (
-                    <div className="progress-bar">
-                      <div 
-                        className="progress-fill" 
-                        style={{ 
-                          width: `${(batchProgress.completedSamples / batchProgress.totalSamples) * 100}%`,
-                          height: '8px',
-                          backgroundColor: '#10b981',
-                          borderRadius: '4px',
-                          transition: 'width 0.3s ease'
-                        }}
-                      ></div>
-                    </div>
-                  )}
-                  <div className="progress-text">
-                    {batchProgress.totalSamples === 1 
-                      ? `Sample voting in progress`
-                      : `Sample ${batchProgress.currentSampleIndex + 1} of ${batchProgress.totalSamples}`
-                    }
-              </div>
-            </div>
-            
-            {project.activeVoting ? (
-              <div className="active-voting">
-                <div className="sample-display">
-                      <h4>Current Sample: {project.activeVoting.sampleId}</h4>
-                  <div className="sample-content">
-                    <pre>{JSON.stringify(project.activeVoting.sampleData, null, 2)}</pre>
-                  </div>
-                </div>
-                
-                <div className="voting-interface">
-                  <h4>Select Label</h4>
-                  <div className="label-options">
-                    {project.activeVoting.labelOptions.map(label => (
-                      <button
-                        key={label}
-                        className="label-button"
-                        onClick={() => handleSubmitVote(label)}
-                            style={{
-                              padding: '12px 24px',
-                              margin: '8px',
-                              backgroundColor: '#3b82f6',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontSize: '16px',
-                              fontWeight: 'bold'
-                            }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="live-voting">
-                  <h4>Live Voting Distribution</h4>
-                  <div className="vote-distribution">
-                    {Object.entries(project.activeVoting.currentVotes).map(([label, count]) => (
-                      <div key={label} className="vote-item">
-                        <span className="vote-label">{label}:</span>
-                        <span className="vote-count">{count as number}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="time-remaining">
-                    Time remaining: {Math.floor(project.activeVoting.timeRemaining / 60)}m {project.activeVoting.timeRemaining % 60}s
-                  </div>
-                </div>
-              </div>
-            ) : (
-                  <div className="waiting-for-next-sample">
-                    <h4>🔄 Processing {batchProgress.totalSamples === 1 ? 'Sample' : 'Previous Sample'}</h4>
-                    <p>
-                      {batchProgress.totalSamples === 1 
-                        ? 'Finalizing vote aggregation and consensus...'
-                        : 'Waiting for the next sample in this batch...'
-                      }
-                    </p>
-                    {batchProgress.totalSamples > 1 && (
-                      <div className="remaining-samples">
-                        Remaining samples: {batchProgress.totalSamples - batchProgress.completedSamples}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* No active batch */}
-            {!batchProgress && !iterationCompleted && (
-              <div className="no-active-voting">
-                <h4>No Active Voting</h4>
-                <p>Waiting for the next AL iteration to begin...</p>
-                {isCoordinator && (
-                  <p><em>As coordinator, you can start the next iteration from the Control Panel.</em></p>
-                )}
-              </div>
-            )}
-          </div>
+        {currentUser && activeTab === 'labeling' && (
+          <LabelingPanel
+            project={project}
+            currentUser={currentUser}
+            isCoordinator={isCoordinator}
+            sessionState={sessionState}
+            batchProgress={batchProgress}
+            iterationCompleted={iterationCompleted}
+            iterationMessage={iterationMessage}
+            onVoteSubmission={handleVoteSubmission}
+            onAcknowledgeCompletion={() => setIterationCompleted(false)}
+            onRefresh={handleRefreshData}
+            onError={setError}
+          />
         )}
 
-        {/* Project Configuration Panel */}
-        {activeTab === 'configuration' && (
-          <div className="configuration-panel">
-            <div className="panel-header">
-              <h3>Project Configuration</h3>
-            </div>
-            {project.alConfiguration ? (
-              <div className="config-grid">
-                <div className="config-item">
-                  <label>AL Scenario:</label>
-                  <span>{project.alConfiguration.scenario}</span>
-                </div>
-                <div className="config-item">
-                  <label>Query Strategy:</label>
-                  <span>{project.alConfiguration.queryStrategy}</span>
-                </div>
-                <div className="config-item">
-                  <label>Model:</label>
-                  <span>{project.alConfiguration.model.type}</span>
-                </div>
-                <div className="config-item">
-                  <label>Query Batch Size:</label>
-                  <span>{project.alConfiguration.queryBatchSize}</span>
-                </div>
-                <div className="config-item">
-                  <label>Max Iteration Rounds:</label>
-                  <span>{project.alConfiguration.maxIterations}</span>
-                </div>
-                <div className="config-item">
-                  <label>Voting Consensus:</label>
-                  <span>{project.alConfiguration.votingConsensus}</span>
-                </div>
-                <div className="config-item">
-                  <label>Voting Timeout:</label>
-                  <span>{project.alConfiguration.votingTimeout}s</span>
-                </div>
-                <div className="config-item">
-                  <label>Label Space:</label>
-                  <span>{project.alConfiguration.labelSpace?.join(', ') || 'Not configured'}</span>
-                </div>
-              </div>
-            ) : (
-              <div style={{ padding: '40px', textAlign: 'center' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚙️</div>
-                <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
-                  No Configuration Available
-                </div>
-                <div style={{ color: '#666', fontSize: '14px' }}>
-                  This project doesn't have Active Learning configuration data available.
-                  <br />
-                  <strong>Possible reasons:</strong>
-                  <br />
-                  • The project hasn't been configured with AL parameters yet
-                  <br />
-                  • AL metadata hasn't been set on the smart contract
-                  <br />
-                  • The project needs to be properly deployed first
-                  <br />
-                  <br />
-                  <strong>Contract Address:</strong> {project.contractAddress?.slice(0, 10)}...
-                  <br />
-                  <strong>Data source:</strong> Smart Contract getProjectMetadata() method
-                  <br />
-                  <em>Check browser console for detailed logs</em>
-                  <br />
-                  <br />
-                  <button 
-                    onClick={handleRefreshData}
-                    style={{ 
-                      padding: '10px 20px', 
-                      backgroundColor: '#3b82f6', 
-                      color: 'white', 
-                      border: 'none', 
-                      borderRadius: '4px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    🔄 Refresh Configuration
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+        {currentUser && activeTab === 'configuration' && (
+          <ConfigurationPanel
+            project={project}
+            currentUser={currentUser}
+            isCoordinator={isCoordinator}
+            onRefresh={handleRefreshData}
+            onError={setError}
+          />
         )}
 
-        {/* Control Panel (Coordinator Only) */}
-        {activeTab === 'control' && isCoordinator && (
-          <div className="control-panel">
-            <div className="panel-header">
-              <h3>Control Panel</h3>
-              <p>Coordinator controls for project management</p>
-            </div>
-            <div className="control-actions">
-              <div className="action-card">
-                <h4>Start Next Iteration</h4>
-                <p>Trigger a new Active Learning round. This sends a signal to the smart contract and orchestrator.</p>
-                <button 
-                  className="primary-btn"
-                  onClick={handleStartNextIteration}
-                  disabled={!project.isActive}
-                >
-                  Start Next Iteration
-                </button>
-              </div>
-              <div className="action-card">
-                <h4>End Project</h4>
-                <p>Manually end the project. This will deactivate the project and trigger final results collection.</p>
-                <button 
-                  className="danger-btn"
-                  onClick={handleEndProject}
-                  disabled={!project.isActive}
-                >
-                  End Project
-                </button>
-              </div>
-            </div>
-            <div className="project-status-summary">
-              <h4>Project Status</h4>
-              <div className="status-grid">
-                <div className="status-item">
-                  <label>Current Status:</label>
-                  <span className={`status-value ${project.status}`}>{project.status}</span>
-                </div>
-                <div className="status-item">
-                  <label>Active:</label>
-                  <span className={`status-value ${project.isActive ? 'active' : 'inactive'}`}>
-                    {project.isActive ? 'Yes' : 'No'}
-                  </span>
-                </div>
-                <div className="status-item">
-                  <label>Progress:</label>
-                  <span className="status-value">
-                    {Math.round((project.currentRound / project.totalRounds) * 100)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+        {currentUser && activeTab === 'control' && isCoordinator && (
+          <ControlPanel
+            project={project}
+            currentUser={currentUser}
+            isCoordinator={isCoordinator}
+            onStartNextIteration={handleStartNextIteration}
+            onEndProject={handleEndProject}
+            onRefresh={handleRefreshData}
+            onError={setError}
+          />
         )}
 
-        {/* Model Updates Panel (Coordinator Only) */}
-        {activeTab === 'model-updates' && isCoordinator && (
-          <div className="model-updates-panel">
-            <div className="panel-header">
-              <h3>Model Updates History</h3>
-              <p>Performance statistics for each iteration (latest on top)</p>
-            </div>
-            <div className="updates-list">
-              {modelUpdates.length > 0 ? (
-                modelUpdates.map(update => (
-                  <div key={update.iterationNumber} className="update-item">
-                    <div className="update-header">
-                      <div className="iteration-info">
-                        <h4>Iteration {update.iterationNumber}</h4>
-                        <span className="timestamp">{formatTimeAgo(update.timestamp)}</span>
-                      </div>
-                      <div className="samples-added">
-                        +{update.samplesAddedCount} samples
-                      </div>
-                    </div>
-                    <div className="performance-metrics">
-                      <div className="metric">
-                        <span className="metric-label">Accuracy:</span>
-                        <span className="metric-value">{(update.performance.accuracy * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="metric">
-                        <span className="metric-label">Precision:</span>
-                        <span className="metric-value">{(update.performance.precision * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="metric">
-                        <span className="metric-label">Recall:</span>
-                        <span className="metric-value">{(update.performance.recall * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="metric">
-                        <span className="metric-label">F1-Score:</span>
-                        <span className="metric-value">{(update.performance.f1Score * 100).toFixed(1)}%</span>
-                      </div>
-                    </div>
-                    {update.notes && (
-                      <div className="update-notes">
-                        {update.notes}
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: '40px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
-                    No Model Updates Yet
-                  </div>
-                  <div style={{ color: '#666', fontSize: '14px' }}>
-                    Model performance data will appear here after active learning iterations begin.
-                    <br />
-                    <strong>Data source:</strong> Derived from ALProjectStorage voting consensus data
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+        {currentUser && activeTab === 'model-updates' && isCoordinator && (
+          <ModelUpdatesPanel
+            project={project}
+            currentUser={currentUser}
+            isCoordinator={isCoordinator}
+            modelUpdates={modelUpdates}
+            onRefresh={handleRefreshData}
+            onError={setError}
+          />
         )}
 
-        {/* User Dashboard Panel */}
-        {activeTab === 'users' && (
-          <div className="users-panel">
-            <div className="panel-header">
-              <h3>User Dashboard</h3>
-              <p>All users, their roles, and contribution statistics</p>
-            </div>
-            <div className="users-table">
-              <div className="table-header">
-                <div className="col-address">Address</div>
-                <div className="col-role">Role</div>
-                <div className="col-votes">Votes</div>
-                <div className="col-joined">Joined</div>
-                <div className="col-activity">Last Activity</div>
-                <div className="col-reputation">Reputation</div>
-              </div>
-              {userContributions.length > 0 ? (
-                userContributions.map(user => (
-                  <div key={user.address} className="table-row">
-                    <div className="col-address">
-                      <span className="address">{formatAddress(user.address)}</span>
-                      {user.address === currentUser && <span className="you-badge">YOU</span>}
-                    </div>
-                    <div className="col-role">
-                      <span className={`role-badge ${user.role}`}>{user.role.toUpperCase()}</span>
-                    </div>
-                    <div className="col-votes">{user.votesCount}</div>
-                    <div className="col-joined">{formatTimeAgo(user.joinedAt)}</div>
-                    <div className="col-activity">{formatTimeAgo(user.lastActivity)}</div>
-                    <div className="col-reputation">
-                      <span className="reputation-score">{user.reputation}%</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: '40px', textAlign: 'center', gridColumn: '1 / -1' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
-                    No User Activity Yet
-                  </div>
-                  <div style={{ color: '#666', fontSize: '14px' }}>
-                    This project was recently deployed. User contributions will appear here once voting activity begins.
-                    <br />
-                    <strong>Data source:</strong> ALProjectVoting smart contract
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+        {currentUser && activeTab === 'users' && (
+          <UserDashboardPanel
+            project={project}
+            currentUser={currentUser}
+            isCoordinator={isCoordinator}
+            userContributions={userContributions}
+            onRefresh={handleRefreshData}
+            onError={setError}
+          />
         )}
 
-        {/* Voting History Panel */}
-        {activeTab === 'voting-history' && (
-          <div className="voting-history-panel">
-            <div className="panel-header">
-              <h3>Voting History</h3>
-              <p>All samples with their voting statistics and final labels</p>
-            </div>
-            <div className="history-list">
-              {votingHistory.length > 0 ? (
-                votingHistory.map(record => (
-                  <div key={record.sampleId} className="history-item">
-                    <div className="item-header">
-                      <div className="sample-info">
-                        <h4>{record.sampleId}</h4>
-                        <span className="iteration-badge">Iteration {record.iterationNumber}</span>
-                      </div>
-                      <div className="final-result">
-                        <span className="final-label">Final: {record.finalLabel}</span>
-                        <span className={`consensus-badge ${record.consensusReached ? 'reached' : 'no-consensus'}`}>
-                          {record.consensusReached ? 'Consensus' : 'No Consensus'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="voting-details">
-                      <div className="voter-breakdown">
-                        <h5>Votes Cast:</h5>
-                        {Object.entries(record.votes).map(([voter, vote]) => (
-                          <div key={voter} className="vote-entry">
-                            <span className="voter">{formatAddress(voter)}:</span>
-                            <span className="vote">{vote}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="distribution">
-                        <h5>Distribution:</h5>
-                        {Object.entries(record.votingDistribution).map(([label, count]) => (
-                          <span key={label} className="dist-item">
-                            {label}: {count as number}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="timestamp">
-                        {formatTimeAgo(record.timestamp)}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: '40px', textAlign: 'center', gridColumn: '1 / -1' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>📜</div>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
-                    No Voting History Yet
-                  </div>
-                  <div style={{ color: '#666', fontSize: '14px' }}>
-                    This project was recently deployed. Voting history will appear here once samples are labeled.
-                    <br />
-                    <strong>Data source:</strong> ALProjectVoting smart contract
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+        {currentUser && activeTab === 'voting-history' && (
+          <VotingHistoryPanel
+            project={project}
+            currentUser={currentUser}
+            isCoordinator={isCoordinator}
+            votingHistory={votingHistory}
+            onRefresh={handleRefreshData}
+            onError={setError}
+          />
         )}
       </div>
     </div>
