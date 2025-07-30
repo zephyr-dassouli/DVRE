@@ -4,9 +4,7 @@ pragma solidity ^0.8.28;
 interface IProject {
     function receiveFinalLabelFromVoting(
         string memory sampleId,
-        string memory label,
-        string memory justification,
-        string memory ipfsHash
+        string memory label
     ) external;
     function notifyVotingSessionStarted(string memory sampleId) external;
     function notifyVotingSessionEnded(string memory sampleId, string memory finalLabel) external;
@@ -110,24 +108,41 @@ contract ALProjectVoting {
         }
     }
     
-    function startVotingSession(string memory sampleId) external onlyProject {
-        require(!votingSessions[sampleId].isActive, "Voting session already active");
-        require(!votingSessions[sampleId].isFinalized, "Voting session already finalized");
+    /**
+     * @dev Compute eligible voters from participant data (moved from Project.sol)
+     */
+    function computeEligibleVoters(
+        address[] memory participants,
+        string[] memory roles,
+        uint256[] memory weights
+    ) external pure returns (address[] memory voters, uint256[] memory eligibleWeights) {
+        require(participants.length == roles.length, "Participants/roles length mismatch");
+        require(participants.length == weights.length, "Participants/weights length mismatch");
         
-        votingSessions[sampleId].startTime = block.timestamp;
-        votingSessions[sampleId].isActive = true;
-        votingSessions[sampleId].isFinalized = false;
-        votingSessions[sampleId].totalVoters = voterList.length;
-        votingSessions[sampleId].round = 0; // Default round for individual samples
-        
-        emit VotingSessionStarted(sampleId, block.timestamp);
-        
-        // Notify main contract
-        try IProject(project).notifyVotingSessionStarted(sampleId) {
-            // Success
-        } catch {
-            // Continue if notification fails
+        // Count eligible voters first
+        uint256 eligibleCount = 0;
+        for (uint256 i = 0; i < participants.length; i++) {
+            if (keccak256(bytes(roles[i])) == keccak256(bytes("creator")) ||
+                keccak256(bytes(roles[i])) == keccak256(bytes("contributor"))) {
+                eligibleCount++;
+            }
         }
+        
+        // Build arrays of eligible voters
+        voters = new address[](eligibleCount);
+        eligibleWeights = new uint256[](eligibleCount);
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < participants.length; i++) {
+            if (keccak256(bytes(roles[i])) == keccak256(bytes("creator")) ||
+                keccak256(bytes(roles[i])) == keccak256(bytes("contributor"))) {
+                voters[index] = participants[i];
+                eligibleWeights[index] = weights[i];
+                index++;
+            }
+        }
+        
+        return (voters, eligibleWeights);
     }
     
     function startBatchVoting(string[] memory sampleIds, uint256 round) external onlyProject {
@@ -167,89 +182,135 @@ contract ALProjectVoting {
         emit BatchStarted(round, sampleIds, block.timestamp);
     }
     
-    function endVotingSession(string memory sampleId) external onlyProject {
-        require(votingSessions[sampleId].isActive, "Voting session not active");
-        _finalizeVotingSession(sampleId, "Manual finalization");
+    /**
+     * @dev Manually end all active samples in a batch (admin override)
+     */
+    function endBatchVoting(uint256 round) external onlyProject {
+        require(batches[round].isActive, "Batch not active");
+        
+        string[] memory sampleIds = batches[round].sampleIds;
+        
+        // Finalize all active samples in the batch
+        for (uint256 i = 0; i < sampleIds.length; i++) {
+            string memory sampleId = sampleIds[i];
+            
+            // Only finalize if still active (not already completed)
+            if (votingSessions[sampleId].isActive && !votingSessions[sampleId].isFinalized) {
+                _finalizeVotingSession(sampleId, "Manual batch ending");
+            }
+        }
+        
+        // Note: _checkBatchCompletion will be called by _finalizeVotingSession for each sample
+        // This will automatically mark the batch as complete and emit BatchCompleted
     }
     
-    function submitVote(string memory sampleId, string memory label, bool support) external onlyRegisteredVoter {
-        require(votingSessions[sampleId].isActive, "Voting session not active");
-        require(!votingSessions[sampleId].isFinalized, "Voting session already finalized");
-        require(!votingSessions[sampleId].hasVoted[msg.sender], "Already voted");
+    /**
+     * @dev Submit votes for multiple samples in a batch (called by Project contract)
+     * This allows Project to forward batch votes after auto-registering users
+     * This is now the ONLY way to submit votes - works for batch size 1 or more
+     */
+    function submitBatchVoteOnBehalf(
+        string[] memory sampleIds, 
+        string[] memory labels, 
+        address voter
+    ) external onlyProject {
+        require(sampleIds.length == labels.length, "Mismatched arrays");
+        require(sampleIds.length > 0, "Empty batch");
+        require(voterWeights[voter] > 0, "Voter not registered");
         
-        // Check if timeout has been reached - if so, finalize automatically
-        if (_isTimeoutReached(sampleId)) {
-            _finalizeVotingSession(sampleId, "Timeout reached");
-            return;
-        }
-        
-        // Record the vote
-        votes[sampleId].push(Vote({
-            voter: msg.sender,
-            label: label,
-            support: support,
-            timestamp: block.timestamp
-        }));
-        
-        votingSessions[sampleId].hasVoted[msg.sender] = true;
-        
-        // Update vote aggregation
-        if (support) {
+        for (uint256 i = 0; i < sampleIds.length; i++) {
+            string memory sampleId = sampleIds[i];
+            string memory label = labels[i];
+            
+            require(votingSessions[sampleId].isActive, "Voting session not active");
+            require(!votingSessions[sampleId].isFinalized, "Voting session already finalized");
+            require(!votingSessions[sampleId].hasVoted[voter], "Already voted on this sample");
+            
+            // Check timeout for each sample
+            if (_isTimeoutReached(sampleId)) {
+                _finalizeVotingSession(sampleId, "Timeout reached");
+                continue; // Skip this sample
+            }
+            
+            // Record the vote
+            votes[sampleId].push(Vote({
+                voter: voter,
+                label: label,
+                support: true,
+                timestamp: block.timestamp
+            }));
+            
+            votingSessions[sampleId].hasVoted[voter] = true;
+            
+            // Update vote aggregation
             votingSessions[sampleId].labelVotes[label]++;
-            votingSessions[sampleId].labelWeights[label] += voterWeights[msg.sender];
-        }
-        
-        emit VoteSubmitted(sampleId, msg.sender, label, support, block.timestamp);
-        
-        // Check for automatic finalization conditions
-        string memory consensusLabel = _checkForConsensus(sampleId);
-        if (bytes(consensusLabel).length > 0) {
-            _finalizeVotingSession(sampleId, "Consensus reached");
-            emit ConsensusReached(sampleId, consensusLabel);
-        } else if (_allVotersVoted(sampleId)) {
-            _finalizeVotingSession(sampleId, "All voters participated");
+            votingSessions[sampleId].labelWeights[label] += voterWeights[voter];
+            
+            emit VoteSubmitted(sampleId, voter, label, true, block.timestamp);
+            
+            // Check for automatic finalization conditions
+            string memory consensusLabel = _checkForConsensus(sampleId);
+            if (bytes(consensusLabel).length > 0) {
+                _finalizeVotingSession(sampleId, "Consensus reached");
+                emit ConsensusReached(sampleId, consensusLabel);
+            } else if (_allVotersVoted(sampleId)) {
+                _finalizeVotingSession(sampleId, "All voters participated");
+            }
         }
     }
     
     /**
-     * @dev Submit vote on behalf of a user (called by Project contract)
-     * This allows Project to forward votes after auto-registering users
+     * @dev Submit votes for multiple samples in a batch (direct user call)
      */
-    function submitVoteOnBehalf(string memory sampleId, string memory label, address voter) external onlyProject {
-        require(voterWeights[voter] > 0, "Voter not registered");
-        require(votingSessions[sampleId].isActive, "Voting session not active");
-        require(!votingSessions[sampleId].isFinalized, "Voting session already finalized");
-        require(!votingSessions[sampleId].hasVoted[voter], "Already voted");
+    function submitBatchVote(
+        string[] memory sampleIds, 
+        string[] memory labels, 
+        bool[] memory support
+    ) external onlyRegisteredVoter {
+        require(sampleIds.length == labels.length, "Mismatched sampleIds and labels");
+        require(sampleIds.length == support.length, "Mismatched sampleIds and support");
         
-        // Check if timeout has been reached - if so, finalize automatically
-        if (_isTimeoutReached(sampleId)) {
-            _finalizeVotingSession(sampleId, "Timeout reached");
-            return;
-        }
-        
-        // Record the vote (assuming support = true for positive vote)
-        votes[sampleId].push(Vote({
-            voter: voter,
-            label: label,
-            support: true,
-            timestamp: block.timestamp
-        }));
-        
-        votingSessions[sampleId].hasVoted[voter] = true;
-        
-        // Update vote aggregation
-        votingSessions[sampleId].labelVotes[label]++;
-        votingSessions[sampleId].labelWeights[label] += voterWeights[voter];
-        
-        emit VoteSubmitted(sampleId, voter, label, true, block.timestamp);
-        
-        // Check for automatic finalization conditions
-        string memory consensusLabel = _checkForConsensus(sampleId);
-        if (bytes(consensusLabel).length > 0) {
-            _finalizeVotingSession(sampleId, "Consensus reached");
-            emit ConsensusReached(sampleId, consensusLabel);
-        } else if (_allVotersVoted(sampleId)) {
-            _finalizeVotingSession(sampleId, "All voters participated");
+        for (uint256 i = 0; i < sampleIds.length; i++) {
+            string memory sampleId = sampleIds[i];
+            string memory label = labels[i];
+            bool sampleSupport = support[i];
+            
+            require(votingSessions[sampleId].isActive, "Voting session not active");
+            require(!votingSessions[sampleId].isFinalized, "Voting session already finalized");
+            require(!votingSessions[sampleId].hasVoted[msg.sender], "Already voted on this sample");
+            
+            // Check timeout for each sample
+            if (_isTimeoutReached(sampleId)) {
+                _finalizeVotingSession(sampleId, "Timeout reached");
+                continue; // Skip this sample
+            }
+            
+            // Record the vote
+            votes[sampleId].push(Vote({
+                voter: msg.sender,
+                label: label,
+                support: sampleSupport,
+                timestamp: block.timestamp
+            }));
+            
+            votingSessions[sampleId].hasVoted[msg.sender] = true;
+            
+            // Update vote aggregation
+            if (sampleSupport) {
+                votingSessions[sampleId].labelVotes[label]++;
+                votingSessions[sampleId].labelWeights[label] += voterWeights[msg.sender];
+            }
+            
+            emit VoteSubmitted(sampleId, msg.sender, label, sampleSupport, block.timestamp);
+            
+            // Check for automatic finalization conditions
+            string memory consensusLabel = _checkForConsensus(sampleId);
+            if (bytes(consensusLabel).length > 0) {
+                _finalizeVotingSession(sampleId, "Consensus reached");
+                emit ConsensusReached(sampleId, consensusLabel);
+            } else if (_allVotersVoted(sampleId)) {
+                _finalizeVotingSession(sampleId, "All voters participated");
+            }
         }
     }
     
@@ -539,6 +600,112 @@ contract ALProjectVoting {
         return batches[round].sampleIds;
     }
     
+    /**
+     * @dev Compute active batch for UI (moved from Project.sol)
+     */
+    function computeActiveBatch(
+        string[] memory allSampleIds,
+        bool[] memory sampleActiveStates,
+        string[] memory labelSpace,
+        uint256 votingTimeout,
+        uint256 _currentRound
+    ) external view returns (
+        string[] memory activeSampleIds,
+        string[] memory sampleData, 
+        string[] memory labelOptions,
+        uint256 timeRemaining,
+        uint256 round
+    ) {
+        require(allSampleIds.length == sampleActiveStates.length, "Length mismatch");
+        
+        // Count active samples first
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < allSampleIds.length; i++) {
+            if (sampleActiveStates[i]) {
+                activeCount++;
+            }
+        }
+        
+        if (activeCount == 0) {
+            return (new string[](0), new string[](0), new string[](0), 0, _currentRound);
+        }
+        
+        // Build array of active samples
+        activeSampleIds = new string[](activeCount);
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < allSampleIds.length; i++) {
+            if (sampleActiveStates[i]) {
+                activeSampleIds[index] = allSampleIds[i];
+                index++;
+            }
+        }
+        
+        // Prepare sample data
+        sampleData = new string[](activeSampleIds.length);
+        for (uint256 i = 0; i < activeSampleIds.length; i++) {
+            sampleData[i] = string(abi.encodePacked("Sample data for ", activeSampleIds[i]));
+        }
+        
+        // Get time remaining from first sample
+        uint256 remaining = 0;
+        if (activeSampleIds.length > 0) {
+            (uint256 sessionStartTime, bool sessionIsActive, bool isFinalized, ) = 
+                this.getVotingSession(activeSampleIds[0]);
+            
+            if (sessionIsActive && !isFinalized) {
+                uint256 elapsed = block.timestamp - sessionStartTime;
+                remaining = elapsed >= votingTimeout ? 0 : votingTimeout - elapsed;
+            }
+        }
+        
+        return (
+            activeSampleIds,
+            sampleData,
+            labelSpace,
+            remaining,
+            _currentRound
+        );
+    }
+
+    /**
+     * @dev Compute batch progress with active samples count (for Project.sol)
+     */
+    function computeBatchProgress(
+        uint256 round,
+        string[] memory sampleIds,
+        bool[] memory sampleActiveStates
+    ) external pure returns (
+        uint256 _round,
+        uint256 totalSamples,
+        uint256 activeSamplesCount,
+        uint256 completedSamples,
+        string[] memory _sampleIds,
+        bool batchActive
+    ) {
+        require(sampleIds.length == sampleActiveStates.length, "Length mismatch");
+        
+        uint256 activeCount = 0;
+        uint256 completedCount = 0;
+        
+        for (uint256 i = 0; i < sampleIds.length; i++) {
+            if (sampleActiveStates[i]) {
+                activeCount++;
+            } else if (sampleIds.length > 0) {
+                completedCount++;
+            }
+        }
+        
+        return (
+            round,
+            sampleIds.length,
+            activeCount,
+            completedCount,
+            sampleIds,
+            sampleIds.length > 0 && activeCount > 0
+        );
+    }
+
     function getCurrentBatchProgress() external view returns (
         uint256 round,
         bool isActive,
@@ -598,9 +765,7 @@ contract ALProjectVoting {
         // Interface call to Project to store final label
         try IProject(project).receiveFinalLabelFromVoting(
             sampleId,
-            finalLabel,
-            "Automated vote aggregation",
-            "" // IPFS hash - could be generated for vote record
+            finalLabel
         ) {
             // Success
         } catch {

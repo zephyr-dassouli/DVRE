@@ -6,6 +6,7 @@
 import { ethers } from 'ethers';
 import { RPC_URL } from '../../../config/contracts';
 import Project from '../../../abis/Project.json';
+import ALProjectVoting from '../../../abis/ALProjectVoting.json'; // Added import for ALProjectVoting
 import { config } from '../../../config';
 
 export interface VotingRecord {
@@ -587,27 +588,35 @@ export class ALContractService {
   }
 
   /**
-   * Submit vote for current sample - only communicates with Project
-   * Project will now auto-register voters and forward votes to ALProjectVoting
+   * Submit batch vote for multiple samples - this is now the ONLY voting method!
+   * Works for batch size 1 or more, providing consistency and simplification
    */
-  async submitVote(projectAddress: string, sampleId: string, label: string, userAddress: string): Promise<boolean> {
+  async submitBatchVote(projectAddress: string, sampleIds: string[], labels: string[], userAddress: string): Promise<boolean> {
     try {
-      console.log('🗳️ Submitting vote via Project (with auto-registration):', { projectAddress, sampleId, label, userAddress });
+      console.log(`🗳️ Submitting BATCH vote (${sampleIds.length} samples) via Project:`, { projectAddress, sampleIds, labels, userAddress });
+      
+      // Validate inputs
+      if (sampleIds.length !== labels.length) {
+        throw new Error('Sample IDs and labels arrays must have the same length');
+      }
+      
+      if (sampleIds.length === 0) {
+        throw new Error('No samples provided for batch voting');
+      }
       
       // Get signer for transaction
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
       const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
-      // Use the actual signer address instead of strict validation
+      // Use the actual signer address
       const signerAddress = await signer.getAddress();
-      console.log(`🔐 Using signer address for vote: ${signerAddress} (provided: ${userAddress})`);
+      console.log(`🔐 Using signer address for batch vote: ${signerAddress} (provided: ${userAddress})`);
       
-      // Check if user needs auto-registration (informational only)
+      // Check voter registration status (informational)
       try {
         const votingContractAddress = await projectContract.votingContract();
         if (votingContractAddress && votingContractAddress !== ethers.ZeroAddress) {
-          // Try to check if voter is already registered (optional check)
           const votingContract = new ethers.Contract(
             votingContractAddress, 
             ['function voterWeights(address) view returns (uint256)'], 
@@ -616,40 +625,43 @@ export class ALContractService {
           const currentWeight = await votingContract.voterWeights(signerAddress);
           
           if (currentWeight === BigInt(0)) {
-            console.log('ℹ️ User will be auto-registered as voter (first-time voting)');
+            console.log('ℹ️ User will be auto-registered as voter (first-time batch voting)');
           } else {
             console.log(`ℹ️ User already registered with weight: ${currentWeight}`);
           }
         }
       } catch (checkError) {
-        console.log('ℹ️ Could not check voter registration status (proceeding with vote)');
+        console.log('ℹ️ Could not check voter registration status (proceeding with batch vote)');
       }
 
-      // Submit vote through Project (Project will handle auto-registration and AL contract interaction)
-      console.log('📤 Submitting vote - Project will auto-register if needed...');
-      const tx = await projectContract.submitVote(sampleId, label);
-      console.log('📡 Vote transaction submitted via Project:', tx.hash);
+      // Submit batch vote through Project (Project will handle auto-registration and AL contract interaction)
+      const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
+      console.log(`📤 Submitting ${batchType} vote for ${sampleIds.length} samples - Project will auto-register if needed...`);
+      const tx = await projectContract.submitBatchVote(sampleIds, labels);
+      console.log('📡 Batch vote transaction submitted via Project:', tx.hash);
       
       // Wait for confirmation
       const receipt = await tx.wait();
-      console.log('✅ Vote confirmed in block:', receipt.blockNumber);
-      console.log('🎉 Vote successfully processed (including any auto-registration)');
+      console.log('✅ Batch vote confirmed in block:', receipt.blockNumber);
+      console.log('🎉 Batch vote successfully processed (including any auto-registration)');
       
-      // Handle local session completion
-      await this.handleVoteSubmissionComplete(projectAddress, sampleId, label);
+      // Handle local session completion for all samples
+      for (let i = 0; i < sampleIds.length; i++) {
+        await this.handleVoteSubmissionComplete(projectAddress, sampleIds[i], labels[i]);
+      }
       
       return true;
     } catch (error) {
-      console.error('❌ Failed to submit vote via Project:', error);
+      console.error('❌ Failed to submit batch vote via Project:', error);
       
-      // Provide more helpful error messages for common issues
+      // Provide helpful error messages
       if (error instanceof Error) {
-        if (error.message.includes('Sample not active for voting')) {
-          throw new Error('This sample is not currently active for voting. The voting session may have ended.');
+        if (error.message.includes('Mismatched arrays')) {
+          throw new Error('The number of samples and labels must match.');
+        } else if (error.message.includes('Sample not active for voting')) {
+          throw new Error('One or more samples are not currently active for voting.');
         } else if (error.message.includes('Already voted')) {
-          throw new Error('You have already voted on this sample.');
-        } else if (error.message.includes('Voting session not active')) {
-          throw new Error('The voting session is not currently active.');
+          throw new Error('You have already voted on one or more of these samples.');
         } else if (error.message.includes('user rejected')) {
           throw new Error('Transaction was rejected. Please try again.');
         }
@@ -1259,6 +1271,340 @@ export class ALContractService {
       
     } catch (error) {
       console.error('❌ Failed to handle vote submission completion:', error);
+    }
+  }
+
+  /**
+   * Get active batch for batch voting UI - returns all samples to vote on at once
+   */
+  async getActiveBatch(projectAddress: string): Promise<{
+    sampleIds: string[];
+    sampleData: any[];
+    labelOptions: string[];
+    timeRemaining: number;
+    round: number;
+    batchSize: number;
+  } | null> {
+    try {
+      console.log('🗳️ Getting active batch for simultaneous voting:', projectAddress);
+      
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      
+      try {
+        // Get active batch from Project contract
+        const [sampleIds, sampleData, labelOptions, timeRemaining, round] = 
+          await projectContract.getActiveBatch();
+        
+        if (sampleIds.length === 0) {
+          console.log('📝 No active batch found');
+          return null;
+        }
+        
+        console.log(`🗳️ Found active batch with ${sampleIds.length} samples for simultaneous voting`);
+        
+        // Get actual sample data from stored AL samples if available
+        const actualSampleData = [];
+        for (let i = 0; i < sampleIds.length; i++) {
+          const storedData = this.getSampleDataById(sampleIds[i]);
+          if (storedData) {
+            actualSampleData.push(storedData);
+          } else {
+            // Fallback to contract-provided data
+            actualSampleData.push({
+              sampleId: sampleIds[i],
+              data: sampleData[i] || `Sample ${i + 1}`,
+              placeholder: true
+            });
+          }
+        }
+        
+        return {
+          sampleIds: sampleIds,
+          sampleData: actualSampleData,
+          labelOptions: labelOptions,
+          timeRemaining: Number(timeRemaining),
+          round: Number(round),
+          batchSize: sampleIds.length
+        };
+        
+      } catch (methodError) {
+        console.log('📝 Project getActiveBatch method not available yet:', methodError instanceof Error ? methodError.message : 'Unknown error');
+        return null;
+      }
+      
+    } catch (error) {
+      console.error('❌ Error getting active batch:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get comprehensive project status including AL configuration and batch progress
+   */
+  async getEnhancedProjectStatus(projectAddress: string): Promise<{
+    // Basic project info
+    isActive: boolean;
+    currentIteration: number;
+    maxIterations: number;
+    
+    // AL Configuration
+    queryStrategy: string;
+    alScenario: string;
+    queryBatchSize: number;
+    votingTimeout: number;
+    labelSpace: string[];
+    
+    // Current batch info from Project contract
+    currentBatch: {
+      round: number;
+      totalSamples: number;
+      activeSamples: number;
+      completedSamples: number;
+      sampleIds: string[];
+      batchActive: boolean;
+    };
+    
+    // Member info
+    members: {
+      addresses: string[];
+      roles: string[];
+      weights: number[];
+      joinTimestamps: number[];
+    };
+    
+    // Active voting info
+    activeVoting?: {
+      sampleId: string;
+      sampleData: any;
+      labelOptions: string[];
+      timeRemaining: number;
+      currentVotes: Record<string, number>;
+    };
+  }> {
+    try {
+      const contract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      
+      // Get basic project status
+      const [isActive, created, modified, creator] = await contract.getProjectStatus();
+      
+      // Get AL configuration
+      const [queryStrategy, alScenario, maxIteration, currentRound, queryBatchSize, votingTimeout, labelSpace] = 
+        await contract.getALConfiguration();
+      
+      // Get current batch progress from Project contract
+      const [batchRound, totalSamples, activeSamplesCount, completedSamples, sampleIds, batchActive] = 
+        await contract.getCurrentBatchProgress();
+      
+      // Get member information
+      const [memberAddresses, roles, weights, joinTimestamps] = await contract.getAllMembers();
+      
+      // Get active voting session if any
+      let activeVoting;
+      const [activeVotingSampleId, sampleData, labelOptions, timeRemaining, voters] = 
+        await contract.getActiveVoting();
+      
+      if (activeVotingSampleId && activeVotingSampleId !== '') {
+        // Get current votes from voting contract if available
+        const votingContract = await contract.votingContract();
+        let currentVotes: Record<string, number> = {};
+        
+        if (votingContract && votingContract !== ethers.ZeroAddress) {
+          try {
+            const votingContractInstance = new ethers.Contract(votingContract, ALProjectVoting.abi, this.provider);
+            const [labels, voteCounts, voteWeights] = await votingContractInstance.getVotingDistribution(activeVotingSampleId);
+            
+            for (let i = 0; i < labels.length; i++) {
+              currentVotes[labels[i] as string] = Number(voteCounts[i]);
+            }
+          } catch (error) {
+            console.warn('Could not fetch voting distribution:', error);
+          }
+        }
+        
+        activeVoting = {
+          sampleId: activeVotingSampleId,
+          sampleData: JSON.parse(sampleData || '{}'),
+          labelOptions: labelOptions,
+          timeRemaining: Number(timeRemaining),
+          currentVotes
+        };
+      }
+      
+      return {
+        isActive,
+        currentIteration: Number(currentRound),
+        maxIterations: Number(maxIteration),
+        queryStrategy,
+        alScenario,
+        queryBatchSize: Number(queryBatchSize),
+        votingTimeout: Number(votingTimeout),
+        labelSpace: labelSpace,
+        currentBatch: {
+          round: Number(batchRound),
+          totalSamples: Number(totalSamples),
+          activeSamples: Number(activeSamplesCount),
+          completedSamples: Number(completedSamples),
+          sampleIds: sampleIds,
+          batchActive: batchActive
+        },
+        members: {
+          addresses: memberAddresses,
+          roles: roles,
+          weights: weights.map((w: any) => Number(w)),
+          joinTimestamps: joinTimestamps.map((t: any) => Number(t))
+        },
+        activeVoting
+      };
+      
+    } catch (error) {
+      console.error('Failed to get enhanced project status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get detailed voting session status from ALProjectVoting contract
+   */
+  async getVotingSessionStatus(projectAddress: string, sampleId: string): Promise<{
+    isActive: boolean;
+    isFinalized: boolean;
+    finalLabel: string;
+    startTime: number;
+    timeRemaining: number;
+    votedCount: number;
+    totalVoters: number;
+    round: number;
+    labelDistribution: { label: string; votes: number; weights: number }[];
+  } | null> {
+    try {
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const votingContractAddress = await projectContract.votingContract();
+      
+      if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
+        return null;
+      }
+      
+      const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
+      
+      // Get session status
+      const [isActive, isFinalized, finalLabel, startTime, timeRemaining, votedCount, totalVoters] = 
+        await votingContract.getVotingSessionStatus(sampleId);
+      
+      // Get session details including round
+      const [sessionStartTime, sessionIsActive, sessionIsFinalized, sessionFinalLabel] = 
+        await votingContract.getVotingSession(sampleId);
+      
+      // Get voting distribution
+      const [labels, voteCounts, voteWeights] = await votingContract.getVotingDistribution(sampleId);
+      
+      const labelDistribution = [];
+      for (let i = 0; i < labels.length; i++) {
+        labelDistribution.push({
+          label: labels[i],
+          votes: Number(voteCounts[i]),
+          weights: Number(voteWeights[i])
+        });
+      }
+      
+      // Get round from voting sessions mapping (we need to add this to the contract)
+      // For now, get it from current round
+      const round = await votingContract.currentRound();
+      
+      return {
+        isActive: isActive,
+        isFinalized: isFinalized,
+        finalLabel: finalLabel,
+        startTime: Number(startTime),
+        timeRemaining: Number(timeRemaining),
+        votedCount: Number(votedCount),
+        totalVoters: Number(totalVoters),
+        round: Number(round),
+        labelDistribution
+      };
+      
+    } catch (error) {
+      console.error('Failed to get voting session status:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get batch progress from ALProjectVoting contract
+   */
+  async getBatchProgressFromVotingContract(projectAddress: string): Promise<{
+    round: number;
+    isActive: boolean;
+    totalSamples: number;
+    completedSamples: number;
+    sampleIds: string[];
+  } | null> {
+    try {
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const votingContractAddress = await projectContract.votingContract();
+      
+      if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
+        return null;
+      }
+      
+      const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
+      
+      const [round, isActive, totalSamples, completedSamples, sampleIds] = 
+        await votingContract.getCurrentBatchProgress();
+      
+      return {
+        round: Number(round),
+        isActive: isActive,
+        totalSamples: Number(totalSamples),
+        completedSamples: Number(completedSamples),
+        sampleIds: sampleIds
+      };
+      
+    } catch (error) {
+      console.error('Failed to get batch progress from voting contract:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get voter information from ALProjectVoting contract
+   */
+  async getVoterInformation(projectAddress: string): Promise<{
+    voters: { address: string; weight: number }[];
+    currentUserWeight: number;
+    isCurrentUserRegistered: boolean;
+  }> {
+    try {
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const votingContractAddress = await projectContract.votingContract();
+      
+      if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
+        return { voters: [], currentUserWeight: 0, isCurrentUserRegistered: false };
+      }
+      
+      const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
+      
+      // Get all voters
+      const voterList = await votingContract.getVoterList();
+      const voters = voterList.map((voter: any) => ({
+        address: voter.addr,
+        weight: Number(voter.weight)
+      }));
+      
+      // Get current user's weight
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      const currentUserAddress = await signer.getAddress();
+      const currentUserWeight = await votingContract.voterWeights(currentUserAddress);
+      
+      return {
+        voters,
+        currentUserWeight: Number(currentUserWeight),
+        isCurrentUserRegistered: Number(currentUserWeight) > 0
+      };
+      
+    } catch (error) {
+      console.error('Failed to get voter information:', error);
+      return { voters: [], currentUserWeight: 0, isCurrentUserRegistered: false };
     }
   }
 }

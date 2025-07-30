@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { LabelingPanelProps } from './PanelTypes';
 
 export const LabelingPanel: React.FC<LabelingPanelProps> = ({
@@ -10,11 +10,54 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
   iterationCompleted,
   iterationMessage,
   onVoteSubmission,
+  onBatchVoteSubmission,
   onAcknowledgeCompletion,
   onError
 }) => {
 
-  const handleSubmitVote = async (label: string) => {
+  // State for batch voting
+  const [activeBatch, setActiveBatch] = useState<{
+    sampleIds: string[];
+    sampleData: any[];
+    labelOptions: string[];
+    timeRemaining: number;
+    round: number;
+    batchSize: number;
+  } | null>(null);
+  
+  const [batchVotes, setBatchVotes] = useState<{ [sampleId: string]: string }>({});
+  const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
+
+  // Load active batch when session state changes
+  useEffect(() => {
+    const loadActiveBatch = async () => {
+      if (sessionState && sessionState.phase === 'voting') {
+        try {
+          // Get DAL session from window context (temporary way to access it)
+          const dalSession = (window as any).currentDALSession;
+          if (dalSession) {
+            const batch = await dalSession.getActiveBatch();
+            setActiveBatch(batch);
+            
+            if (batch) {
+              console.log(`🗳️ Loaded batch with ${batch.batchSize} samples for simultaneous voting`);
+              // Reset batch votes
+              setBatchVotes({});
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load active batch:', error);
+        }
+      } else {
+        setActiveBatch(null);
+        setBatchVotes({});
+      }
+    };
+    
+    loadActiveBatch();
+  }, [sessionState]);
+
+  const handleSingleVote = async (label: string) => {
     if (!project.activeVoting) {
       onError('No active voting session');
       return;
@@ -25,6 +68,51 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     } catch (error) {
       console.error('❌ Failed to submit vote:', error);
       onError(error instanceof Error ? error.message : 'Failed to submit vote');
+    }
+  };
+
+  const handleBatchVoteChange = (sampleId: string, label: string) => {
+    setBatchVotes(prev => ({
+      ...prev,
+      [sampleId]: label
+    }));
+  };
+
+  const handleSubmitBatchVote = async () => {
+    if (!activeBatch) {
+      onError('No active batch found');
+      return;
+    }
+
+    // Check if all samples have votes
+    const missingVotes = activeBatch.sampleIds.filter(id => !batchVotes[id]);
+    if (missingVotes.length > 0) {
+      onError(`Please vote on all samples. Missing votes for: ${missingVotes.join(', ')}`);
+      return;
+    }
+
+    setIsSubmittingBatch(true);
+    try {
+      const sampleIds = activeBatch.sampleIds;
+      const labels = sampleIds.map(id => batchVotes[id]);
+      
+      const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
+      console.log(`🗳️ Submitting ${batchType} vote:`, sampleIds.map((id, i) => `${id}: ${labels[i]}`));
+      
+      // Use the new batch vote submission prop
+      await onBatchVoteSubmission(sampleIds, labels);
+      
+      // Clear batch votes after successful submission
+      setBatchVotes({});
+      setActiveBatch(null);
+      
+      console.log(`✅ ${batchType} vote submitted successfully`);
+      
+    } catch (error) {
+      console.error('❌ Failed to submit batch vote:', error);
+      onError(error instanceof Error ? error.message : 'Failed to submit batch vote');
+    } finally {
+      setIsSubmittingBatch(false);
     }
   };
 
@@ -75,7 +163,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     );
   };
 
-  const renderLabelButtons = (labelOptions: string[]) => {
+  const renderLabelButtons = (labelOptions: string[], sampleId?: string) => {
     // Enhanced label buttons with descriptions for iris dataset
     const irisLabels = {
       'setosa': '🌺 Setosa (smaller, compact flowers)',
@@ -89,11 +177,19 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
           <button
             key={label}
             className="label-button-enhanced"
-            onClick={() => handleSubmitVote(label)}
+            onClick={() => {
+              if (sampleId) {
+                // Batch voting mode
+                handleBatchVoteChange(sampleId, label);
+              } else {
+                // Single voting mode
+                handleSingleVote(label);
+              }
+            }}
             style={{
               padding: '16px 24px',
               margin: '8px',
-              backgroundColor: '#3b82f6',
+              backgroundColor: sampleId && batchVotes[sampleId] === label ? '#10b981' : '#3b82f6',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
@@ -105,14 +201,18 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
               boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#2563eb';
-              e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+              if (!(sampleId && batchVotes[sampleId] === label)) {
+                e.currentTarget.style.backgroundColor = '#2563eb';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#3b82f6';
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+              if (!(sampleId && batchVotes[sampleId] === label)) {
+                e.currentTarget.style.backgroundColor = '#3b82f6';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+              }
             }}
           >
             <div>{irisLabels[label as keyof typeof irisLabels] || label}</div>
@@ -145,13 +245,25 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
             </div>
           ) : (
             <div>
-              AL Iteration Round: {project.currentRound}
+              AL Iteration Round: {project.currentRound || 'Not Set'}
               {batchProgress && (
                 <div className="batch-progress">
                   {batchProgress.totalSamples === 1 
                     ? `Sample Status: ${batchProgress.completedSamples > 0 ? 'Completed' : 'In Progress'}`
                     : `Batch Progress: ${batchProgress.completedSamples}/${batchProgress.totalSamples} samples completed`
                   }
+                </div>
+              )}
+            </div>
+          )}
+          {/* DEBUG: Add debugging info to understand the state */}
+          {process.env.NODE_ENV === 'development' && (
+            <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>
+              Debug: batchProgress.round={batchProgress?.round}, project.currentRound={project.currentRound}
+              {batchProgress && (
+                <div>
+                  BatchProgress: completed={batchProgress.completedSamples}, total={batchProgress.totalSamples}, 
+                  currentIndex={batchProgress.currentSampleIndex}, round={batchProgress.round}
                 </div>
               )}
             </div>
@@ -188,16 +300,13 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
       )}
       
       {/* Batch voting in progress */}
-      {batchProgress && batchProgress.isActive && !iterationCompleted && (
+      {activeBatch && (
         <div className="batch-voting">
           <div className="batch-header">
             <h4>
-              {batchProgress.totalSamples === 1 
-                ? `Sample Voting - Round ${batchProgress.round || project.currentRound}` 
-                : `Batch Voting - Round ${batchProgress.round || project.currentRound}`
-              }
+              Batch Voting - Round {activeBatch.round || project.currentRound}
             </h4>
-            {batchProgress.totalSamples > 1 && (
+            {activeBatch.batchSize > 1 && (
               <div className="progress-bar" style={{ 
                 width: '100%', 
                 height: '8px', 
@@ -208,7 +317,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
                 <div 
                   className="progress-fill" 
                   style={{ 
-                    width: `${(batchProgress.completedSamples / batchProgress.totalSamples) * 100}%`,
+                    width: `${(activeBatch.batchSize / activeBatch.batchSize) * 100}%`,
                     height: '100%',
                     backgroundColor: '#10b981',
                     borderRadius: '4px',
@@ -218,31 +327,27 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
               </div>
             )}
             <div className="progress-text" style={{ marginTop: '8px', fontSize: '14px', color: '#666' }}>
-              {batchProgress.totalSamples === 1 
+              {activeBatch.batchSize === 1 
                 ? `Sample voting in progress`
-                : `Sample ${batchProgress.currentSampleIndex + 1} of ${batchProgress.totalSamples}`
+                : `Batch voting in progress`
               }
             </div>
           </div>
           
-          {project.activeVoting ? (
-            <div className="active-voting">
-              <div className="sample-display" style={{ 
-                border: '1px solid #d1d5db', 
-                borderRadius: '8px', 
-                padding: '20px', 
-                marginBottom: '20px',
-                backgroundColor: '#f9fafb'
-              }}>
-                <h4 style={{ marginBottom: '16px' }}>Current Sample: {project.activeVoting.sampleId}</h4>
-                {renderSampleData(project.activeVoting.sampleData)}
-              </div>
-              
-              <div className="voting-interface" style={{ marginBottom: '20px' }}>
+          {activeBatch.sampleIds.map((sampleId, index) => (
+            <div key={sampleId} className="sample-display" style={{ 
+              border: '1px solid #d1d5db', 
+              borderRadius: '8px', 
+              padding: '20px', 
+              marginBottom: '20px',
+              backgroundColor: '#f9fafb'
+            }}>
+              <h4 style={{ marginBottom: '16px' }}>Sample {index + 1}: {sampleId}</h4>
+              {renderSampleData(activeBatch.sampleData[index])}
+              <div className="voting-interface" style={{ marginTop: '20px' }}>
                 <h4 style={{ marginBottom: '16px' }}>🏷️ Select Classification</h4>
-                {renderLabelButtons(project.activeVoting.labelOptions)}
+                {renderLabelButtons(activeBatch.labelOptions, sampleId)}
               </div>
-              
               <div className="live-voting" style={{ 
                 border: '1px solid #d1d5db', 
                 borderRadius: '8px', 
@@ -255,7 +360,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
                   gap: '16px', 
                   marginBottom: '12px' 
                 }}>
-                  {Object.entries(project.activeVoting.currentVotes).map(([label, count]) => (
+                  {Object.entries(project.activeVoting?.currentVotes || {}).map(([label, count]) => (
                     <div key={label} className="vote-item" style={{
                       padding: '8px 12px',
                       backgroundColor: '#e5e7eb',
@@ -268,40 +373,96 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
                   ))}
                 </div>
                 <div className="time-remaining" style={{ fontSize: '14px', color: '#666' }}>
-                  ⏱️ Time remaining: {Math.floor(project.activeVoting.timeRemaining / 60)}m {project.activeVoting.timeRemaining % 60}s
+                  ⏱️ Time remaining: {Math.floor((project.activeVoting?.timeRemaining || 0) / 60)}m {(project.activeVoting?.timeRemaining || 0) % 60}s
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="waiting-for-next-sample" style={{ 
-              textAlign: 'center', 
-              padding: '40px',
-              backgroundColor: '#f9fafb',
-              borderRadius: '8px'
+          ))}
+
+          <div className="submit-batch-vote" style={{ marginTop: '20px' }}>
+            <button 
+              onClick={handleSubmitBatchVote}
+              disabled={isSubmittingBatch}
+              style={{ 
+                padding: '10px 20px', 
+                backgroundColor: '#4f46e5', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#3b82f6';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#4f46e5';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+              }}
+            >
+              {isSubmittingBatch ? 'Submitting...' : 'Submit Batch Vote'}
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Single sample voting (fallback when batch voting not available) */}
+      {project.activeVoting && !activeBatch && (
+        <div className="active-voting">
+          <div className="sample-display" style={{ 
+            border: '1px solid #d1d5db', 
+            borderRadius: '8px', 
+            padding: '20px', 
+            marginBottom: '20px',
+            backgroundColor: '#f9fafb'
+          }}>
+            <h4 style={{ marginBottom: '16px' }}>Current Sample: {project.activeVoting.sampleId}</h4>
+            {renderSampleData(project.activeVoting.sampleData)}
+          </div>
+          
+          <div className="voting-interface" style={{ marginBottom: '20px' }}>
+            <h4 style={{ marginBottom: '16px' }}>🏷️ Select Classification</h4>
+            {renderLabelButtons(project.activeVoting.labelOptions)}
+          </div>
+          
+          <div className="live-voting" style={{ 
+            border: '1px solid #d1d5db', 
+            borderRadius: '8px', 
+            padding: '16px',
+            backgroundColor: '#f8fafc'
+          }}>
+            <h4 style={{ marginBottom: '12px' }}>📊 Live Voting Distribution</h4>
+            <div className="vote-distribution" style={{ 
+              display: 'flex', 
+              gap: '16px', 
+              marginBottom: '12px' 
             }}>
-              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔄</div>
-              <h4>Processing {batchProgress.totalSamples === 1 ? 'Sample' : 'Previous Sample'}</h4>
-              <p style={{ color: '#666', marginBottom: '16px' }}>
-                {batchProgress.totalSamples === 1 
-                  ? 'Finalizing vote aggregation and consensus...'
-                  : 'Waiting for the next sample in this batch...'
-                }
-              </p>
-              {batchProgress.totalSamples > 1 && (
-                <div className="remaining-samples" style={{ 
-                  fontWeight: 'bold', 
-                  color: '#3b82f6' 
+              {Object.entries(project.activeVoting?.currentVotes || {}).map(([label, count]) => (
+                <div key={label} className="vote-item" style={{
+                  padding: '8px 12px',
+                  backgroundColor: '#e5e7eb',
+                  borderRadius: '4px',
+                  fontSize: '14px'
                 }}>
-                  Remaining samples: {batchProgress.totalSamples - batchProgress.completedSamples}
+                  <span className="vote-label" style={{ fontWeight: 'bold' }}>{label}:</span>
+                  <span className="vote-count" style={{ marginLeft: '4px' }}>{count as number}</span>
                 </div>
-              )}
+              ))}
             </div>
-          )}
+            <div className="time-remaining" style={{ fontSize: '14px', color: '#666' }}>
+              ⏱️ Time remaining: {Math.floor(project.activeVoting.timeRemaining / 60)}m {project.activeVoting.timeRemaining % 60}s
+            </div>
+          </div>
         </div>
       )}
       
       {/* No active batch */}
-      {!batchProgress && !iterationCompleted && (
+      {!activeBatch && !iterationCompleted && (
         <div className="no-active-voting" style={{ 
           textAlign: 'center', 
           padding: '60px',

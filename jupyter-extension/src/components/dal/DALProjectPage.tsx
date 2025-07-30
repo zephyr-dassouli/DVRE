@@ -66,14 +66,12 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
   const setupBatchEventListeners = () => {
     // Listen for sample completion events
     const handleSampleCompleted = (event: CustomEvent) => {
-      const { sampleId, finalLabel, remaining, total } = event.detail;
+      const { sampleId, finalLabel } = event.detail;
       console.log(`Sample ${sampleId} completed:`, finalLabel);
       
-      setBatchProgress(prev => prev ? {
-        ...prev,
-        completedSamples: total - remaining,
-        currentSampleIndex: prev.currentSampleIndex + 1
-      } : null);
+      // FIXED: Don't update batch progress here - let DALProjectSession handle it
+      // The DALProjectSession already correctly increments completedSamples and currentSampleIndex
+      // Updating here was causing double increments and wrong calculations
       
       // FIXED: Force refresh project data when sample completes to update activeVoting state
       console.log('🔄 Sample completed, triggering project data refresh to clear activeVoting');
@@ -93,13 +91,15 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
       triggerRefresh(); // Trigger data refresh
     };
 
+    // FIXED: Store handler references for proper cleanup
     window.addEventListener('dal-sample-completed', handleSampleCompleted as EventListener);
     window.addEventListener('dal-iteration-completed', handleIterationCompleted as EventListener);
-  };
-
-  const cleanupBatchEventListeners = () => {
-    window.removeEventListener('dal-sample-completed', () => {});
-    window.removeEventListener('dal-iteration-completed', () => {});
+    
+    // Return cleanup function that removes the ACTUAL handlers
+    return () => {
+      window.removeEventListener('dal-sample-completed', handleSampleCompleted as EventListener);
+      window.removeEventListener('dal-iteration-completed', handleIterationCompleted as EventListener);
+    };
   };
 
   // Simple useEffect like the working testfile.txt
@@ -110,22 +110,26 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
       setError(null);
       
       try {
-        console.log('🔍 Loading real AL project data for:', project.contractAddress);
+        console.log('🔍 Loading enhanced AL project data for:', project.contractAddress);
         
-        // Load all data in parallel for better performance
-        const [votingData, contributionData, modelData, projectStatus] = await Promise.all([
+        // Load enhanced project status from contracts
+        const [enhancedStatus, votingData, contributionData, modelData] = await Promise.all([
+          alContractService.getEnhancedProjectStatus(project.contractAddress),
           alContractService.getVotingHistory(project.contractAddress),
           alContractService.getUserContributions(project.contractAddress),
-          alContractService.getModelUpdates(project.contractAddress),
-          alContractService.getProjectStatus(project.contractAddress)
+          alContractService.getModelUpdates(project.contractAddress)
         ]);
 
-        console.log('Loaded real data:', {
+        console.log('Loaded enhanced contract data:', {
+          currentIteration: enhancedStatus.currentIteration,
+          maxIterations: enhancedStatus.maxIterations,
+          batchActive: enhancedStatus.currentBatch.batchActive,
+          activeSamples: enhancedStatus.currentBatch.activeSamples,
+          completedSamples: enhancedStatus.currentBatch.completedSamples,
+          totalSamples: enhancedStatus.currentBatch.totalSamples,
+          members: enhancedStatus.members.addresses.length,
           votingRecords: votingData.length,
-          contributors: contributionData.length,
-          modelUpdates: modelData.length,
-          currentIteration: projectStatus.currentIteration,
-          hasActiveVoting: !!projectStatus.activeVoting
+          hasActiveVoting: !!enhancedStatus.activeVoting
         });
 
         setVotingHistory(votingData);
@@ -135,35 +139,71 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         })));
         setModelUpdates(modelData);
 
-        // Update project data with current status
-        if (projectStatus.activeVoting) {
-          // Update the project object with active voting data
-          (project as any).activeVoting = projectStatus.activeVoting;
-          (project as any).currentRound = projectStatus.currentIteration;
-          (project as any).totalRounds = projectStatus.maxIterations;
-          (project as any).isActive = projectStatus.isActive;
+        // Update project data with enhanced contract state
+        (project as any).isActive = enhancedStatus.isActive;
+        (project as any).currentRound = enhancedStatus.currentIteration;
+        (project as any).totalRounds = enhancedStatus.maxIterations;
+        (project as any).queryBatchSize = enhancedStatus.queryBatchSize;
+        (project as any).votingTimeout = enhancedStatus.votingTimeout;
+        (project as any).labelSpace = enhancedStatus.labelSpace;
+        (project as any).participants = enhancedStatus.members.addresses.length;
+        
+        // Set active voting from contract state
+        if (enhancedStatus.activeVoting) {
+          (project as any).activeVoting = {
+            sampleId: enhancedStatus.activeVoting.sampleId,
+            sampleData: enhancedStatus.activeVoting.sampleData,
+            labelOptions: enhancedStatus.activeVoting.labelOptions,
+            timeRemaining: enhancedStatus.activeVoting.timeRemaining,
+            currentVotes: enhancedStatus.activeVoting.currentVotes
+          };
+        } else {
+          delete (project as any).activeVoting;
         }
 
-        // If no real data is available, show appropriate messages
-        if (votingData.length === 0 && contributionData.length === 0) {
-          console.log('ℹNo smart contract data found - project may be newly deployed');
+        // Set batch progress from contract state
+        if (enhancedStatus.currentBatch.batchActive && enhancedStatus.currentBatch.totalSamples > 0) {
+          setBatchProgress({
+            round: enhancedStatus.currentBatch.round,
+            isActive: enhancedStatus.currentBatch.batchActive,
+            totalSamples: enhancedStatus.currentBatch.totalSamples,
+            completedSamples: enhancedStatus.currentBatch.completedSamples,
+            sampleIds: enhancedStatus.currentBatch.sampleIds,
+            currentSampleIndex: enhancedStatus.currentBatch.activeSamples > 0 ? 
+              enhancedStatus.currentBatch.totalSamples - enhancedStatus.currentBatch.activeSamples : 
+              enhancedStatus.currentBatch.completedSamples
+          });
+        } else {
+          setBatchProgress(null);
         }
+
+        // Log contract state summary
+        console.log(`📊 Contract State Summary:
+          - Project Active: ${enhancedStatus.isActive}
+          - Current Round: ${enhancedStatus.currentIteration}/${enhancedStatus.maxIterations}
+          - Batch Active: ${enhancedStatus.currentBatch.batchActive}
+          - Samples: ${enhancedStatus.currentBatch.completedSamples}/${enhancedStatus.currentBatch.totalSamples}
+          - Members: ${enhancedStatus.members.addresses.length}
+          - Active Voting: ${enhancedStatus.activeVoting ? 'Yes' : 'No'}`);
 
       } catch (err) {
-        console.error('Failed to load project data from smart contracts:', err);
+        console.error('Failed to load enhanced project data from smart contracts:', err);
         setError(err instanceof Error ? err.message : 'Failed to load project data');
         
         // Set empty arrays instead of mock data
         setVotingHistory([]);
         setUserContributions([]);
         setModelUpdates([]);
+        setBatchProgress(null);
       } finally {
         setLoading(false);
       }
     };
 
     loadProjectData();
-    setupBatchEventListeners();
+    
+    // FIXED: Properly setup and cleanup batch event listeners
+    const cleanupBatchListeners = setupBatchEventListeners();
     
     // Create DAL session after a small delay to prevent state conflicts
     const sessionTimer = setTimeout(() => {
@@ -179,7 +219,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           
           if (newState.batchProgress) {
             setBatchProgress({
-              round: project.currentRound,
+              round: newState.batchProgress.round, // FIXED: Use synchronized round from session
               isActive: newState.isActive,
               totalSamples: newState.batchProgress.totalSamples,
               completedSamples: newState.batchProgress.completedSamples,
@@ -222,7 +262,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     // Cleanup event listeners on unmount
     return () => {
       clearTimeout(sessionTimer);
-      cleanupBatchEventListeners();
+      cleanupBatchListeners(); // FIXED: Call the actual cleanup function
       if (dalSession) {
         console.log('🧹 Cleaning up DAL Session');
         dalSession.removeAllListeners();
@@ -317,7 +357,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     }
   };
 
-  const handleVoteSubmission = async (sampleId: string, label: string) => {
+  const handleBatchVoteSubmission = async (sampleIds: string[], labels: string[]) => {
     if (!dalSession) {
       setError('DAL Session not initialized. Please wait a moment and try again.');
       return;
@@ -325,18 +365,25 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
 
     try {
       setError(null);
-      console.log('🗳️ Submitting vote via DAL Session bridge');
+      const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
+      console.log(`🗳️ Submitting ${batchType} vote via DAL Session bridge`);
       
-      // Use the DAL Session bridge for vote submission
-      await dalSession.submitVote(sampleId, label);
+      // Use the DAL Session bridge for batch vote submission (works for any batch size)
+      await dalSession.submitBatchVote(sampleIds, labels);
       
-      console.log('✅ Vote submitted successfully via DAL Session');
+      console.log(`✅ ${batchType} vote submitted successfully via DAL Session`);
       
     } catch (error) {
-      console.error('❌ Failed to submit vote:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to submit vote';
+      console.error('❌ Failed to submit batch vote:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to submit batch vote';
       setError(errorMessage);
     }
+  };
+
+  // Legacy wrapper for single sample voting (converted to batch)
+  const handleVoteSubmission = async (sampleId: string, label: string) => {
+    // Convert single vote to batch vote for consistency
+    await handleBatchVoteSubmission([sampleId], [label]);
   };
 
   const handleRefreshData = async () => {
@@ -467,6 +514,89 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             </>
           )}
         </div>
+        
+        {/* Enhanced Contract State Display */}
+        <div className="contract-state-info" style={{ 
+          marginTop: '12px', 
+          padding: '12px', 
+          backgroundColor: '#f8fafc', 
+          borderRadius: '8px', 
+          border: '1px solid #e2e8f0',
+          fontSize: '14px',
+          color: '#475569'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
+            📋 Project Configuration (From Smart Contract)
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
+            <div>
+              <span style={{ fontWeight: '500' }}>Batch Size:</span> {(project as any).queryBatchSize || 'Not Set'}
+            </div>
+            <div>
+              <span style={{ fontWeight: '500' }}>Voting Timeout:</span> {(project as any).votingTimeout ? `${Math.floor((project as any).votingTimeout / 60)}m` : 'Not Set'}
+            </div>
+            <div>
+              <span style={{ fontWeight: '500' }}>Label Options:</span> {(project as any).labelSpace?.length || 0} labels
+            </div>
+            <div>
+              <span style={{ fontWeight: '500' }}>Project Status:</span> 
+              <span style={{ 
+                color: (project as any).isActive ? '#10b981' : '#ef4444',
+                fontWeight: 'bold',
+                marginLeft: '4px'
+              }}>
+                {(project as any).isActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+          </div>
+          
+          {/* Current Batch Info */}
+          {batchProgress && (
+            <div style={{ marginTop: '12px' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#1e293b' }}>
+                🗳️ Current Batch Status (Round {batchProgress.round})
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
+                <div>
+                  <span style={{ fontWeight: '500' }}>Progress:</span> {batchProgress.completedSamples}/{batchProgress.totalSamples}
+                </div>
+                <div>
+                  <span style={{ fontWeight: '500' }}>Status:</span> 
+                  <span style={{ 
+                    color: batchProgress.isActive ? '#3b82f6' : '#10b981',
+                    fontWeight: 'bold',
+                    marginLeft: '4px'
+                  }}>
+                    {batchProgress.isActive ? 'In Progress' : 'Completed'}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontWeight: '500' }}>Sample IDs:</span> {batchProgress.sampleIds.length} samples
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Active Voting Info */}
+          {project.activeVoting && (
+            <div style={{ marginTop: '12px' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#1e293b' }}>
+                ⏱️ Active Voting Session
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
+                <div>
+                  <span style={{ fontWeight: '500' }}>Sample:</span> {project.activeVoting.sampleId}
+                </div>
+                <div>
+                  <span style={{ fontWeight: '500' }}>Time Remaining:</span> {Math.floor(project.activeVoting.timeRemaining / 60)}m {project.activeVoting.timeRemaining % 60}s
+                </div>
+                <div>
+                  <span style={{ fontWeight: '500' }}>Current Votes:</span> {Object.values(project.activeVoting.currentVotes || {}).reduce((a: number, b: number) => a + b, 0)} votes
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Navigation Tabs */}
@@ -525,6 +655,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             iterationCompleted={iterationCompleted}
             iterationMessage={iterationMessage}
             onVoteSubmission={handleVoteSubmission}
+            onBatchVoteSubmission={handleBatchVoteSubmission}
             onAcknowledgeCompletion={() => setIterationCompleted(false)}
             onRefresh={handleRefreshData}
             onError={setError}

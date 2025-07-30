@@ -21,7 +21,8 @@ export interface LabelingPanelProps extends BasePanelProps {
   } | null;
   iterationCompleted: boolean;
   iterationMessage: string;
-  onVoteSubmission: (sampleId: string, label: string) => Promise<void>;
+  onVoteSubmission: (sampleId: string, label: string) => Promise<void>; // Legacy single vote (converted to batch internally)
+  onBatchVoteSubmission: (sampleIds: string[], labels: string[]) => Promise<void>; // New batch voting method
   onAcknowledgeCompletion: () => void;
 }
 

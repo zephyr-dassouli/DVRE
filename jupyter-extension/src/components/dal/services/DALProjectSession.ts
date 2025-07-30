@@ -104,9 +104,7 @@ export class DALProjectSession extends EventEmitter {
    */
   async startIteration(): Promise<void> {
     try {
-      // Get current iteration from smart contract (single source of truth)
-      const currentIteration = await this.getCurrentIterationFromContract();
-      const nextIteration = currentIteration + 1;
+      console.log('🚀 Starting AL iteration workflow');
 
       this.updateState({
         phase: 'generating_samples',
@@ -114,34 +112,41 @@ export class DALProjectSession extends EventEmitter {
         error: undefined
       });
 
+      // Step 1: Get enhanced project status from contract
+      const projectStatus = await alContractService.getEnhancedProjectStatus(this.state.projectId);
+      const nextIteration = projectStatus.currentIteration + 1;
+
       this.emit('iteration-started', nextIteration);
 
-      // Step 1: Call AL-Engine to start next iteration (train model + query samples)
-      console.log(`🚀 Starting AL iteration ${nextIteration}`);
+      // Step 2: Call AL-Engine to start next iteration (train model + query samples)
+      console.log(`🔬 Starting AL iteration ${nextIteration} with AL-Engine`);
       const samples = await this.startNextIteration(nextIteration);
       
-      // Step 2: Start batch voting on smart contracts (this increments currentRound in Project)
+      // Step 3: Start batch voting on smart contracts (this increments currentRound in Project)
       await this.startBatchVoting(samples);
       
-      // Step 3: Get the updated round number from Project contract after voting started
-      const actualRound = await this.getCurrentIterationFromContract();
-      console.log(`🔄 Synchronized round: AL iteration ${nextIteration} → Project round ${actualRound}`);
+      // Step 4: Get the updated batch progress from contracts after voting started
+      const enhancedStatus = await alContractService.getEnhancedProjectStatus(this.state.projectId);
+      console.log(`🔄 Contract state after batch voting:`, enhancedStatus.currentBatch);
       
+      // Step 5: Update session state with contract state
       this.updateState({
         phase: 'voting',
         querySamples: samples,
         batchProgress: {
-          totalSamples: samples.length,
-          completedSamples: 0,
-          currentSampleIndex: 0,
-          sampleIds: samples.map((_, index) => `sample_${nextIteration}_${index}_${Date.now()}`),
-          round: actualRound // FIXED: Use actual round from Project contract
+          totalSamples: enhancedStatus.currentBatch.totalSamples,
+          completedSamples: enhancedStatus.currentBatch.completedSamples,
+          currentSampleIndex: enhancedStatus.currentBatch.activeSamples > 0 ? 
+            enhancedStatus.currentBatch.totalSamples - enhancedStatus.currentBatch.activeSamples : 
+            enhancedStatus.currentBatch.completedSamples,
+          sampleIds: enhancedStatus.currentBatch.sampleIds,
+          round: enhancedStatus.currentBatch.round
         }
       });
 
       this.emit('samples-generated', samples);
 
-      console.log(`✅ AL iteration ${nextIteration} workflow started (Project round ${actualRound})`);
+      console.log(`✅ AL iteration ${nextIteration} workflow started (Contract round ${enhancedStatus.currentBatch.round})`);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to start iteration';
@@ -159,22 +164,52 @@ export class DALProjectSession extends EventEmitter {
   }
 
   /**
-   * Submit a vote for the current sample
+   * Submit votes for multiple samples in a batch - this is now the ONLY voting method!
+   * Works for batch size 1 or more, providing consistency across all voting scenarios
    */
-  async submitVote(sampleId: string, label: string): Promise<void> {
+  async submitBatchVote(sampleIds: string[], labels: string[]): Promise<void> {
     try {
-      console.log(`🗳️ Submitting vote for ${sampleId}: ${label}`);
+      const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
+      console.log(`🗳️ Submitting ${batchType} vote for ${sampleIds.length} samples:`, sampleIds.map((id, i) => `${id}: ${labels[i]}`));
       
-      // Submit vote to smart contract
-      await alContractService.submitVote(this.state.projectId, sampleId, label, this.userAddress);
+      // Validate inputs
+      if (sampleIds.length !== labels.length) {
+        throw new Error('Sample IDs and labels arrays must have the same length');
+      }
       
-      console.log(`✅ Vote submitted successfully`);
+      if (sampleIds.length === 0) {
+        throw new Error('No samples provided for batch voting');
+      }
+      
+      // Submit batch vote to smart contract
+      await alContractService.submitBatchVote(this.state.projectId, sampleIds, labels, this.userAddress);
+      
+      console.log(`✅ ${batchType} vote submitted successfully for ${sampleIds.length} samples`);
       
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to submit vote';
-      console.error('❌ Failed to submit vote:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to submit batch vote';
+      console.error('❌ Failed to submit batch vote:', error);
       this.emit('error', errorMessage);
       throw error;
+    }
+  }
+
+  /**
+   * Get active batch for batch voting UI
+   */
+  async getActiveBatch(): Promise<{
+    sampleIds: string[];
+    sampleData: any[];
+    labelOptions: string[];
+    timeRemaining: number;
+    round: number;
+    batchSize: number;
+  } | null> {
+    try {
+      return await alContractService.getActiveBatch(this.state.projectId);
+    } catch (error) {
+      console.error('❌ Failed to get active batch:', error);
+      return null;
     }
   }
 
@@ -465,22 +500,63 @@ export class DALProjectSession extends EventEmitter {
       
       this.emit('sample-completed', sampleId, finalLabel);
       
-      // Update batch progress with round synchronization
-      if (this.state.batchProgress) {
-        const updatedProgress = {
-          ...this.state.batchProgress,
-          completedSamples: this.state.batchProgress.completedSamples + 1,
-          currentSampleIndex: this.state.batchProgress.currentSampleIndex + 1,
-          round: round // FIXED: Sync round number from Project contract
-        };
+      // Sync with contract state instead of manually tracking
+      try {
+        const enhancedStatus = await alContractService.getEnhancedProjectStatus(this.state.projectId);
+        console.log('🔄 Syncing with contract state after vote completion:', enhancedStatus.currentBatch);
+        
+        if (enhancedStatus.currentBatch.batchActive) {
+          // Update batch progress with contract state
+          const updatedProgress = {
+            totalSamples: enhancedStatus.currentBatch.totalSamples,
+            completedSamples: enhancedStatus.currentBatch.completedSamples,
+            currentSampleIndex: enhancedStatus.currentBatch.activeSamples > 0 ? 
+              enhancedStatus.currentBatch.totalSamples - enhancedStatus.currentBatch.activeSamples : 
+              enhancedStatus.currentBatch.completedSamples,
+            sampleIds: enhancedStatus.currentBatch.sampleIds,
+            round: enhancedStatus.currentBatch.round
+          };
 
-        this.updateState({
-          batchProgress: updatedProgress
-        });
+          console.log(`📊 Updated batch progress from contract: completed ${updatedProgress.completedSamples}/${updatedProgress.totalSamples}`);
+          
+          this.updateState({
+            batchProgress: updatedProgress
+          });
 
-        // Check if batch is complete
-        if (updatedProgress.completedSamples >= updatedProgress.totalSamples) {
+          // Check if batch is complete based on contract state
+          if (updatedProgress.completedSamples >= updatedProgress.totalSamples || !enhancedStatus.currentBatch.batchActive) {
+            console.log('🎉 Batch complete according to contract, triggering handleBatchCompleted');
+            await this.handleBatchCompleted();
+          }
+        } else {
+          console.log('📝 Batch no longer active according to contract');
           await this.handleBatchCompleted();
+        }
+        
+      } catch (error) {
+        console.error('❌ Failed to sync with contract state:', error);
+        // Fallback to manual state management if contract sync fails
+        if (this.state.batchProgress) {
+          const newCompletedSamples = this.state.batchProgress.completedSamples + 1;
+          const newCurrentSampleIndex = this.state.batchProgress.currentSampleIndex + 1;
+          
+          const safeCompletedSamples = Math.min(newCompletedSamples, this.state.batchProgress.totalSamples);
+          const safeCurrentSampleIndex = Math.min(newCurrentSampleIndex, this.state.batchProgress.totalSamples - 1);
+          
+          const updatedProgress = {
+            ...this.state.batchProgress,
+            completedSamples: safeCompletedSamples,
+            currentSampleIndex: safeCurrentSampleIndex,
+            round: round
+          };
+
+          this.updateState({
+            batchProgress: updatedProgress
+          });
+
+          if (updatedProgress.completedSamples >= updatedProgress.totalSamples) {
+            await this.handleBatchCompleted();
+          }
         }
       }
     };
@@ -537,8 +613,10 @@ export class DALProjectSession extends EventEmitter {
       this.updateState({
         phase: 'completed',
         isActive: false,
-        batchProgress: undefined
+        batchProgress: undefined // FIXED: Explicitly clear batchProgress to prevent carryover
       });
+
+      console.log('✅ Batch progress cleared, session state updated to completed');
 
       this.emit('iteration-completed', currentIteration, labeledSamples.length);
       
