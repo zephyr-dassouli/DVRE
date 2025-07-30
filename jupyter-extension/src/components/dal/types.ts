@@ -91,7 +91,6 @@ export interface UserContribution {
   votesCount: number;
   joinedAt: Date;
   lastActivity: Date;
-  reputation?: number;
 }
 
 export interface ProjectStats {

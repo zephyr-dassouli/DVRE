@@ -320,7 +320,7 @@ curl -o inputs/datasets/unlabeled_samples.csv "${ipfsConfig.ipfs.publicUrl}/ipfs
   }
 
   /**
-   * Generate al_iteration.cwl content (YAML format)
+   * Generate al_iteration.cwl content (YAML format) with performance metrics output
    */
   private generateALIterationCWL(): string {
     // Create cwltool definition for AL iteration that matches the working configuration
@@ -356,16 +356,24 @@ inputs:
     type: int
     inputBinding:
       prefix: --iteration
+  project_id:
+    type: string
+    inputBinding:
+      prefix: --project_id
 
 outputs:
   model_out:
     type: File
     outputBinding:
-      glob: output/model/model_round_*.pkl
+      glob: "*.pkl"
   query_samples:
     type: File
     outputBinding:
-      glob: output/query_samples_round_*.json
+      glob: "query_samples_round_*.json"
+  performance_metrics:
+    type: File
+    outputBinding:
+      glob: "performance_round_*.json"
 `;
 
     return cwlContent;

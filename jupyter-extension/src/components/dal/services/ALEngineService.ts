@@ -383,48 +383,76 @@ export class ALEngineService {
   }
 
   /**
-   * Get model updates (placeholder - would integrate with ML service/IPFS)
+   * Get model updates from AL-Engine API (real performance metrics)
    */
   async getModelUpdates(projectAddress: string, votingHistory: any[]): Promise<ModelUpdate[]> {
     try {
-      // Group voting history by iteration
-      const iterationMap = new Map<number, any[]>();
-      for (const record of votingHistory) {
-        const iteration = record.iterationNumber;
-        if (!iterationMap.has(iteration)) {
-          iterationMap.set(iteration, []);
-        }
-        iterationMap.get(iteration)!.push(record);
+      console.log(`📊 Fetching real model performance from AL-Engine for project: ${projectAddress}`);
+      
+      // Get all iterations from voting history
+      const iterations = new Set(votingHistory.map(r => r.iterationNumber));
+      
+      if (iterations.size === 0) {
+        console.log('📊 No voting iterations found');
+        return [];
       }
-
+      
       const modelUpdates: ModelUpdate[] = [];
       
-      for (const [iteration, records] of iterationMap.entries()) {
-        if (records.length === 0) continue;
-        
-        // Calculate basic metrics from consensus
-        const consensusReached = records.filter(r => r.consensusReached).length;
-        const accuracy = consensusReached / records.length;
-        
-        const modelUpdate: ModelUpdate = {
-          iterationNumber: iteration,
-          timestamp: new Date(Math.max(...records.map(r => r.timestamp.getTime()))),
-          performance: {
-            accuracy: Math.round(accuracy * 100) / 100,
-            precision: Math.round((accuracy + Math.random() * 0.1 - 0.05) * 100) / 100,
-            recall: Math.round((accuracy + Math.random() * 0.1 - 0.05) * 100) / 100,
-            f1Score: Math.round((accuracy + Math.random() * 0.05) * 100) / 100
-          },
-          samplesAddedCount: records.length,
-          notes: `Iteration ${iteration}: ${consensusReached}/${records.length} samples reached consensus`
-        };
-        
-        modelUpdates.push(modelUpdate);
+      // Fetch performance for each iteration from AL-Engine API
+      for (const iteration of Array.from(iterations).sort((a, b) => a - b)) {
+        try {
+          const response = await fetch(
+            `${config.alEngine.apiUrl}/model_performance/${iteration}?project_id=${projectAddress}`,
+            {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' }
+            }
+          );
+          
+          if (response.ok) {
+            const performanceData = await response.json();
+            
+            if (performanceData.performance) {
+              // Get samples count for this iteration from voting history
+              const iterationRecords = votingHistory.filter(r => r.iterationNumber === iteration);
+              
+              const modelUpdate: ModelUpdate = {
+                iterationNumber: iteration,
+                timestamp: new Date(performanceData.timestamp || Date.now()),
+                performance: {
+                  accuracy: performanceData.performance.accuracy || 0,
+                  precision: performanceData.performance.precision || 0,
+                  recall: performanceData.performance.recall || 0,
+                  f1Score: performanceData.performance.f1_score || 0
+                },
+                samplesAddedCount: iterationRecords.length,
+                notes: `Iteration ${iteration}: Real AL model performance (${performanceData.performance.test_samples} test samples)`
+              };
+              
+              modelUpdates.push(modelUpdate);
+              console.log(`✅ Retrieved real performance for iteration ${iteration}: ${(modelUpdate.performance.accuracy * 100).toFixed(1)}% accuracy`);
+            } else {
+              console.log(`⚠️ No performance data available for iteration ${iteration}`);
+            }
+          } else {
+            console.log(`⚠️ AL-Engine API error for iteration ${iteration}: ${response.status}`);
+          }
+        } catch (apiError) {
+          console.warn(`⚠️ Failed to fetch performance for iteration ${iteration}:`, apiError);
+        }
       }
-
+      
+      if (modelUpdates.length === 0) {
+        console.log('📊 No performance data available from AL-Engine yet');
+        return [];
+      }
+      
+      console.log(`✅ Retrieved ${modelUpdates.length} real model performance records from AL-Engine`);
       return modelUpdates.sort((a, b) => b.iterationNumber - a.iterationNumber);
+      
     } catch (error) {
-      console.error('Failed to get model updates:', error);
+      console.error('❌ Failed to get model updates from AL-Engine:', error);
       return [];
     }
   }

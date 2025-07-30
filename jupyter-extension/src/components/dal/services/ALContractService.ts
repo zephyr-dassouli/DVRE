@@ -9,8 +9,9 @@ import Project from '../../../abis/Project.json';
 import ALProjectVoting from '../../../abis/ALProjectVoting.json';
 
 // Import our modular services
-import { VotingService, VotingRecord, UserContribution, ActiveVoting } from './VotingService';
+import { VotingService, ActiveVoting } from './VotingService';
 import { ALEngineService, ModelUpdate } from './ALEngineService';
+import { VotingRecord, UserContribution } from '../types';
 
 export { VotingRecord, UserContribution, ActiveVoting, ModelUpdate };
 

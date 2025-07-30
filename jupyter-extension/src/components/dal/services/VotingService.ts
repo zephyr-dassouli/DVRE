@@ -7,26 +7,7 @@ import { ethers } from 'ethers';
 import { RPC_URL } from '../../../config/contracts';
 import Project from '../../../abis/Project.json';
 import ALProjectVoting from '../../../abis/ALProjectVoting.json';
-
-export interface VotingRecord {
-  sampleId: string;
-  sampleData: any;
-  finalLabel: string;
-  votes: { [voterAddress: string]: string };
-  votingDistribution: { [label: string]: number };
-  timestamp: Date;
-  iterationNumber: number;
-  consensusReached: boolean;
-}
-
-export interface UserContribution {
-  address: string;
-  role: string;
-  votesCount: number;
-  joinedAt: Date;
-  lastActivity: Date;
-  reputation: number;
-}
+import { UserContribution, VotingRecord } from '../types'; // Import from types.ts
 
 export interface ActiveVoting {
   sampleId: string;
@@ -168,64 +149,118 @@ export class VotingService {
    */
   async getUserContributions(projectAddress: string): Promise<UserContribution[]> {
     try {
-      console.log('👥 Getting user contributions via Project delegation for:', projectAddress);
+      console.log(`👥 Fetching real user contributions using contract methods for project ${projectAddress}`);
       
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
-      try {
-        // Try to get user contributions through Project delegation to ALProjectVoting
-        const contributionsResult = await projectContract.getUserContributions();
-        
-        if (contributionsResult && contributionsResult.length === 3) {
-          const [voters, voteCounts, weights] = contributionsResult;
-          
-          if (voters.length > 0) {
-            console.log(`👥 Found ${voters.length} contributors via Project delegation`);
-      
-      const contributions: UserContribution[] = [];
-            for (let i = 0; i < voters.length; i++) {
-              // Get additional voter stats
-              try {
-                const voterStats = await projectContract.getVoterStats(voters[i]);
-                const [weight, totalVotes, isRegistered] = voterStats;
-                
-                contributions.push({
-                  address: voters[i],
-                  role: isRegistered ? 'contributor' : 'observer',
-                  votesCount: Number(voteCounts[i]) || Number(totalVotes) || 0,
-                  joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000), // Estimate
-                  lastActivity: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000), // Estimate
-                  reputation: Math.min(100, Math.max(50, Number(weight) || 50))
-                });
-                
-              } catch (statsError) {
-                console.warn(`⚠️ Could not get stats for voter ${voters[i]}:`, statsError);
-                
-                // Fallback to basic record
-                contributions.push({
-                  address: voters[i],
-                  role: 'contributor',
-                  votesCount: Number(voteCounts[i]) || 0,
-                  joinedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
-                  lastActivity: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-                  reputation: Number(weights[i]) || 50
-                });
-              }
-            }
-            
-            return contributions;
-          }
-        }
-      } catch (methodError) {
-        console.log('📝 Project user contributions delegation not available yet, using placeholder data');
+      // Check if project has AL contracts
+      const hasALContracts = await projectContract.hasALContracts();
+      if (!hasALContracts) {
+        console.log('📝 Project has no AL contracts');
+        return [];
       }
+
+      // Get the voting contract address
+      const votingContractAddress = await projectContract.votingContract();
+      const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
+
+      // Get project creator for role determination
+      const projectCreator = await projectContract.creator();
       
-      // Return empty array for now - will be populated when delegation is working
-      console.log('📝 No user contributions available yet via delegation - contracts may need to be linked');
-      return [];
+      // Get all voters from the voting contract
+      const voterList = await votingContract.getVoterList();
+      console.log(`📋 Found ${voterList.length} registered voters`);
+
+      if (voterList.length === 0) {
+        console.log('📝 No voters registered in the project yet');
+        return [];
+      }
+
+      const contributions: UserContribution[] = [];
+
+      // Get current round to calculate voting statistics
+      const currentRound = await votingContract.currentRound();
+
+      // For each voter, calculate their real contributions
+      for (let i = 0; i < voterList.length; i++) {
+        const voter = voterList[i]; // voter is a struct with addr and weight
+        const voterAddress = voter.addr;
+        
+        try {
+          console.log(`👤 Processing voter ${i + 1}/${voterList.length}: ${voterAddress}`);
+
+          // Determine role based on address comparison
+          const isCreator = voterAddress.toLowerCase() === projectCreator.toLowerCase();
+          const role = isCreator ? 'coordinator' : 'contributor';
+
+          // Calculate real voting statistics
+          let totalVotes = 0;
+          let firstVoteTime: Date | null = null;
+          let lastVoteTime: Date | null = null;
+
+          // Iterate through all rounds and samples to count this voter's contributions
+          for (let round = 1; round <= currentRound; round++) {
+            try {
+              const sampleIds = await votingContract.getBatchSamples(round);
+              
+              for (const sampleId of sampleIds) {
+                try {
+                  // Get all votes for this sample
+                  const votes = await votingContract.getVotes(sampleId);
+                  
+                  // Check if this voter voted on this sample
+                  for (const vote of votes) {
+                    if (vote.voter.toLowerCase() === voterAddress.toLowerCase()) {
+                      totalVotes++;
+                      const voteTime = new Date(Number(vote.timestamp) * 1000);
+                      
+                      if (!firstVoteTime || voteTime < firstVoteTime) {
+                        firstVoteTime = voteTime;
+                      }
+                      if (!lastVoteTime || voteTime > lastVoteTime) {
+                        lastVoteTime = voteTime;
+                      }
+
+                      break; // Only count once per sample
+                    }
+                  }
+                } catch (sampleError) {
+                  console.warn(`⚠️ Error processing sample ${sampleId} for voter ${voterAddress}:`, sampleError);
+                }
+              }
+            } catch (roundError) {
+              console.warn(`⚠️ Error processing round ${round} for voter ${voterAddress}:`, roundError);
+            }
+          }
+
+          // Use real timestamps or reasonable defaults
+          const joinedAt = firstVoteTime || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago as fallback
+          const lastActivity = lastVoteTime || joinedAt;
+
+          const contribution: UserContribution = {
+            address: voterAddress,
+            role: role as 'coordinator' | 'contributor',
+            votesCount: totalVotes,
+            joinedAt,
+            lastActivity
+          };
+
+          contributions.push(contribution);
+          console.log(`✅ Added user contribution for ${voterAddress}: ${totalVotes} votes`);
+          
+        } catch (voterError) {
+          console.warn(`⚠️ Error processing voter ${voter.addr}:`, voterError);
+        }
+      }
+
+      // Sort by vote count (descending)
+      contributions.sort((a, b) => b.votesCount - a.votesCount);
+
+      console.log(`✅ Retrieved ${contributions.length} real user contributions using contract methods`);
+      return contributions;
       
     } catch (error) {
-      console.error('Failed to get user contributions via Project delegation:', error);
+      console.error('❌ Error fetching user contributions using contract methods:', error);
       return [];
     }
   }

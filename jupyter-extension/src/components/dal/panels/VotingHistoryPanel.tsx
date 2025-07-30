@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { VotingHistoryPanelProps } from './PanelTypes';
-import { VotingService, VotingRecord } from '../services/VotingService';
+import { VotingService } from '../services/VotingService';
+import { VotingRecord } from '../types';
 
 export const VotingHistoryPanel: React.FC<VotingHistoryPanelProps> = ({
   votingHistory: propVotingHistory,

@@ -10,6 +10,7 @@ import { localFileDownloadService } from './LocalFileDownloadService';
 // Import blockchain dependencies  
 import { ethers } from 'ethers';
 import Project from '../../../abis/Project.json';
+import globalConfig from '../../../config';
 
 /**
  * Deployment results interface
@@ -18,12 +19,14 @@ export interface DeploymentResults {
   steps: {
     alSmartContracts: 'success' | 'failed' | 'skipped';
     ipfsUpload: 'success' | 'failed';
+    assetContractStorage: 'success' | 'failed' | 'skipped';
     localROCrateSave: 'success' | 'failed' | 'skipped';
     orchestrationDeploy: 'success' | 'failed' | 'skipped';
     smartContractUpdate: 'success' | 'failed';
     localFileDownload: 'success' | 'failed' | 'skipped';
   };
   roCrateHash?: string;
+  assetContractAddress?: string;
   orchestrationWorkflowId?: string;
   localROCratePath?: string;
   localDownloadPath?: string;
@@ -60,6 +63,7 @@ export class DeploymentOrchestrator {
       steps: {
         alSmartContracts: 'skipped',
         ipfsUpload: 'failed',
+        assetContractStorage: 'skipped',
         localROCrateSave: 'skipped',
         orchestrationDeploy: 'failed',
         smartContractUpdate: 'failed',
@@ -118,6 +122,74 @@ export class DeploymentOrchestrator {
         result.roCrateHash = ipfsResult.roCrateHash;
         result.steps.ipfsUpload = 'success';
         console.log('✅ IPFS upload successful');
+
+        // 2.5. Asset Contract Storage (for RO-Crate as a blockchain asset)
+        console.log('📋 Step 2.5: Storing RO-Crate in blockchain asset contract...');
+        try {
+          // Use the existing blockchain connection instead of creating new AssetService
+          console.log('🔗 Using existing blockchain connection for asset creation...');
+          
+          // Get blockchain connection (same as used elsewhere in deployment)
+          const provider = new ethers.BrowserProvider((window as any).ethereum);
+          const signer = await provider.getSigner();
+          console.log('✅ Wallet connection established for asset creation');
+          
+          // Import AssetFactory ABI and create contract instance directly
+          const AssetFactoryABI = (await import('../../../abis/AssetFactory.json')).default;
+          const assetFactoryAddress = globalConfig.blockchain.assetFactoryAddress;
+          
+          console.log('🏭 Connecting to AssetFactory contract:', assetFactoryAddress);
+          const assetFactoryContract = new ethers.Contract(
+            assetFactoryAddress,
+            AssetFactoryABI.abi,
+            signer
+          );
+          
+          // Create asset name in the format: ro-crate-<project-address>-initial
+          const assetName = `ro-crate-${projectId}-initial`;
+          const assetType = 'ro-crate';
+          
+          console.log(`🔗 Creating blockchain asset: "${assetName}" with IPFS hash: ${result.roCrateHash}`);
+          
+          // Create the asset using AssetFactory contract
+          const tx = await assetFactoryContract.createAsset(assetName, assetType, result.roCrateHash);
+          console.log('⏳ Asset creation transaction sent, waiting for confirmation...');
+          
+          const receipt = await tx.wait();
+          console.log('✅ Asset creation transaction confirmed:', receipt.hash);
+          
+          // Extract the asset address from the event
+          const event = receipt.logs?.find((log: any) => {
+            try {
+              const parsed = assetFactoryContract.interface.parseLog(log);
+              return parsed?.name === 'AssetCreated';
+            } catch {
+              return false;
+            }
+          });
+          
+          let assetContractAddress = null;
+          if (event) {
+            const parsed = assetFactoryContract.interface.parseLog(event);
+            assetContractAddress = parsed?.args?.assetAddress;
+          }
+          
+          if (!assetContractAddress) {
+            throw new Error('Failed to extract asset address from transaction receipt');
+          }
+          
+          result.assetContractAddress = assetContractAddress;
+          result.steps.assetContractStorage = 'success';
+          console.log('✅ RO-Crate stored in blockchain asset contract:', assetContractAddress);
+          console.log(`📝 Asset details: Name="${assetName}", Type="${assetType}", Hash="${result.roCrateHash}"`);
+          
+        } catch (error) {
+          console.error('❌ Failed to store RO-Crate in blockchain asset contract:', error);
+          console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
+          console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+          result.steps.assetContractStorage = 'failed';
+          // Continue deployment - asset storage is optional but beneficial
+        }
 
         // 2.5. Local RO-Crate Save (ONLY for local computation mode - AL-Engine access)
         if (computationMode === 'local') {
