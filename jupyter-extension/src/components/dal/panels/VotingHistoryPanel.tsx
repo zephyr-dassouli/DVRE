@@ -12,11 +12,16 @@ export const VotingHistoryPanel: React.FC<VotingHistoryPanelProps> = ({
   
   const votingService = new VotingService();
 
+  // Update local state when props change
   useEffect(() => {
-    if (projectAddress) {
+    if (propVotingHistory && propVotingHistory.length > 0) {
+      setVotingHistory(propVotingHistory);
+      setError(null);
+    } else if (projectAddress) {
+      // Only fetch from blockchain if no prop data is available
       fetchVotingHistory();
     }
-  }, [projectAddress]);
+  }, [projectAddress, propVotingHistory]);
 
   const fetchVotingHistory = async () => {
     if (!projectAddress) return;
@@ -25,13 +30,13 @@ export const VotingHistoryPanel: React.FC<VotingHistoryPanelProps> = ({
     setError(null);
     
     try {
-      console.log('🔍 Fetching voting history for project:', projectAddress);
+      console.log('🔍 Fetching voting history from blockchain for project:', projectAddress);
       const history = await votingService.getVotingHistory(projectAddress);
       setVotingHistory(history);
-      console.log(`✅ Loaded ${history.length} voting records`);
+      console.log(`✅ Loaded ${history.length} voting records from blockchain`);
     } catch (error) {
       console.error('❌ Failed to fetch voting history:', error);
-      setError('Failed to load voting history');
+      setError('Failed to load voting history from blockchain');
     } finally {
       setLoading(false);
     }
@@ -59,28 +64,8 @@ export const VotingHistoryPanel: React.FC<VotingHistoryPanelProps> = ({
   return (
     <div className="voting-history-panel">
       <div className="panel-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h3>Voting History</h3>
-            <p>All samples with their voting statistics and final labels</p>
-          </div>
-          <button
-            onClick={fetchVotingHistory}
-            disabled={loading}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: loading ? '#ccc' : '#007acc',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
-              fontWeight: 'bold'
-            }}
-          >
-            {loading ? '⚙️ Loading...' : '🔄 Refresh'}
-          </button>
-        </div>
+        <h3>Voting History</h3>
+        <p>All samples with their voting statistics and final labels</p>
       </div>
       <div className="history-list">
         {loading ? (

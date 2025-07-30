@@ -84,7 +84,7 @@ export class ALContractService {
   // =====================================================================
 
   async getModelUpdates(projectAddress: string): Promise<ModelUpdate[]> {
-    const votingHistory = await this.getVotingHistory(projectAddress);
+      const votingHistory = await this.getVotingHistory(projectAddress);
     return this.alEngineService.getModelUpdates(projectAddress, votingHistory);
   }
 
@@ -120,18 +120,18 @@ export class ALContractService {
       // For batch voting, return the first active sample as representative
       const sampleId = activeBatch.sampleIds[0];
       const sampleData = this.getSampleDataById(sampleId) || { sampleId, data: 'Sample data' };
-      
-      return {
+        
+        return {
         sampleId,
         sampleData,
         labelOptions: activeBatch.labelOptions,
-        currentVotes: {},
+          currentVotes: {},
         timeRemaining: Number(activeBatch.timeRemaining),
-        voters: []
-      };
+          voters: []
+        };
     } catch (error) {
       console.error('Error getting active voting:', error);
-      return null;
+        return null;
     }
   }
 
@@ -149,10 +149,10 @@ export class ALContractService {
       const activeVoting = await this.getActiveVoting(projectAddress);
 
       let isActive = true;
-      try {
-        isActive = await projectContract.isActive();
-      } catch (activeError) {
-        console.log('📝 isActive method not available, assuming project is active');
+        try {
+          isActive = await projectContract.isActive();
+        } catch (activeError) {
+          console.log('📝 isActive method not available, assuming project is active');
       }
 
       return {
@@ -460,7 +460,7 @@ export class ALContractService {
         console.log('📝 No active voting session');
       }
 
-      return {
+      return { 
         // Basic project info
         isActive,
         currentIteration: Number(alConfig._currentRound),
@@ -519,8 +519,8 @@ export class ALContractService {
       const votingContractInstance = new ethers.Contract(votingContract, ALProjectVoting.abi, this.provider);
       
       const batchProgress = await votingContractInstance.getCurrentBatchProgress();
-      
-      return {
+    
+    return {
         round: Number(batchProgress.round),
         isActive: batchProgress.isActive,
         totalSamples: Number(batchProgress.totalSamples),

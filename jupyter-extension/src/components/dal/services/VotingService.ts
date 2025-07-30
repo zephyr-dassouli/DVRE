@@ -49,7 +49,7 @@ export class VotingService {
    */
   async getVotingHistory(projectAddress: string): Promise<VotingRecord[]> {
     try {
-      console.log(`📜 Fetching voting history for project ${projectAddress}`);
+      console.log(`📜 Fetching voting history using contract methods for project ${projectAddress}`);
       
       const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
       
@@ -64,80 +64,101 @@ export class VotingService {
       const votingContractAddress = await projectContract.votingContract();
       const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
 
-      // Get VotingSessionFinalized events to find all completed samples
-      const filter = votingContract.filters.VotingSessionFinalized();
-      const events = await votingContract.queryFilter(filter, 0, 'latest');
-      
-      console.log(`📊 Found ${events.length} completed voting sessions`);
+      // Get current round to know how many rounds to check
+      const currentRound = await votingContract.currentRound();
+      console.log(`📊 Checking voting history for ${currentRound} rounds`);
 
       const votingRecords: VotingRecord[] = [];
 
-      for (const event of events) {
-        // Check if this is an EventLog (has args) or just a Log
-        if (!('args' in event)) continue;
-        
-        const sampleId = event.args?.sampleId as string;
-        const finalLabel = event.args?.finalLabel as string;
-        const endTime = event.args?.endTime as bigint;
-        const reason = event.args?.reason as string;
-
-        if (!sampleId || !finalLabel) continue;
-
+      // For each round, get all samples and their voting data
+      for (let round = 1; round <= currentRound; round++) {
         try {
-          // Get detailed voting session info
-          const sessionInfo = await votingContract.getVotingSession(sampleId);
-          const votingDistribution = await votingContract.getVotingDistribution(sampleId);
+          console.log(`🔍 Processing round ${round}...`);
           
-          // Get individual votes
-          const votes = await votingContract.getVotes(sampleId);
-          
-          // Build vote record per voter
-          const voterVotes: { [voterAddress: string]: string } = {};
-          const distributionMap: { [label: string]: number } = {};
-          
-          // Process individual votes
-          for (const vote of votes) {
-            const voterAddress = vote.voter.toLowerCase();
-            const label = vote.label;
-            voterVotes[voterAddress] = label;
+          // Get all sample IDs for this round
+          const sampleIds = await votingContract.getBatchSamples(round);
+          console.log(`📋 Found ${sampleIds.length} samples in round ${round}:`, sampleIds);
+
+          // For each sample, get voting details
+          for (const sampleId of sampleIds) {
+            try {
+              // Get voting session info
+              const sessionInfo = await votingContract.getVotingSession(sampleId);
+              const [startTime, isActive, isFinalized, finalLabel] = sessionInfo;
+
+              // Only include finalized samples (completed voting)
+              if (!isFinalized || !finalLabel) {
+                console.log(`⏳ Skipping ${sampleId} - not finalized yet`);
+                continue;
+              }
+
+              // Get individual votes for this sample
+              const votes = await votingContract.getVotes(sampleId);
+              
+              // Get voting distribution
+              const votingDistribution = await votingContract.getVotingDistribution(sampleId);
+              const [labels, voteCounts] = votingDistribution;
+
+              // Build vote record per voter
+              const voterVotes: { [voterAddress: string]: string } = {};
+              const distributionMap: { [label: string]: number } = {};
+              
+              // Process individual votes
+              for (const vote of votes) {
+                const voterAddress = vote.voter.toLowerCase();
+                const label = vote.label;
+                voterVotes[voterAddress] = label;
+              }
+              
+              // Process voting distribution 
+              for (let i = 0; i < labels.length; i++) {
+                const label = labels[i];
+                const count = Number(voteCounts[i]);
+                distributionMap[label] = count;
+              }
+
+              // Get sample data if available
+              const sampleData = this.getSampleDataById ? this.getSampleDataById(sampleId) : { sampleId };
+
+              const votingRecord: VotingRecord = {
+                sampleId,
+                sampleData,
+                finalLabel,
+                votes: voterVotes,
+                votingDistribution: distributionMap,
+                timestamp: new Date(Number(startTime) * 1000), // Use start time as timestamp
+                iterationNumber: round,
+                consensusReached: Object.keys(voterVotes).length > 0 // Has votes means some consensus was reached
+              };
+
+              votingRecords.push(votingRecord);
+              console.log(`✅ Added voting record for ${sampleId}: ${finalLabel}`);
+              
+            } catch (sampleError) {
+              console.warn(`⚠️ Error processing sample ${sampleId}:`, sampleError);
+            }
           }
           
-          // Process voting distribution 
-          for (let i = 0; i < votingDistribution.labels.length; i++) {
-            const label = votingDistribution.labels[i];
-            const count = Number(votingDistribution.voteCounts[i]);
-            distributionMap[label] = count;
-          }
-
-          // Get sample data if available
-          const sampleData = this.getSampleDataById ? this.getSampleDataById(sampleId) : { sampleId };
-
-          const votingRecord: VotingRecord = {
-            sampleId,
-            sampleData,
-            finalLabel,
-            votes: voterVotes,
-            votingDistribution: distributionMap,
-            timestamp: new Date(Number(endTime) * 1000),
-            iterationNumber: Number(sessionInfo.round || 1),
-            consensusReached: reason.includes('Consensus') || reason.includes('consensus')
-          };
-
-          votingRecords.push(votingRecord);
-          
-        } catch (error) {
-          console.warn(`⚠️ Error processing voting session for ${sampleId}:`, error);
+        } catch (roundError) {
+          console.warn(`⚠️ Error processing round ${round}:`, roundError);
         }
       }
 
-      // Sort by timestamp (newest first)
-      votingRecords.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      // Sort by round and timestamp (newest first)
+      votingRecords.sort((a, b) => {
+        // First sort by iteration (descending)
+        if (a.iterationNumber !== b.iterationNumber) {
+          return b.iterationNumber - a.iterationNumber;
+        }
+        // Then by timestamp (descending)
+        return b.timestamp.getTime() - a.timestamp.getTime();
+      });
 
-      console.log(`✅ Retrieved ${votingRecords.length} voting records`);
+      console.log(`✅ Retrieved ${votingRecords.length} voting records using contract methods`);
       return votingRecords;
 
     } catch (error) {
-      console.error('❌ Error fetching voting history:', error);
+      console.error('❌ Error fetching voting history using contract methods:', error);
       return [];
     }
   }
