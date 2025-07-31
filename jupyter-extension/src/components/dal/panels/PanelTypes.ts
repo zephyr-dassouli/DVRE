@@ -46,4 +46,8 @@ export interface UserDashboardPanelProps extends BasePanelProps {
 export interface VotingHistoryPanelProps extends BasePanelProps {
   votingHistory: VotingRecord[];
   projectAddress?: string; // Project contract address for fetching blockchain data
+}
+
+export interface PublishFinalResultsPanelProps extends BasePanelProps {
+  onPublishFinalResults: () => Promise<void>;
 } 

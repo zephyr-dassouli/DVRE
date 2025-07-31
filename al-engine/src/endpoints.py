@@ -235,4 +235,166 @@ class ALEngineEndpoints:
                 logger.error(f"❌ Error getting performance for iteration {iteration}: {e}")
                 return jsonify({'error': str(e)}), 500
 
+        # Project RO-Crate collection endpoint - Get complete AL project results
+        @app.route('/api/project/<project_id>/ro-crate', methods=['GET'])
+        def get_project_ro_crate(project_id):
+            """Get complete RO-Crate folder structure with all AL iterations and results"""
+            try:
+                logger.info(f"📋 Collecting complete RO-Crate folder for project: {project_id}")
+                
+                # Define project paths
+                project_dir = Path(f"../ro-crates/{project_id}")
+                
+                if not project_dir.exists():
+                    return jsonify({
+                        'error': f'Project {project_id} not found',
+                        'message': f'No RO-Crate directory found at {project_dir}'
+                    }), 404
+                
+                # Collect all files in the RO-Crate folder structure
+                bundle_files = []
+                
+                def collect_files_recursively(directory, base_path=""):
+                    """Recursively collect all files in the directory"""
+                    for item in directory.iterdir():
+                        if item.is_file():
+                            # Calculate relative path for the file
+                            relative_path = f"{base_path}/{item.name}" if base_path else item.name
+                            
+                            try:
+                                # Read file content
+                                if item.suffix in ['.json', '.yml', '.yaml', '.cwl', '.txt', '.md', '.csv']:
+                                    # Text files
+                                    with open(item, 'r', encoding='utf-8') as f:
+                                        content = f.read()
+                                    content_type = 'text/plain'
+                                    if item.suffix == '.json':
+                                        content_type = 'application/json'
+                                    elif item.suffix in ['.yml', '.yaml']:
+                                        content_type = 'application/x-yaml'
+                                    elif item.suffix == '.cwl':
+                                        content_type = 'application/x-cwl'
+                                    elif item.suffix == '.csv':
+                                        content_type = 'text/csv'
+                                elif item.suffix in ['.pkl', '.bin']:
+                                    # Binary files - encode as base64
+                                    with open(item, 'rb') as f:
+                                        import base64
+                                        content = base64.b64encode(f.read()).decode('utf-8')
+                                    content_type = 'application/octet-stream'
+                                else:
+                                    # Other files - try as text first, fallback to binary
+                                    try:
+                                        with open(item, 'r', encoding='utf-8') as f:
+                                            content = f.read()
+                                        content_type = 'text/plain'
+                                    except UnicodeDecodeError:
+                                        with open(item, 'rb') as f:
+                                            import base64
+                                            content = base64.b64encode(f.read()).decode('utf-8')
+                                        content_type = 'application/octet-stream'
+                                
+                                bundle_files.append({
+                                    'name': relative_path,
+                                    'content': content,
+                                    'type': content_type,
+                                    'size': item.stat().st_size,
+                                    'is_binary': content_type == 'application/octet-stream'
+                                })
+                                
+                                logger.debug(f"📄 Collected: {relative_path} ({item.stat().st_size} bytes)")
+                                
+                            except Exception as e:
+                                logger.warning(f"⚠️ Failed to read {item}: {e}")
+                                
+                        elif item.is_dir():
+                            # Recursively process subdirectories
+                            subdir_path = f"{base_path}/{item.name}" if base_path else item.name
+                            collect_files_recursively(item, subdir_path)
+                
+                # Collect all files in the project directory
+                collect_files_recursively(project_dir)
+                
+                # Generate summary statistics from outputs directory
+                outputs_dir = project_dir / "outputs"
+                iterations_summary = []
+                performance_summary = []
+                total_samples_queried = 0
+                
+                if outputs_dir.exists():
+                    # Find all iteration files
+                    iteration_rounds = set()
+                    for file in outputs_dir.glob("*_round_*.json"):
+                        parts = file.stem.split('_round_')
+                        if len(parts) == 2 and parts[1].isdigit():
+                            iteration_rounds.add(int(parts[1]))
+                    
+                    iteration_rounds = sorted(iteration_rounds)
+                    
+                    # Collect summary for each iteration
+                    for round_num in iteration_rounds:
+                        perf_file = outputs_dir / f"performance_round_{round_num}.json"
+                        query_file = outputs_dir / f"query_samples_round_{round_num}.json"
+                        
+                        iteration_info = {"round": round_num}
+                        
+                        if perf_file.exists():
+                            try:
+                                with open(perf_file, 'r') as f:
+                                    performance_data = json.load(f)
+                                    performance_summary.append({
+                                        "round": round_num,
+                                        "accuracy": performance_data.get("accuracy", 0),
+                                        "f1_score": performance_data.get("f1_score", 0),
+                                        "test_samples": performance_data.get("test_samples", 0),
+                                        "timestamp": performance_data.get("timestamp", 0)
+                                    })
+                                    iteration_info["performance"] = performance_data
+                            except Exception as e:
+                                logger.warning(f"Failed to read performance file {perf_file}: {e}")
+                        
+                        if query_file.exists():
+                            try:
+                                with open(query_file, 'r') as f:
+                                    query_data = json.load(f)
+                                    sample_count = len(query_data) if isinstance(query_data, list) else 0
+                                    total_samples_queried += sample_count
+                                    iteration_info["query_samples_count"] = sample_count
+                            except Exception as e:
+                                logger.warning(f"Failed to read query samples file {query_file}: {e}")
+                        
+                        iterations_summary.append(iteration_info)
+                
+                # Prepare complete response
+                response_data = {
+                    "project_id": project_id,
+                    "folder_structure": {
+                        "files": bundle_files,
+                        "total_files": len(bundle_files),
+                        "total_size": sum(f['size'] for f in bundle_files)
+                    },
+                    "al_summary": {
+                        "total_iterations": len(iterations_summary),
+                        "total_samples_queried": total_samples_queried,
+                        "performance_history": performance_summary,
+                        "latest_performance": performance_summary[-1] if performance_summary else None,
+                        "iterations": iterations_summary
+                    },
+                    "collection_timestamp": time.time(),
+                    "collection_iso_timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+                }
+                
+                logger.info(f"✅ Successfully collected RO-Crate folder for project {project_id}")
+                logger.info(f"📊 Summary: {len(bundle_files)} files, {len(iterations_summary)} iterations, {total_samples_queried} samples queried")
+                
+                return jsonify(response_data)
+                
+            except Exception as e:
+                logger.error(f"❌ Error collecting RO-Crate folder for project {project_id}: {e}")
+                return jsonify({
+                    'error': str(e),
+                    'project_id': project_id,
+                    'message': 'Failed to collect project RO-Crate folder'
+                }), 500
+
         logger.info("📡 AL-Engine API endpoints registered") 

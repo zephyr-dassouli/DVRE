@@ -50,6 +50,7 @@ contract Project {
     string public description;
     string public projectType;
     string public rocrateHash;
+    string public rocrateHashFinal; // Final RO-Crate hash for published results
     uint256 public startTime;
     uint256 public endTime;
     
@@ -105,18 +106,21 @@ contract Project {
     
     // Round tracking
     uint256 public currentRound;
+    
+    // AL Project end conditions tracking
+    bool public unlabeledSamplesExhausted = false;
 
     
     // Events
     event ProjectCreated(address indexed creator, uint256 timestamp);
     event ProjectUpdated(address indexed updater, uint256 timestamp);
+    event FinalROCrateHashUpdated(address indexed updater, string rocrateHashFinal, uint256 timestamp);
     event ProjectDeactivated(address indexed creator, uint256 timestamp);
     event ProjectReactivated(address indexed creator, uint256 timestamp);
     event JoinRequestSubmitted(address indexed requester, string role, uint256 timestamp);
     event JoinRequestApproved(address indexed requester, address indexed approver, uint256 timestamp);
     event JoinRequestRejected(address indexed requester, address indexed rejector, uint256 timestamp);
     event ALContractsDeployed(address votingContract, address storageContract);
-    event ParticipantAdded(address indexed participant);
     event ParticipantAutoAdded(address indexed participant, string role, uint256 weight);
     event ParticipantUpdated(address indexed participant, string role, uint256 weight);
     event RoundIncremented(uint256 newRound);
@@ -131,6 +135,7 @@ contract Project {
     event VotingSessionStarted(string sampleId, uint256 round, uint256 timeout, uint256 timestamp);
     event VotingSessionEnded(string sampleId, string finalLabel, uint256 round, uint256 timestamp);
     event VoteSubmitted(string sampleId, address voter, string label, uint256 timestamp);
+    event ProjectEndTriggered(address indexed trigger, string reason, uint256 currentRound, uint256 timestamp);
     
     // Modifiers
     modifier onlyCreator() {
@@ -164,7 +169,7 @@ contract Project {
         joinedAt[_creator] = block.timestamp;
         
         emit ProjectCreated(_creator, block.timestamp);
-        emit ParticipantAdded(_creator);
+        emit ParticipantAutoAdded(_creator, "creator", 1);
     }
     
     // --- Metadata Setters ---
@@ -179,6 +184,20 @@ contract Project {
         projectType = _projectType;
         rocrateHash = _rocrateHash;
         lastModified = block.timestamp;
+    }
+    
+    function setFinalROCrateHash(string memory _rocrateHashFinal) external onlyCreator {
+        require(bytes(_rocrateHashFinal).length > 0, "Final RO-Crate hash cannot be empty");
+        rocrateHashFinal = _rocrateHashFinal;
+        lastModified = block.timestamp;
+        emit FinalROCrateHashUpdated(msg.sender, _rocrateHashFinal, block.timestamp);
+    }
+    
+    function updateROCrateHash(string memory _rocrateHash) external onlyCreator {
+        require(bytes(_rocrateHash).length > 0, "RO-Crate hash cannot be empty");
+        rocrateHash = _rocrateHash;
+        lastModified = block.timestamp;
+        emit ProjectUpdated(msg.sender, block.timestamp);
     }
     
     function setALMetadata(
@@ -235,7 +254,7 @@ contract Project {
         // Get the role from the join request
         string memory requestedRole = joinRequests[_requester].role;
         
-        // Add as participant with the requested role and default weight
+        // Auto-add as participant with the requested role and default weight
         _addParticipantInternal(_requester, requestedRole, 1);
         
         // Clean up the join request
@@ -285,6 +304,7 @@ contract Project {
         isActive = false;
         lastModified = block.timestamp;
         emit ProjectDeactivated(msg.sender, block.timestamp);
+        emit ProjectEndTriggered(msg.sender, "Project manually ended by coordinator", currentRound, block.timestamp);
     }
     
     function reactivateProject() external onlyCreator {
@@ -393,27 +413,9 @@ contract Project {
     }
     
     /**
-     * @dev Internal function to add a participant with role and weight
+     * @dev Internal function to auto-add a participant with role and weight
      */
     function _addParticipantInternal(address _participant, string memory _role, uint256 _weight) internal {
-        require(bytes(participantRoles[_participant]).length == 0, "Already participant");
-        require(_weight > 0, "Weight must be positive");
-        
-        participants.push(_participant);
-        participantRoles[_participant] = _role;
-        participantWeights[_participant] = _weight;
-        joinedAt[_participant] = block.timestamp;
-        
-        emit ParticipantAdded(_participant);
-        
-        // Update voters in voting contract if AL contracts are linked
-        _updateVotersInContract();
-    }
-    
-    /**
-     * @dev Internal function for auto-adding participants (emits different event)
-     */
-    function _autoAddParticipantInternal(address _participant, string memory _role, uint256 _weight) internal {
         require(bytes(participantRoles[_participant]).length == 0, "Already participant");
         require(_weight > 0, "Weight must be positive");
         
@@ -505,18 +507,55 @@ contract Project {
         return IALProjectVoting(votingContract).computeEligibleVoters(participantAddresses, roles, participantWeightList);
     }
     
+    // --- Project End Guards ---
+    /**
+     * @dev Internal function to check if project should end and emit event if so
+     */
+    function _checkProjectEndConditions() internal {
+        if (!isActive) return; // Already ended
+        
+        // Check condition 1: Max iteration reached
+        if (maxIteration > 0 && currentRound >= maxIteration) {
+            emit ProjectEndTriggered(msg.sender, "Maximum iterations reached", currentRound, block.timestamp);
+            return;
+        }
+        
+        // Check condition 2: Unlabeled samples exhausted
+        if (unlabeledSamplesExhausted) {
+            emit ProjectEndTriggered(msg.sender, "No more unlabeled samples available", currentRound, block.timestamp);
+            return;
+        }
+    }
+    
+    /**
+     * @dev External function for AL-Engine or coordinator to notify when unlabeled samples are exhausted
+     */
+    function notifyUnlabeledSamplesExhausted() external onlyCreator {
+        require(!unlabeledSamplesExhausted, "Already marked as exhausted");
+        unlabeledSamplesExhausted = true;
+        _checkProjectEndConditions();
+    }
+    
     // --- Round Tracking ---
     function incrementRound() external {
         require(msg.sender == votingContract, "Only voting");
-        currentRound += 1;
-        emit RoundIncremented(currentRound);
+        _incrementRoundInternal(false, "");
     }
     
     function triggerNextRound(string memory reason) external onlyCreator onlyActive {
+        _incrementRoundInternal(true, reason);
+    }
+    
+    function _incrementRoundInternal(bool isManualTrigger, string memory reason) internal {
         currentRound += 1;
-        lastModified = block.timestamp;
+        
+        if (isManualTrigger) {
+            lastModified = block.timestamp;
+            emit ALRoundTriggered(currentRound, reason, block.timestamp);
+        }
+        
         emit RoundIncremented(currentRound);
-        emit ALRoundTriggered(currentRound, reason, block.timestamp);
+        _checkProjectEndConditions();
     }
     
     // --- Linked Contracts ---
@@ -537,20 +576,6 @@ contract Project {
     
     // --- Voting Management ---
     /**
-     * @dev DEPRECATED: Manually set voters (use addParticipant/addParticipantWithRole instead)
-     * This function is deprecated as the new system automatically manages voters from project members
-     */
-    function setProjectVoters(address[] memory _voters, uint256[] memory _weights) external onlyCreator {
-        require(votingContract != address(0), "Voting contract not set");
-        
-        // This is now deprecated - startBatchVoting automatically sets voters from members
-        // Kept for backward compatibility but not recommended
-        IALProjectVoting(votingContract).setVoters(_voters, _weights);
-        
-        emit VotersUpdated(currentRound, _voters.length, block.timestamp);
-    }
-
-    /**
      * @dev Start batch voting for AL iteration samples
      * Always use this method (even for single samples) for consistent event handling
      * Voters are automatically managed when project membership changes
@@ -561,6 +586,9 @@ contract Project {
         
         // Increment round for new batch
         currentRound += 1;
+        
+        // Check if project should end due to max iterations or sample exhaustion
+        _checkProjectEndConditions();
         
         // Start the batch voting session (voters already set from membership)
         IALProjectVoting(votingContract).startBatchVoting(sampleIds, currentRound);
@@ -634,8 +662,8 @@ contract Project {
         
         // Auto-add user as project participant if needed
         if (bytes(participantRoles[msg.sender]).length == 0) {
-            _autoAddParticipantInternal(msg.sender, "contributor", 1);
-            // Note: _autoAddParticipantInternal automatically updates voters in voting contract
+            _addParticipantInternal(msg.sender, "contributor", 1);
+            // Note: _addParticipantInternal automatically updates voters in voting contract
         }
         
         // Verify user is eligible to vote
@@ -714,36 +742,40 @@ contract Project {
             return false; // Already has AL contracts
         }
         
-        // Check projectType field first
-        if (keccak256(bytes(projectType)) == keccak256(bytes("active_learning"))) {
-            return true;
-        }
-        
-        // Fallback: check projectData JSON for "active_learning" string
-        bytes memory dataBytes = bytes(projectData);
-        bytes memory searchBytes = bytes("active_learning");
-        
-        if (dataBytes.length >= searchBytes.length) {
-            for (uint i = 0; i <= dataBytes.length - searchBytes.length; i++) {
-                bool found = true;
-                for (uint j = 0; j < searchBytes.length; j++) {
-                    if (dataBytes[i + j] != searchBytes[j]) {
-                        found = false;
-                        break;
-                    }
-                }
-                if (found) {
-                    return true;
-                }
-            }
-        }
-        
-        return false;
+        // Check projectType field - this is the primary and efficient method
+        return keccak256(bytes(projectType)) == keccak256(bytes("active_learning"));
     }
     
     // --- View Functions ---
     function getCreator() external view returns (address) {
         return creator;
+    }
+    
+    function getFinalROCrateHash() external view returns (string memory) {
+        return rocrateHashFinal;
+    }
+    
+    /**
+     * @dev Check if project should end based on any of the three conditions
+     * Returns (shouldEnd, reason)
+     */
+    function shouldProjectEnd() external view returns (bool shouldEnd, string memory reason) {
+        if (!isActive) {
+            return (true, "Project manually deactivated");
+        }
+        
+        // Condition 1: Max iteration reached
+        if (maxIteration > 0 && currentRound >= maxIteration) {
+            return (true, "Maximum iterations reached");
+        }
+        
+        // Condition 2: Unlabeled samples exhausted
+        if (unlabeledSamplesExhausted) {
+            return (true, "No more unlabeled samples available");
+        }
+        
+        // Condition 3: Manual end (handled by coordinator through frontend)
+        return (false, "Project is still active");
     }
     
     function getProjectData() external view returns (string memory) {
@@ -796,33 +828,6 @@ contract Project {
     // ========================================================================
     // DELEGATION METHODS - Call linked contracts
     // ========================================================================
-
-    /**
-     * @dev Get voting history (simplified)
-     */
-    function getVotingHistory() external view returns (
-        string[] memory sampleIds,
-        string[] memory finalLabels
-    ) {
-        require(storageContract != address(0), "Storage contract not set");
-        
-        // Simplified version - returns empty arrays as placeholder
-        return (new string[](0), new string[](0));
-    }
-
-    /**
-     * @dev Get user contributions (simplified)
-     */
-    function getUserContributions() external view returns (
-        address[] memory voters,
-        uint256[] memory voteCounts,
-        uint256[] memory weights
-    ) {
-        require(votingContract != address(0), "Voting contract not set");
-        
-        // Simplified implementation - returns empty arrays as placeholder
-        return (new address[](0), new uint256[](0), new uint256[](0));
-    }
 
     /**
      * @dev Get voter statistics from ALProjectVoting

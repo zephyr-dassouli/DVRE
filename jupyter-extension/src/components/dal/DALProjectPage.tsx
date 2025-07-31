@@ -5,18 +5,23 @@ import {
   VotingRecord,
   UserContribution
 } from './types';
-import { useDALProject } from '../../hooks/useDALProject';
 import { useAuth } from '../../hooks/useAuth';
-import { alContractService } from './services/ALContractService';
-import { createDALProjectSession, type DALProjectSession, type SessionState } from './services/DALProjectSession';
+import { type DALProjectSession, type SessionState } from './services/DALProjectSession';
 import {
   LabelingPanel,
   ControlPanel,
   ConfigurationPanel,
   ModelUpdatesPanel,
   UserDashboardPanel,
-  VotingHistoryPanel
+  VotingHistoryPanel,
+  PublishFinalResultsPanel
 } from './panels';
+
+// Import the new modular components
+import { createProjectHandlers, type ProjectHandlers } from './DALProjectHandlers';
+import { createDataLoader } from './DALProjectDataLoader';
+import { setupProjectEventListeners, type EventListenerCleanup } from './DALProjectEventListeners';
+import { formatTimeAgo } from './DALProjectUtils';
 
 /**
  * DAL Project Page Component
@@ -50,8 +55,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
   const [dalSession, setDalSession] = useState<DALProjectSession | null>(null);
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
 
-  // Use the real hooks  
-  const { endProject } = useDALProject(project.contractAddress);
+  // Use the auth hook to get current user
   const { account } = useAuth();
 
   const isCoordinator = project.userRole === 'coordinator';
@@ -62,212 +66,58 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     setRefreshTrigger(prev => prev + 1);
   };
 
-  // Set up event listeners for batch voting progress - regular functions like old implementation
-  const setupBatchEventListeners = () => {
-    // Listen for sample completion events
-    const handleSampleCompleted = (event: CustomEvent) => {
-      const { sampleId, finalLabel } = event.detail;
-      console.log(`Sample ${sampleId} completed:`, finalLabel);
-      
-      // FIXED: Don't update batch progress here - let DALProjectSession handle it
-      // The DALProjectSession already correctly increments completedSamples and currentSampleIndex
-      // Updating here was causing double increments and wrong calculations
-      
-      // FIXED: Force refresh project data when sample completes to update activeVoting state
-      console.log('🔄 Sample completed, triggering project data refresh to clear activeVoting');
-      triggerRefresh();
-    };
+  // Create data loader
+  const dataLoader = createDataLoader({
+    project,
+    setModelUpdates,
+    setVotingHistory,
+    setUserContributions,
+    setBatchProgress,
+    setLoading,
+    setError
+  });
 
-    // Listen for iteration completion events
-    const handleIterationCompleted = (event: CustomEvent) => {
-      const { round, labeledSamples, message } = event.detail;
-      console.log(`Iteration ${round} completed with ${labeledSamples} samples`);
-      
-      setIterationCompleted(true);
-      setIterationMessage(message);
-      setBatchProgress(null);
-      
-      // Reload project data to reflect updates
-      triggerRefresh(); // Trigger data refresh
-    };
+  // Create project handlers
+  const handlers: ProjectHandlers = createProjectHandlers({
+    project,
+    currentUser: currentUser || '',
+    isCoordinator,
+    dalSession,
+    sessionState,
+    triggerRefresh,
+    setError
+  });
 
-    // FIXED: Store handler references for proper cleanup
-    window.addEventListener('dal-sample-completed', handleSampleCompleted as EventListener);
-    window.addEventListener('dal-iteration-completed', handleIterationCompleted as EventListener);
-    
-    // Return cleanup function that removes the ACTUAL handlers
-    return () => {
-      window.removeEventListener('dal-sample-completed', handleSampleCompleted as EventListener);
-      window.removeEventListener('dal-iteration-completed', handleIterationCompleted as EventListener);
-    };
-  };
-
-  // Simple useEffect like the working testfile.txt
+  // Main useEffect for data loading and event listener setup
   useEffect(() => {
-    // Move loadProjectData inside useEffect to make it stable
-    const loadProjectData = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        console.log('🔍 Loading enhanced AL project data for:', project.contractAddress);
-        
-        // Load enhanced project status from contracts
-        const [enhancedStatus, votingData, contributionData, modelData] = await Promise.all([
-          alContractService.getEnhancedProjectStatus(project.contractAddress),
-          alContractService.getVotingHistory(project.contractAddress),
-          alContractService.getUserContributions(project.contractAddress),
-          alContractService.getModelUpdates(project.contractAddress)
-        ]);
-
-        console.log('Loaded enhanced contract data:', {
-          currentIteration: enhancedStatus.currentIteration,
-          maxIterations: enhancedStatus.maxIterations,
-          batchActive: enhancedStatus.currentBatch.batchActive,
-          activeSamples: enhancedStatus.currentBatch.activeSamples,
-          completedSamples: enhancedStatus.currentBatch.completedSamples,
-          totalSamples: enhancedStatus.currentBatch.totalSamples,
-          members: enhancedStatus.members.addresses.length,
-          votingRecords: votingData.length,
-          hasActiveVoting: !!enhancedStatus.activeVoting
-        });
-
-        setVotingHistory(votingData);
-        setUserContributions(contributionData.map(user => ({
-          ...user,
-          role: user.role as 'coordinator' | 'contributor'
-        })));
-        setModelUpdates(modelData);
-
-        // Update project data with enhanced contract state
-        (project as any).isActive = enhancedStatus.isActive;
-        (project as any).currentRound = enhancedStatus.currentIteration;
-        (project as any).totalRounds = enhancedStatus.maxIterations;
-        (project as any).queryBatchSize = enhancedStatus.queryBatchSize;
-        (project as any).votingTimeout = enhancedStatus.votingTimeout;
-        (project as any).labelSpace = enhancedStatus.labelSpace;
-        (project as any).participants = enhancedStatus.members.addresses.length;
-        
-        // Set active voting from contract state
-        if (enhancedStatus.activeVoting) {
-          (project as any).activeVoting = {
-            sampleId: enhancedStatus.activeVoting.sampleId,
-            sampleData: enhancedStatus.activeVoting.sampleData,
-            labelOptions: enhancedStatus.activeVoting.labelOptions,
-            timeRemaining: enhancedStatus.activeVoting.timeRemaining,
-            currentVotes: enhancedStatus.activeVoting.currentVotes
-          };
-        } else {
-          delete (project as any).activeVoting;
-        }
-
-        // Set batch progress from contract state
-        if (enhancedStatus.currentBatch.batchActive && enhancedStatus.currentBatch.totalSamples > 0) {
-          setBatchProgress({
-            round: enhancedStatus.currentBatch.round,
-            isActive: enhancedStatus.currentBatch.batchActive,
-            totalSamples: enhancedStatus.currentBatch.totalSamples,
-            completedSamples: enhancedStatus.currentBatch.completedSamples,
-            sampleIds: enhancedStatus.currentBatch.sampleIds,
-            currentSampleIndex: enhancedStatus.currentBatch.activeSamples > 0 ? 
-              enhancedStatus.currentBatch.totalSamples - enhancedStatus.currentBatch.activeSamples : 
-              enhancedStatus.currentBatch.completedSamples
-          });
-        } else {
-          setBatchProgress(null);
-        }
-
-        // Log contract state summary
-        console.log(`📊 Contract State Summary:
-          - Project Active: ${enhancedStatus.isActive}
-          - Current Round: ${enhancedStatus.currentIteration}/${enhancedStatus.maxIterations}
-          - Batch Active: ${enhancedStatus.currentBatch.batchActive}
-          - Samples: ${enhancedStatus.currentBatch.completedSamples}/${enhancedStatus.currentBatch.totalSamples}
-          - Members: ${enhancedStatus.members.addresses.length}
-          - Active Voting: ${enhancedStatus.activeVoting ? 'Yes' : 'No'}`);
-
-      } catch (err) {
-        console.error('Failed to load enhanced project data from smart contracts:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load project data');
-        
-        // Set empty arrays instead of mock data
-        setVotingHistory([]);
-        setUserContributions([]);
-        setModelUpdates([]);
-        setBatchProgress(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadProjectData();
+    dataLoader.loadProjectData();
     
-    // FIXED: Properly setup and cleanup batch event listeners
-    const cleanupBatchListeners = setupBatchEventListeners();
+    // Set up event listeners
+    let cleanup: EventListenerCleanup | null = null;
     
-    // Create DAL session after a small delay to prevent state conflicts
-    const sessionTimer = setTimeout(() => {
+    // Create event listeners after a small delay to prevent state conflicts
+    const eventTimer = setTimeout(() => {
       if (currentUser) {
-        console.log('🔗 Creating DAL Project Session for:', currentUser);
-        const session = createDALProjectSession(project.contractAddress, currentUser);
-        setDalSession(session);
-
-        // Set up session event listeners
-        const handleStateChange = (newState: SessionState) => {
-          console.log('📊 Session state changed:', newState);
-          setSessionState(newState);
-          
-          if (newState.batchProgress) {
-            setBatchProgress({
-              round: newState.batchProgress.round, // FIXED: Use synchronized round from session
-              isActive: newState.isActive,
-              totalSamples: newState.batchProgress.totalSamples,
-              completedSamples: newState.batchProgress.completedSamples,
-              sampleIds: newState.batchProgress.sampleIds,
-              currentSampleIndex: newState.batchProgress.currentSampleIndex
-            });
-          } else {
-            setBatchProgress(null);
-          }
-        };
-
-        const handleIterationComplete = (iteration: number, samplesLabeled: number) => {
-          console.log(`🎉 Iteration ${iteration} completed with ${samplesLabeled} samples`);
-          setIterationCompleted(true);
-          setIterationMessage(`AL Iteration ${iteration} completed successfully! ${samplesLabeled} samples were labeled.`);
-          
-          // Trigger data refresh after a delay
-          setTimeout(() => {
-            triggerRefresh();
-          }, 1000);
-        };
-
-        const handleSessionError = (errorMessage: string) => {
-          console.error('❌ DAL Session error:', errorMessage);
-          setError(`Session Error: ${errorMessage}`);
-        };
-
-        session.on('state-changed', handleStateChange);
-        session.on('iteration-completed', handleIterationComplete);
-        session.on('error', handleSessionError);
-
-        // Check AL-Engine health
-        session.checkALEngineHealth().catch(err => {
-          console.warn('⚠️ AL-Engine health check failed:', err);
-          setError('AL-Engine is not responsive. Please ensure it is running on localhost:5050');
+        cleanup = setupProjectEventListeners({
+          project,
+          currentUser,
+          triggerRefresh,
+          setBatchProgress,
+          setIterationCompleted,
+          setIterationMessage,
+          setDalSession,
+          setSessionState,
+          setError
         });
       }
-    }, 100); // Small delay to prevent state conflicts
+    }, 100);
     
     // Cleanup event listeners on unmount
     return () => {
-      clearTimeout(sessionTimer);
-      cleanupBatchListeners(); // FIXED: Call the actual cleanup function
-      if (dalSession) {
-        console.log('🧹 Cleaning up DAL Session');
-        dalSession.removeAllListeners();
-        dalSession.endSession().catch(console.error);
-        setDalSession(null);
+      clearTimeout(eventTimer);
+      if (cleanup) {
+        cleanup.cleanupBatchListeners();
+        cleanup.cleanupSessionListeners();
       }
     };
   }, [currentUser, refreshTrigger]); // Add refreshTrigger to dependencies
@@ -302,114 +152,6 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     );
   }
 
-  // Handler functions for panel callbacks
-  const handleStartNextIteration = async () => {
-    if (!isCoordinator) {
-      setError('Only coordinators can start iterations');
-      return;
-    }
-
-    if (!dalSession) {
-      setError('DAL Session not initialized. Please wait a moment and try again.');
-      return;
-    }
-
-    try {
-      setError(null);
-      setIterationCompleted(false);
-      console.log('🚀 Starting next AL iteration via DAL Session bridge');
-      
-      // Use the DAL Session bridge to orchestrate the complete workflow
-      await dalSession.startIteration();
-      
-      console.log('✅ AL iteration workflow started successfully via DAL Session');
-      
-    } catch (error) {
-      console.error('❌ Failed to start next AL iteration:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to start iteration';
-      setError(errorMessage);
-    }
-  };
-
-  const handleEndProject = async () => {
-    if (!isCoordinator) {
-      setError('Only coordinators can end projects');
-      return;
-    }
-
-    try {
-      setError(null);
-      console.log('🏁 Ending project from UI');
-      
-      await endProject(project.contractAddress);
-      
-      // Trigger data refresh to show updated state
-      triggerRefresh();
-      
-      // Show success message
-      alert('Project ended successfully!');
-      
-    } catch (error) {
-      console.error('❌ Failed to end project:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to end project';
-      setError(errorMessage);
-      alert(`Failed to end project: ${errorMessage}`);
-    }
-  };
-
-  const handleBatchVoteSubmission = async (sampleIds: string[], labels: string[]) => {
-    if (!dalSession) {
-      setError('DAL Session not initialized. Please wait a moment and try again.');
-      return;
-    }
-
-    try {
-      setError(null);
-      const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
-      console.log(`🗳️ Submitting ${batchType} vote via DAL Session bridge`);
-      
-      // Use the DAL Session bridge for batch vote submission (works for any batch size)
-      await dalSession.submitBatchVote(sampleIds, labels);
-      
-      console.log(`✅ ${batchType} vote submitted successfully via DAL Session`);
-      
-    } catch (error) {
-      console.error('❌ Failed to submit batch vote:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to submit batch vote';
-      setError(errorMessage);
-    }
-  };
-
-  // Legacy wrapper for single sample voting (converted to batch)
-  const handleVoteSubmission = async (sampleId: string, label: string) => {
-    // Convert single vote to batch vote for consistency
-    await handleBatchVoteSubmission([sampleId], [label]);
-  };
-
-  const handleRefreshData = async () => {
-    console.log('Refreshing all project data from smart contracts...');
-    
-    // Trigger data refresh - loading and error states handled by useEffect
-    triggerRefresh();
-    
-    console.log('✅ Project data refresh triggered');
-  };
-
-  const formatTimeAgo = (date: Date): string => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffDays > 0) {
-      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    } else if (diffHours > 0) {
-      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    } else {
-      return 'Recently';
-    }
-  };
-
   if (loading) {
     return (
       <div className="dal-project-page">
@@ -440,7 +182,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             {error}
           </div>
           <button 
-            onClick={handleRefreshData}
+            onClick={handlers.handleRefreshData}
             style={{ 
               marginTop: '20px', 
               padding: '10px 20px', 
@@ -476,7 +218,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             gap: '10px' 
           }}>
             <button
-              onClick={handleRefreshData}
+              onClick={handlers.handleRefreshData}
               disabled={loading}
               className="refresh-button"
             >
@@ -641,6 +383,14 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         >
           Voting History
         </button>
+        {isCoordinator && (
+          <button 
+            className={`tab ${activeTab === 'publish-results' ? 'active' : ''}`}
+            onClick={() => setActiveTab('publish-results')}
+          >
+            Publish Final Results
+          </button>
+        )}
       </div>
 
       {/* Tab Content - Using Panel Components */}
@@ -654,10 +404,10 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             batchProgress={batchProgress}
             iterationCompleted={iterationCompleted}
             iterationMessage={iterationMessage}
-            onVoteSubmission={handleVoteSubmission}
-            onBatchVoteSubmission={handleBatchVoteSubmission}
+            onVoteSubmission={handlers.handleVoteSubmission}
+            onBatchVoteSubmission={handlers.handleBatchVoteSubmission}
             onAcknowledgeCompletion={() => setIterationCompleted(false)}
-            onRefresh={handleRefreshData}
+            onRefresh={handlers.handleRefreshData}
             onError={setError}
           />
         )}
@@ -667,7 +417,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             project={project}
             currentUser={currentUser}
             isCoordinator={isCoordinator}
-            onRefresh={handleRefreshData}
+            onRefresh={handlers.handleRefreshData}
             onError={setError}
           />
         )}
@@ -677,9 +427,9 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             project={project}
             currentUser={currentUser}
             isCoordinator={isCoordinator}
-            onStartNextIteration={handleStartNextIteration}
-            onEndProject={handleEndProject}
-            onRefresh={handleRefreshData}
+            onStartNextIteration={handlers.handleStartNextIteration}
+            onEndProject={handlers.handleEndProject}
+            onRefresh={handlers.handleRefreshData}
             onError={setError}
           />
         )}
@@ -690,7 +440,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             currentUser={currentUser}
             isCoordinator={isCoordinator}
             modelUpdates={modelUpdates}
-            onRefresh={handleRefreshData}
+            onRefresh={handlers.handleRefreshData}
             onError={setError}
           />
         )}
@@ -701,7 +451,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             currentUser={currentUser}
             isCoordinator={isCoordinator}
             userContributions={userContributions}
-            onRefresh={handleRefreshData}
+            onRefresh={handlers.handleRefreshData}
             onError={setError}
           />
         )}
@@ -713,7 +463,18 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             isCoordinator={isCoordinator}
             votingHistory={votingHistory}
             projectAddress={project.contractAddress}
-            onRefresh={handleRefreshData}
+            onRefresh={handlers.handleRefreshData}
+            onError={setError}
+          />
+        )}
+
+        {currentUser && activeTab === 'publish-results' && isCoordinator && (
+          <PublishFinalResultsPanel
+            project={project}
+            currentUser={currentUser}
+            isCoordinator={isCoordinator}
+            onPublishFinalResults={handlers.handlePublishFinalResults}
+            onRefresh={handlers.handleRefreshData}
             onError={setError}
           />
         )}
