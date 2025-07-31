@@ -4,6 +4,9 @@
 
 import { DALProject, ModelUpdate, VotingRecord, UserContribution } from './types';
 import { alContractService } from './services/ALContractService';
+import { ethers } from 'ethers';
+import { RPC_URL } from '../../config/contracts';
+import Project from '../../abis/Project.json';
 
 export interface ProjectDataState {
   modelUpdates: ModelUpdate[];
@@ -29,6 +32,7 @@ export interface DataLoaderDependencies {
   setBatchProgress: (progress: any) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setProjectDescription: (description: string) => void;
 }
 
 export const createDataLoader = (deps: DataLoaderDependencies) => {
@@ -39,7 +43,8 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
     setUserContributions,
     setBatchProgress,
     setLoading,
-    setError
+    setError,
+    setProjectDescription
   } = deps;
 
   const loadProjectData = async () => {
@@ -56,6 +61,31 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
         alContractService.getUserContributions(project.contractAddress),
         alContractService.getModelUpdates(project.contractAddress)
       ]);
+
+      // Fetch project description from project data JSON (already stored during creation)
+      try {
+        console.log('🔍 Fetching project description from project data...');
+        const provider = new ethers.JsonRpcProvider(RPC_URL);
+        const projectContract = new ethers.Contract(project.contractAddress, Project.abi, provider);
+        
+        // Get the project data JSON that was stored during creation
+        const projectDataString = await projectContract.getProjectData();
+        const projectData = JSON.parse(projectDataString);
+        
+        // Extract description from the project data
+        const description = projectData.description || projectData.objective || '';
+        console.log('📝 Project description extracted from project data:', `"${description}"`);
+        setProjectDescription(description);
+        
+        if (description && description.trim() !== '') {
+          console.log('✅ Project description set successfully:', description);
+        } else {
+          console.log('ℹ️ Project description is empty or not set');
+        }
+      } catch (descError) {
+        console.error('❌ Could not fetch project description:', descError);
+        setProjectDescription('');
+      }
 
       console.log('Loaded enhanced contract data:', {
         currentIteration: enhancedStatus.currentIteration,

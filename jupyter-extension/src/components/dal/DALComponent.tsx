@@ -32,6 +32,7 @@ export const DALComponent: React.FC<DALComponentProps> = ({
       let isDeployed = false;
       let deploymentStatus: 'deployed' | 'running' | 'failed' | 'deploying' | 'pending' = 'pending';
       let alConfiguration: any = undefined;
+      let projectDescription = '';
       
       try {
         // Get provider and create contract instance
@@ -49,43 +50,75 @@ export const DALComponent: React.FC<DALComponentProps> = ({
           deploymentStatus = 'pending';
         }
 
-        // Fetch AL configuration directly from smart contract
+        // Fetch project description and AL configuration from project data JSON
         try {
-          const metadata = await projectContract.getProjectMetadata();
+          // Get the project data JSON that was stored during creation
+          const projectDataString = await projectContract.getProjectData();
+          const projectData = JSON.parse(projectDataString);
           
-          // Extract AL configuration from smart contract metadata
+          // Extract project description from project data
+          projectDescription = projectData.description || projectData.objective || '';
+          
+          // Extract AL configuration from project data if available
           alConfiguration = {
-            queryStrategy: metadata._queryStrategy || 'uncertainty_sampling',
-            scenario: metadata._alScenario || 'pool_based', 
+            queryStrategy: projectData.queryStrategy || 'uncertainty_sampling',
+            scenario: projectData.alScenario || 'pool_based', 
             model: { 
               type: 'logistic_regression',
               parameters: {} 
             },
-            maxIterations: Number(metadata._maxIteration) || 10,
-            queryBatchSize: Number(metadata._queryBatchSize) || 10,
+            maxIterations: Number(projectData.maxIterations) || 10,
+            queryBatchSize: Number(projectData.queryBatchSize) || 10,
             votingConsensus: 'simple_majority',
             votingTimeout: 3600,
-            labelSpace: metadata._labelSpace && metadata._labelSpace.length > 0 
-              ? metadata._labelSpace 
+            labelSpace: projectData.labelSpace && projectData.labelSpace.length > 0 
+              ? projectData.labelSpace 
               : ['positive', 'negative']
           };
-        } catch (metadataError) {
-          console.warn('Could not fetch AL metadata from smart contract:', metadataError);
+        } catch (dataError) {
+          console.warn('Could not parse project data:', dataError);
           
-          // Fallback to local configuration if smart contract metadata fails
-          const config = projectConfigurationService.getProjectConfiguration(project.address);
-          const dalConfig = config?.extensions?.dal;
-          if (dalConfig) {
+          // Try to get AL metadata from smart contract as fallback
+          try {
+            const metadata = await projectContract.getProjectMetadata();
+            
+            // Extract project description from smart contract metadata (fallback)
+            projectDescription = metadata._description || '';
+            
+            // Extract AL configuration from smart contract metadata (fallback)
             alConfiguration = {
-              queryStrategy: dalConfig.queryStrategy || 'uncertainty_sampling',
-              scenario: dalConfig.alScenario || 'pool_based',
-              model: dalConfig.model || { type: 'logistic_regression', parameters: {} },
-              maxIterations: dalConfig.maxIterations || 10,
-              queryBatchSize: dalConfig.queryBatchSize || 10,
-              votingConsensus: dalConfig.votingConsensus || 'simple_majority',
-              votingTimeout: dalConfig.votingTimeout || 3600,
-              labelSpace: dalConfig.labelSpace || ['positive', 'negative']
+              queryStrategy: metadata._queryStrategy || 'uncertainty_sampling',
+              scenario: metadata._alScenario || 'pool_based', 
+              model: { 
+                type: 'logistic_regression',
+                parameters: {} 
+              },
+              maxIterations: Number(metadata._maxIteration) || 10,
+              queryBatchSize: Number(metadata._queryBatchSize) || 10,
+              votingConsensus: 'simple_majority',
+              votingTimeout: 3600,
+              labelSpace: metadata._labelSpace && metadata._labelSpace.length > 0 
+                ? metadata._labelSpace 
+                : ['positive', 'negative']
             };
+          } catch (metadataError) {
+            console.warn('Could not fetch AL metadata from smart contract:', metadataError);
+            
+            // Final fallback to local configuration
+            const config = projectConfigurationService.getProjectConfiguration(project.address);
+            const dalConfig = config?.extensions?.dal;
+            if (dalConfig) {
+              alConfiguration = {
+                queryStrategy: dalConfig.queryStrategy || 'uncertainty_sampling',
+                scenario: dalConfig.alScenario || 'pool_based',
+                model: dalConfig.model || { type: 'logistic_regression', parameters: {} },
+                maxIterations: dalConfig.maxIterations || 10,
+                queryBatchSize: dalConfig.queryBatchSize || 10,
+                votingConsensus: dalConfig.votingConsensus || 'simple_majority',
+                votingTimeout: dalConfig.votingTimeout || 3600,
+                labelSpace: dalConfig.labelSpace || ['positive', 'negative']
+              };
+            }
           }
         }
         
@@ -102,9 +135,9 @@ export const DALComponent: React.FC<DALComponentProps> = ({
     return {
         id: project.address,
         name: project.projectData?.name || project.projectData?.project_id || project.objective || 'Unnamed Project',
-        description: project.description || project.projectData?.description,
+        description: projectDescription || project.description || project.projectData?.description,
         contractAddress: project.address,
-        status: project.isActive ? 'running' : 'completed',
+        status: project.isActive ? 'active' : 'inactive',
         participants: project.participants?.length || 0,
         currentRound: 1, // Default for non-AL projects
         totalRounds: alConfiguration?.maxIterations || 10,
@@ -130,7 +163,7 @@ export const DALComponent: React.FC<DALComponentProps> = ({
         name: project.projectData?.name || project.projectData?.project_id || project.objective || 'Unnamed Project',
         description: project.description || project.projectData?.description,
         contractAddress: project.address,
-        status: project.isActive ? 'running' : 'completed',
+        status: project.isActive ? 'active' : 'inactive',
         participants: project.participants?.length || 0,
         currentRound: 1,
         totalRounds: 10,
@@ -219,6 +252,8 @@ export const DALComponent: React.FC<DALComponentProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'active': return '#10b981'; // Green for active
+      case 'inactive': return '#6b7280'; // Grey for inactive
       case 'draft': return '#f59e0b';
       case 'configured': return '#3b82f6';
       case 'running': return '#10b981';
@@ -339,30 +374,54 @@ export const DALComponent: React.FC<DALComponentProps> = ({
           {filteredProjects.map((project) => (
             <div key={project.id} className="dal-project-card">
               {/* Prominent Project Name Container */}
-              <div className="project-name-container">
-                <h3 className="project-name">{project.name}</h3>
-                  <div className="project-badges">
+              <div className="project-name-container" style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'flex-start',
+                marginBottom: '12px'
+              }}>
+                <div style={{ flex: 1 }}>
+                  <h3 className="project-name" style={{ margin: 0 }}>{project.name}</h3>
+                  {/* Project Description - moved closer to project name */}
+                  {project.description && project.description.trim() !== '' && (
+                    <div className="project-description" style={{
+                      fontSize: '14px',
+                      color: '#666',
+                      marginTop: '4px',
+                      lineHeight: '1.4',
+                      fontStyle: 'italic'
+                    }}>
+                      {project.description}
+                    </div>
+                  )}
+                </div>
+                <div className="project-badges" style={{ 
+                  display: 'flex', 
+                  gap: '8px', 
+                  flexWrap: 'wrap',
+                  justifyContent: 'flex-end',
+                  minWidth: 'fit-content'
+                }}>
                   <span className="project-type-badge">
                     ACTIVE LEARNING
                   </span>
-                    <span className="role-badge" data-role={project.userRole}>
-                      {project.userRole === 'coordinator' ? 'COORDINATOR' : 'CONTRIBUTOR'}
-                    </span>
-                    <span 
-                      className="status-badge"
-                      style={{ backgroundColor: getStatusColor(project.status) }}
-                    >
-                      {project.status.toUpperCase()}
-                    </span>
-                  </div>
+                  <span className="role-badge" data-role={project.userRole}>
+                    {project.userRole === 'coordinator' ? 'COORDINATOR' : 'CONTRIBUTOR'}
+                  </span>
+                  <span 
+                    className="status-badge"
+                    style={{ backgroundColor: getStatusColor(project.status) }}
+                  >
+                    {project.status.toUpperCase()}
+                  </span>
                 </div>
+              </div>
 
               {/* Configuration Summary */}
                 {project.alConfiguration && (
                   <div className="project-config-summary">
                     <span>Strategy: {project.alConfiguration.queryStrategy}</span>
                     <span>Model: {project.alConfiguration.model.type}</span>
-                    <span>Batch: {project.alConfiguration.queryBatchSize}</span>
                   </div>
                 )}
 

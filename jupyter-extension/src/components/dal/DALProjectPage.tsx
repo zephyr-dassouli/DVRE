@@ -36,6 +36,9 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Project description from smart contract
+  const [projectDescription, setProjectDescription] = useState<string>('');
+
   // New state for batch voting
   const [batchProgress, setBatchProgress] = useState<{
     round: number;
@@ -87,7 +90,8 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     setUserContributions,
     setBatchProgress,
     setLoading,
-    setError
+    setError,
+    setProjectDescription
   });
 
   // Create project handlers
@@ -244,50 +248,59 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     <div className="dal-project-page">
       {/* Header */}
       <div className="project-header">
-        <div className="header-top" style={{ 
+        {/* Navigation and Status Row */}
+        <div className="header-row-1" style={{ 
           display: 'flex', 
-          justifyContent: 'space-between', 
           alignItems: 'center', 
-          marginBottom: '10px' 
+          marginBottom: '16px' 
         }}>
-          <button className="back-button" onClick={onBack}>
-            ← Back to Projects
-          </button>
-          <div className="header-actions" style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '10px' 
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button className="back-button" onClick={onBack}>
+              ← Back to Projects
+            </button>
             <button
               onClick={handlers.handleRefreshData}
               disabled={loading}
               className="refresh-button"
             >
               {loading ? 'Loading...' : 'Refresh'}
-          </button>
-          <div className="project-status">
-            <span className={`status-indicator ${project.status}`}></span>
-            {project.status.toUpperCase()}
-            </div>
+            </button>
+          </div>
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', marginLeft: '100px' }}>
+            <span style={{
+              display: 'inline-block',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              backgroundColor: project.status === 'active' ? '#10b981' : '#6b7280',
+              color: 'white',
+              textTransform: 'uppercase'
+            }}>
+              {project.status}
+            </span>
           </div>
         </div>
-        <h1>{project.name}</h1>
-        <div className="project-meta">
+        
+        {/* Project Meta Info */}
+        <div className="project-meta" style={{ 
+          display: 'flex',
+          gap: '20px',
+          alignItems: 'center',
+          fontSize: '14px',
+          color: '#666'
+        }}>
           <span>Round {project.currentRound} of {project.totalRounds}</span>
           <span>•</span>
           <span>{Math.max(project.participants, userContributions.length)} participants</span>
           <span>•</span>
           <span>Last updated: {formatTimeAgo(project.lastUpdated)}</span>
-          <span>•</span>
-          <span style={{ color: '#10b981', fontWeight: 'bold' }}>
-            🔗 Smart Contract Data ({votingHistory.length + userContributions.length + modelUpdates.length} records)
-          </span>
           {sessionState && (
             <>
               <span>•</span>
               <span style={{ 
                 color: sessionState.phase === 'error' ? '#ef4444' : '#10b981', 
-                fontWeight: 'bold' 
+                fontWeight: 'bold'
               }}>
                 🤖 AL-Engine: {sessionState.phase.replace('_', ' ').toUpperCase()}
                 {sessionState.phase === 'voting' && sessionState.batchProgress && 
@@ -297,88 +310,31 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             </>
           )}
         </div>
-        
-        {/* Enhanced Contract State Display */}
-        <div className="contract-state-info" style={{ 
-          marginTop: '12px', 
-          padding: '12px', 
-          backgroundColor: '#f8fafc', 
-          borderRadius: '8px', 
-          border: '1px solid #e2e8f0',
-          fontSize: '14px',
-          color: '#475569'
-        }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
-            📋 Project Configuration (From Smart Contract)
+      </div>
+
+      {/* Project Info Panel */}
+      <div className="project-info-panel" style={{
+        backgroundColor: 'white',
+        border: '1px solid #e9ecef',
+        borderRadius: '8px',
+        padding: '20px',
+        marginBottom: '20px'
+      }}>
+        <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+          <strong style={{ color: '#495057', fontSize: '14px', minWidth: 'fit-content' }}>Project Title:</strong>
+          <div style={{ fontSize: '14px', color: '#495057', fontWeight: 'bold' }}>
+            {project.name}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
-            <div>
-              <span style={{ fontWeight: '500' }}>Batch Size:</span> {(project as any).queryBatchSize || 'Not Set'}
-            </div>
-            <div>
-              <span style={{ fontWeight: '500' }}>Voting Timeout:</span> {(project as any).votingTimeout ? `${Math.floor((project as any).votingTimeout / 60)}m` : 'Not Set'}
-            </div>
-            <div>
-              <span style={{ fontWeight: '500' }}>Label Options:</span> {(project as any).labelSpace?.length || 0} labels
-            </div>
-            <div>
-              <span style={{ fontWeight: '500' }}>Project Status:</span> 
-              <span style={{ 
-                color: (project as any).isActive ? '#10b981' : '#ef4444',
-                fontWeight: 'bold',
-                marginLeft: '4px'
-              }}>
-                {(project as any).isActive ? 'Active' : 'Inactive'}
-              </span>
-            </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+          <strong style={{ color: '#495057', fontSize: '14px', minWidth: 'fit-content' }}>Description:</strong>
+          <div style={{ fontSize: '16px', lineHeight: '1.5', color: '#6c757d' }}>
+            {projectDescription && projectDescription.trim() !== '' ? (
+              <span style={{ fontStyle: 'italic' }}>{projectDescription}</span>
+            ) : (
+              <span style={{ fontStyle: 'italic', color: '#adb5bd' }}>No description available</span>
+            )}
           </div>
-          
-          {/* Current Batch Info */}
-          {batchProgress && (
-            <div style={{ marginTop: '12px' }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#1e293b' }}>
-                🗳️ Current Batch Status (Round {batchProgress.round})
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
-                <div>
-                  <span style={{ fontWeight: '500' }}>Progress:</span> {batchProgress.completedSamples}/{batchProgress.totalSamples}
-                </div>
-                <div>
-                  <span style={{ fontWeight: '500' }}>Status:</span> 
-                  <span style={{ 
-                    color: batchProgress.isActive ? '#3b82f6' : '#10b981',
-                    fontWeight: 'bold',
-                    marginLeft: '4px'
-                  }}>
-                    {batchProgress.isActive ? 'In Progress' : 'Completed'}
-                  </span>
-                </div>
-                <div>
-                  <span style={{ fontWeight: '500' }}>Sample IDs:</span> {batchProgress.sampleIds.length} samples
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Active Voting Info */}
-          {project.activeVoting && (
-            <div style={{ marginTop: '12px' }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#1e293b' }}>
-                ⏱️ Active Voting Session
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
-                <div>
-                  <span style={{ fontWeight: '500' }}>Sample:</span> {project.activeVoting.sampleId}
-                </div>
-                <div>
-                  <span style={{ fontWeight: '500' }}>Time Remaining:</span> {Math.floor(project.activeVoting.timeRemaining / 60)}m {project.activeVoting.timeRemaining % 60}s
-                </div>
-                <div>
-                  <span style={{ fontWeight: '500' }}>Current Votes:</span> {Object.values(project.activeVoting.currentVotes || {}).reduce((a: number, b: number) => a + b, 0)} votes
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

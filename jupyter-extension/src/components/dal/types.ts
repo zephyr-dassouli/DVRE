@@ -8,7 +8,7 @@ export interface DALProject {
   name: string;
   description?: string;
   contractAddress: string;
-  status: 'draft' | 'configured' | 'running' | 'completed' | 'terminated';
+  status: 'active' | 'inactive';
   participants: number;
   currentRound: number;
   totalRounds: number;

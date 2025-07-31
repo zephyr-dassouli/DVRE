@@ -255,8 +255,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               borderRadius: '4px',
               fontSize: '14px',
               fontWeight: 'bold',
-              backgroundColor: project.status === 'running' ? '#dcfce7' : '#fef3c7',
-              color: project.status === 'running' ? '#166534' : '#92400e'
+              backgroundColor: project.status === 'active' ? '#dcfce7' : '#fef3c7',
+              color: project.status === 'active' ? '#166534' : '#92400e'
             }}>
               {project.status.toUpperCase()}
             </span>

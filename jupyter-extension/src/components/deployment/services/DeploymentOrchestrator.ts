@@ -123,6 +123,33 @@ export class DeploymentOrchestrator {
         result.steps.ipfsUpload = 'success';
         console.log('✅ IPFS upload successful');
 
+        // 2.4. Update smart contract with RO-Crate IPFS hash
+        console.log('📋 Step 2.4: Updating smart contract with RO-Crate IPFS hash...');
+        try {
+          const provider = new ethers.BrowserProvider((window as any).ethereum);
+          const signer = await provider.getSigner();
+          const projectContract = new ethers.Contract(config.contractAddress!, Project.abi, signer);
+          
+          console.log('📡 Calling updateROCrateHash on contract:', config.contractAddress);
+          const updateHashTx = await projectContract.updateROCrateHash(result.roCrateHash);
+          
+          console.log('⏳ Waiting for updateROCrateHash transaction:', updateHashTx.hash);
+          const updateHashReceipt = await updateHashTx.wait();
+          console.log('✅ RO-Crate hash updated successfully! Gas used:', updateHashReceipt.gasUsed.toString());
+          
+          // Verify the hash was actually set
+          try {
+            const verifyMetadata = await projectContract.getProjectMetadata();
+            console.log('🔍 Verification - RO-Crate hash now on contract:', verifyMetadata._rocrateHash);
+          } catch (verifyError) {
+            console.warn('⚠️ Could not verify RO-Crate hash was updated:', verifyError);
+          }
+          
+        } catch (error) {
+          console.warn('⚠️ Failed to update RO-Crate hash on smart contract (continuing anyway):', error);
+          // Don't fail deployment if this step fails - it's not critical
+        }
+
         // 2.5. Asset Contract Storage (for RO-Crate as a blockchain asset)
         console.log('📋 Step 2.5: Storing RO-Crate in blockchain asset contract...');
         try {

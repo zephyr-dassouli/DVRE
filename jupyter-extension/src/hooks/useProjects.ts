@@ -755,6 +755,8 @@ export const useProjects = () => {
         const parsedEvent = factoryInterface.parseLog(projectCreatedEvent);
         const projectAddress = parsedEvent?.args[1]; // project address
 
+        console.log('✅ Custom project created at address:', projectAddress);
+
         // RO-Crate will be created later during project deployment phase
         // No auto-creation during project collaboration creation
 
