@@ -27,19 +27,29 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
     checkBlockchainAvailability(); // This will also try to load assets
   }, []);
 
+  // Reload assets when account changes (connect/disconnect/switch accounts)
+  useEffect(() => {
+    if (blockchainAvailable) {
+      loadAssets();
+    } else if (!account) {
+      // Clear assets when user disconnects
+      setAssets([]);
+    }
+  }, [account, blockchainAvailable]);
+
   const checkBlockchainAvailability = async () => {
     const hasMetaMask = typeof window !== 'undefined' && (window as any).ethereum;
     const isConfigured = assetService.isConfigured();
     setBlockchainAvailable(hasMetaMask && isConfigured);
     
-    // If blockchain is available, try to load assets immediately
-    if (hasMetaMask && isConfigured) {
+    // If blockchain is available and user is connected, try to load user's assets immediately
+    if (hasMetaMask && isConfigured && account) {
       try {
-        const assetList = await assetService.getAllAssets();
+        const assetList = await assetService.getUserAssets(account);
         setAssets(assetList);
-        console.log('Blockchain assets loaded:', assetList.length);
+        console.log('User blockchain assets loaded:', assetList.length);
       } catch (error) {
-        console.warn('Failed to load blockchain assets on startup:', error);
+        console.warn('Failed to load user blockchain assets on startup:', error);
       }
     }
   };
@@ -54,11 +64,17 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
   };
 
   const loadAssets = async () => {
+    if (!account) {
+      console.warn('Cannot load assets - no user account connected');
+      setAssets([]);
+      return;
+    }
+    
     try {
-      const assetList = await assetService.getAllAssets();
+      const assetList = await assetService.getUserAssets(account);
       setAssets(assetList);
     } catch (error) {
-      console.warn('Failed to load assets (blockchain may not be available):', error);
+      console.warn('Failed to load user assets (blockchain may not be available):', error);
       // Don't set error for this, as blockchain is optional
     }
   };
@@ -322,17 +338,17 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
           background: 'var(--jp-layout-color0)'
         }}>
           <h3 style={{ margin: '0 0 15px 0', color: 'var(--jp-ui-font-color1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            Blockchain Assets ({assets.length})
+            My Assets ({assets.length})
             <button
               onClick={loadAssets}
-              disabled={loading}
+              disabled={loading || !account}
               style={{
                 padding: '4px 8px',
-                backgroundColor: 'var(--jp-brand-color1)',
+                backgroundColor: (loading || !account) ? '#ccc' : 'var(--jp-brand-color1)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: 'pointer',
+                cursor: (loading || !account) ? 'not-allowed' : 'pointer',
                 fontSize: '12px'
               }}
             >
@@ -348,10 +364,21 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
               background: 'var(--jp-layout-color2)',
               borderRadius: '4px'
             }}>
-              <p>No blockchain assets found.</p>
-              <p style={{ fontSize: '14px', margin: '10px 0' }}>
-                Upload a file with an asset name to create your first blockchain asset.
-              </p>
+              {!account ? (
+                <>
+                  <p>Connect your wallet to view your assets.</p>
+                  <p style={{ fontSize: '14px', margin: '10px 0' }}>
+                    Your uploaded assets are tied to your wallet address for security.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>You haven't uploaded any assets yet.</p>
+                  <p style={{ fontSize: '14px', margin: '10px 0' }}>
+                    Upload a file with an asset name to create your first blockchain asset.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
