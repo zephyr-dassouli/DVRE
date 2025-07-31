@@ -8,6 +8,155 @@ import ProjectFactory from '../abis/ProjectFactory.json';
 import Project from '../abis/Project.json';
 import { RPC_URL } from '../config/contracts';
 
+// =====================================================================
+// STANDALONE UTILITY FUNCTIONS - Can be imported by services
+// =====================================================================
+
+/**
+ * Get all join requesters for a project (off-chain implementation)
+ * Replaces the removed getAllRequesters() contract function
+ */
+export const getAllRequestersForProject = async (projectAddress: string): Promise<string[]> => {
+  try {
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const projectContract = new ethers.Contract(projectAddress, Project.abi, provider);
+    
+    const requesters: string[] = [];
+    let index = 0;
+    
+    try {
+      // Keep reading requesters array until we get an error (out of bounds)
+      while (true) {
+        try {
+          const requesterAddress = await projectContract.requesters(index);
+          
+          // Check if this requester still has an active request
+          const joinRequest = await projectContract.getJoinRequest(requesterAddress);
+          if (joinRequest.exists) {
+            requesters.push(requesterAddress);
+          }
+          
+          index++;
+        } catch {
+          break; // End of array
+        }
+      }
+    } catch (error) {
+      console.log('📝 No requesters found or error reading requesters array');
+    }
+    
+    return requesters;
+  } catch (error) {
+    console.error('Error getting all requesters for project:', error);
+    return [];
+  }
+};
+
+/**
+ * Get join request details for a specific requester
+ */
+export const getJoinRequestForProject = async (projectAddress: string, requesterAddress: string): Promise<{
+  requester: string;
+  role: string;
+  timestamp: number;
+  exists: boolean;
+}> => {
+  try {
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const projectContract = new ethers.Contract(projectAddress, Project.abi, provider);
+    const request = await projectContract.getJoinRequest(requesterAddress);
+    
+    return {
+      requester: request.requester,
+      role: request.role,
+      timestamp: Number(request.timestamp),
+      exists: request.exists
+    };
+  } catch (error) {
+    console.error('Error getting join request for project:', error);
+    return {
+      requester: '',
+      role: '',
+      timestamp: 0,
+      exists: false
+    };
+  }
+};
+
+/**
+ * Get all participants for a project (off-chain implementation)
+ * Replaces the removed getAllParticipants() contract function
+ */
+export const getAllParticipantsForProject = async (projectAddress: string): Promise<{
+  participantAddresses: string[];
+  roles: string[];
+  weights: bigint[];
+  joinTimestamps: bigint[];
+}> => {
+  try {
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
+    const projectContract = new ethers.Contract(projectAddress, Project.abi, provider);
+    
+    console.log('📋 Getting participant data through individual contract calls...');
+    const participantAddresses: string[] = [];
+    const roles: string[] = [];
+    const weights: bigint[] = [];
+    const joinTimestamps: bigint[] = [];
+    
+    // Get participant count by calling participants array until we get an error
+    let participantCount = 0;
+    try {
+      while (true) {
+        try {
+          const addr = await projectContract.participants(participantCount);
+          participantAddresses.push(addr);
+          participantCount++;
+        } catch {
+          break; // End of array
+        }
+      }
+    } catch (error) {
+      console.log('📝 No participants found or error reading participants array');
+    }
+    
+    // Get individual participant data from mappings
+    for (const address of participantAddresses) {
+      try {
+        const role = await projectContract.participantRoles(address);
+        const weight = await projectContract.participantWeights(address);
+        const joinTime = await projectContract.joinedAt(address);
+        
+        roles.push(role);
+        weights.push(weight);
+        joinTimestamps.push(joinTime);
+      } catch (error) {
+        console.warn(`Failed to get data for participant ${address}:`, error);
+        // Use defaults if individual calls fail
+        roles.push('contributor');
+        weights.push(BigInt(1));
+        joinTimestamps.push(BigInt(0));
+      }
+    }
+    
+    console.log(`✅ Retrieved data for ${participantCount} participants through individual calls`);
+    
+    return {
+      participantAddresses,
+      roles,
+      weights,
+      joinTimestamps
+    };
+  } catch (error) {
+    console.error('Error getting all participants for project:', error);
+    return {
+      participantAddresses: [],
+      roles: [],
+      weights: [],
+      joinTimestamps: []
+    };
+  }
+};
+
 export interface TemplateField {
   fieldName: string;
   fieldType: 'string' | 'number' | 'boolean' | 'array' | 'object';
@@ -127,17 +276,19 @@ export const useProjects = () => {
         participants.push(...projectData.participants);
       }
 
-      // Get join requests from contract
-      const joinRequests: JoinRequest[] = [];
+      // Get join requests from contract (using utility functions)
+      let joinRequests: JoinRequest[] = [];
       try {
-        const requesters = await projectContract.getAllRequesters();
+        const requesters = await getAllRequestersForProject(projectAddress);
+        
+        // Now process the requesters to build joinRequests array
         for (const requester of requesters) {
-          const request = await projectContract.getJoinRequest(requester);
+          const request = await getJoinRequestForProject(projectAddress, requester);
           if (request.exists) {
             joinRequests.push({
               requester: request.requester,
               role: request.role,
-              timestamp: Number(request.timestamp)
+              timestamp: request.timestamp
             });
           }
         }
@@ -647,19 +798,17 @@ export const useProjects = () => {
   // Get join requests for a project
   const getJoinRequests = useCallback(async (projectAddress: string): Promise<JoinRequest[]> => {
     try {
-      const provider = getProvider();
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, provider);
-
-      const requesters = await projectContract.getAllRequesters();
+      // Use the utility function instead of duplicating logic
+      const requesters = await getAllRequestersForProject(projectAddress);
       const joinRequests: JoinRequest[] = [];
 
       for (const requester of requesters) {
-        const request = await projectContract.getJoinRequest(requester);
+        const request = await getJoinRequestForProject(projectAddress, requester);
         if (request.exists) {
           joinRequests.push({
             requester: request.requester,
             role: request.role,
-            timestamp: Number(request.timestamp)
+            timestamp: request.timestamp
           });
         }
       }

@@ -111,24 +111,20 @@ contract Project {
     bool public unlabeledSamplesExhausted = false;
 
     
-    // Events
+    // Common Project Events
     event ProjectCreated(address indexed creator, uint256 timestamp);
     event ProjectUpdated(address indexed updater, uint256 timestamp);
     event FinalROCrateHashUpdated(address indexed updater, string rocrateHashFinal, uint256 timestamp);
     event ProjectDeactivated(address indexed creator, uint256 timestamp);
     event ProjectReactivated(address indexed creator, uint256 timestamp);
-    event JoinRequestSubmitted(address indexed requester, string role, uint256 timestamp);
-    event JoinRequestApproved(address indexed requester, address indexed approver, uint256 timestamp);
-    event JoinRequestRejected(address indexed requester, address indexed rejector, uint256 timestamp);
+
+    // AL Project Events
     event ALContractsDeployed(address votingContract, address storageContract);
     event ParticipantAutoAdded(address indexed participant, string role, uint256 weight);
     event ParticipantUpdated(address indexed participant, string role, uint256 weight);
     event RoundIncremented(uint256 newRound);
     event ALRoundTriggered(uint256 round, string reason, uint256 timestamp);
     event AutoLabelStored(string sampleId, string label, uint256 round, uint256 timestamp);
-    event InvitationSent(address indexed invitee, address indexed inviter, string role, uint256 timestamp);
-    event InvitationAccepted(address indexed invitee, address indexed project, uint256 timestamp);
-    event InvitationRejected(address indexed invitee, address indexed project, uint256 timestamp);
     event ALBatchStarted(uint256 round, uint256 sampleCount, uint256 timestamp);
     event ALBatchCompleted(uint256 round, uint256 completedSamples, uint256 timestamp);
     event VotersUpdated(uint256 round, uint256 voterCount, uint256 timestamp);
@@ -136,6 +132,14 @@ contract Project {
     event VotingSessionEnded(string sampleId, string finalLabel, uint256 round, uint256 timestamp);
     event VoteSubmitted(string sampleId, address voter, string label, uint256 timestamp);
     event ProjectEndTriggered(address indexed trigger, string reason, uint256 currentRound, uint256 timestamp);
+
+    // Member Management Events
+    event InvitationSent(address indexed invitee, address indexed inviter, string role, uint256 timestamp);
+    event InvitationAccepted(address indexed invitee, address indexed project, uint256 timestamp);
+    event InvitationRejected(address indexed invitee, address indexed project, uint256 timestamp);
+    event JoinRequestSubmitted(address indexed requester, string role, uint256 timestamp);
+    event JoinRequestApproved(address indexed requester, address indexed approver, uint256 timestamp);
+    event JoinRequestRejected(address indexed requester, address indexed rejector, uint256 timestamp);
     
     // Modifiers
     modifier onlyCreator() {
@@ -279,25 +283,6 @@ contract Project {
         return (request.requester, request.role, request.timestamp, request.exists);
     }
     
-    function getAllRequesters() external view returns (address[] memory) {
-        uint256 activeCount = 0;
-        for (uint256 i = 0; i < requesters.length; i++) {
-            if (joinRequests[requesters[i]].exists) {
-                activeCount++;
-            }
-        }
-        
-        address[] memory activeRequesters = new address[](activeCount);
-        uint256 index = 0;
-        for (uint256 i = 0; i < requesters.length; i++) {
-            if (joinRequests[requesters[i]].exists) {
-                activeRequesters[index] = requesters[i];
-                index++;
-            }
-        }
-        return activeRequesters;
-    }
-    
     // --- Project Status ---
     function deactivateProject() external onlyCreator {
         require(isActive, "Already inactive");
@@ -326,57 +311,6 @@ contract Project {
      */
     function isSampleActive(string memory sampleId) external view returns (bool) {
         return activeSamples[sampleId];
-    }
-    
-    /**
-     * @dev Get all active samples (computation outsourced to ALProjectVoting)
-     */
-    function getActiveSamples() external view returns (string[] memory) {
-        require(votingContract != address(0), "Voting contract not set");
-        
-        // Convert activeSamples mapping to boolean array
-        bool[] memory sampleActiveStates = new bool[](currentBatchSampleIds.length);
-        for (uint256 i = 0; i < currentBatchSampleIds.length; i++) {
-            sampleActiveStates[i] = activeSamples[currentBatchSampleIds[i]];
-        }
-        
-        // Get active samples from ALProjectVoting
-        (string[] memory activeSampleIds, , , , ) = IALProjectVoting(votingContract).computeActiveBatch(
-            currentBatchSampleIds,
-            sampleActiveStates,
-            labelSpace,
-            votingTimeout,
-            currentRound
-        );
-        
-        return activeSampleIds;
-    }
-    
-    /**
-     * @dev Get current batch progress (computation outsourced to ALProjectVoting)
-     */
-    function getCurrentBatchProgress() external view returns (
-        uint256 round,
-        uint256 totalSamples,
-        uint256 activeSamplesCount,
-        uint256 completedSamples,
-        string[] memory sampleIds,
-        bool batchActive
-    ) {
-        require(votingContract != address(0), "Voting contract not set");
-        
-        // Convert activeSamples mapping to boolean array
-        bool[] memory sampleActiveStates = new bool[](currentBatchSampleIds.length);
-        for (uint256 i = 0; i < currentBatchSampleIds.length; i++) {
-            sampleActiveStates[i] = activeSamples[currentBatchSampleIds[i]];
-        }
-        
-        // Let ALProjectVoting compute the batch progress
-        return IALProjectVoting(votingContract).computeBatchProgress(
-            currentRound,
-            currentBatchSampleIds,
-            sampleActiveStates
-        );
     }
     
     /**
@@ -436,7 +370,24 @@ contract Project {
     function _updateVotersInContract() internal {
         if (votingContract == address(0)) return; // Skip if not linked yet
         
-        (address[] memory eligibleVoters, uint256[] memory voterWeights) = this.getEligibleVoters();
+        // Build participant data inline since getEligibleVoters was removed
+        uint256 participantCount = participants.length;
+        if (participantCount == 0) return;
+        
+        address[] memory participantAddresses = new address[](participantCount);
+        string[] memory roles = new string[](participantCount);
+        uint256[] memory participantWeightList = new uint256[](participantCount);
+        
+        for (uint256 i = 0; i < participantCount; i++) {
+            address participant = participants[i];
+            participantAddresses[i] = participant;
+            roles[i] = participantRoles[participant];
+            participantWeightList[i] = participantWeights[participant];
+        }
+        
+        // Let ALProjectVoting compute eligible voters and set them
+        (address[] memory eligibleVoters, uint256[] memory voterWeights) = IALProjectVoting(votingContract).computeEligibleVoters(participantAddresses, roles, participantWeightList);
+        
         if (eligibleVoters.length > 0) {
             IALProjectVoting(votingContract).setVoters(eligibleVoters, voterWeights);
         }
@@ -492,19 +443,6 @@ contract Project {
         }
         
         return (participantAddresses, roles, weights, joinTimestamps);
-    }
-    
-    /**
-     * @dev Get eligible voters (computation outsourced to ALProjectVoting)
-     */
-    function getEligibleVoters() external view returns (address[] memory voters, uint256[] memory weights) {
-        require(votingContract != address(0), "Voting contract not set");
-        
-        // Get all participant data
-        (address[] memory participantAddresses, string[] memory roles, uint256[] memory participantWeightList, ) = this.getAllParticipants();
-        
-        // Let ALProjectVoting compute eligible voters
-        return IALProjectVoting(votingContract).computeEligibleVoters(participantAddresses, roles, participantWeightList);
     }
     
     // --- Project End Guards ---
@@ -828,50 +766,4 @@ contract Project {
     // ========================================================================
     // DELEGATION METHODS - Call linked contracts
     // ========================================================================
-
-    /**
-     * @dev Get voter statistics from ALProjectVoting
-     */
-    function getVoterStats(address voter) external view returns (
-        uint256 weight,
-        uint256 totalVotes,
-        bool isRegistered
-    ) {
-        require(votingContract != address(0), "Voting contract not set");
-        
-        uint256 voterWeight = IALProjectVoting(votingContract).voterWeights(voter);
-        bool registered = voterWeight > 0;
-        
-        // Note: totalVotes would need to be tracked separately in ALProjectVoting
-        // For now, return weight and registration status
-        return (voterWeight, 0, registered);
-    }
-
-    /**
-     * @dev Get current active batch (computation outsourced to ALProjectVoting)
-     */
-    function getActiveBatch() external view returns (
-        string[] memory sampleIds,
-        string[] memory sampleData, 
-        string[] memory labelOptions,
-        uint256 timeRemaining,
-        uint256 round
-    ) {
-        require(votingContract != address(0), "Voting contract not set");
-        
-        // Convert activeSamples mapping to boolean array
-        bool[] memory sampleActiveStates = new bool[](currentBatchSampleIds.length);
-        for (uint256 i = 0; i < currentBatchSampleIds.length; i++) {
-            sampleActiveStates[i] = activeSamples[currentBatchSampleIds[i]];
-        }
-        
-        // Let ALProjectVoting compute the active batch
-        return IALProjectVoting(votingContract).computeActiveBatch(
-            currentBatchSampleIds,
-            sampleActiveStates,
-            labelSpace,
-            votingTimeout,
-            currentRound
-        );
-    }
 }

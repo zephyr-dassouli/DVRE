@@ -11,6 +11,7 @@ import ALProjectVoting from '../../../abis/ALProjectVoting.json';
 // Import our modular services
 import { VotingService, ActiveVoting } from './VotingService';
 import { ALEngineService, ModelUpdate } from './ALEngineService';
+import { offChainContractService } from './OffChainContractService';
 import { VotingRecord, UserContribution } from '../types';
 
 export { VotingRecord, UserContribution, ActiveVoting, ModelUpdate };
@@ -107,14 +108,9 @@ export class ALContractService {
         return null;
       }
 
-      const currentBatch = await projectContract.getCurrentBatchProgress();
-      
-      if (!currentBatch.batchActive) {
-        return null;
-      }
-
-      const activeBatch = await projectContract.getActiveBatch();
-      if (!activeBatch.sampleIds || activeBatch.sampleIds.length === 0) {
+      // Use off-chain implementation instead of removed contract function
+      const activeBatch = await this.getActiveBatch(projectAddress);
+      if (!activeBatch || activeBatch.sampleIds.length === 0) {
         return null;
       }
 
@@ -353,38 +349,30 @@ export class ALContractService {
     batchSize: number;
   } | null> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      // Use the off-chain contract service to get the active batch
+      const activeBatch = await offChainContractService.getActiveBatch(projectAddress);
       
-      // Check if project has AL contracts
-      const hasALContracts = await projectContract.hasALContracts();
-      if (!hasALContracts) {
-        console.log('📝 Project has no AL contracts');
-        return null;
-      }
-
-      // Get active batch from Project contract
-      const activeBatch = await projectContract.getActiveBatch();
-      
-      if (!activeBatch.sampleIds || activeBatch.sampleIds.length === 0) {
+      if (!activeBatch || activeBatch.activeSampleIds.length === 0) {
         console.log('📝 No active batch found');
         return null;
       }
 
-      console.log(`📊 Active batch found with ${activeBatch.sampleIds.length} samples`);
+      console.log(`📊 Active batch found with ${activeBatch.activeSampleIds.length} samples`);
 
-      // Get sample data for each sample
-      const sampleData = activeBatch.sampleIds.map((sampleId: string) => {
+      // Get sample data for each active sample (from stored AL samples)
+      const sampleData = activeBatch.activeSampleIds.map((sampleId: string) => {
         const storedData = this.getSampleDataById(sampleId);
         return storedData || { sampleId, data: `Sample data for ${sampleId}` };
       });
 
+      // Adapt interface to match expected format
       return {
-        sampleIds: activeBatch.sampleIds,
+        sampleIds: activeBatch.activeSampleIds,
         sampleData: sampleData,
         labelOptions: activeBatch.labelOptions,
-        timeRemaining: Number(activeBatch.timeRemaining),
-        round: Number(activeBatch.round),
-        batchSize: activeBatch.sampleIds.length
+        timeRemaining: activeBatch.timeRemaining,
+        round: activeBatch.round,
+        batchSize: activeBatch.activeSampleIds.length
       };
     } catch (error) {
       console.error('Could not fetch active batch:', error);
@@ -438,14 +426,53 @@ export class ALContractService {
       // Get basic project info
       const isActive = await projectContract.getIsActive();
       const alConfig = await projectContract.getALConfiguration();
-      const currentBatch = await projectContract.getCurrentBatchProgress();
-      const participants = await projectContract.getAllParticipants();
+      
+      // Use off-chain contract service for participants
+      const participants = await offChainContractService.getAllParticipants(projectAddress);
+
+      // Use off-chain implementation for current batch progress
+      let currentBatch = null;
+      try {
+        const batchProgress = await offChainContractService.getCurrentBatchProgress(projectAddress);
+        if (batchProgress) {
+          currentBatch = {
+            round: batchProgress.round,
+            totalSamples: batchProgress.totalSamples,
+            activeSamples: batchProgress.activeSamplesCount,
+            completedSamples: batchProgress.completedSamples,
+            sampleIds: batchProgress.sampleIds,
+            batchActive: batchProgress.batchActive
+          };
+        } else {
+          // Default batch info when no active batch
+          const currentRound = await projectContract.currentRound();
+          currentBatch = {
+            round: Number(currentRound),
+            totalSamples: 0,
+            activeSamples: 0,
+            completedSamples: 0,
+            sampleIds: [],
+            batchActive: false
+          };
+        }
+      } catch (error) {
+        console.log('📝 Could not get current batch progress');
+        const currentRound = await projectContract.currentRound();
+        currentBatch = {
+          round: Number(currentRound),
+          totalSamples: 0,
+          activeSamples: 0,
+          completedSamples: 0,
+          sampleIds: [],
+          batchActive: false
+        };
+      }
 
       // Try to get active batch if available
       let activeVoting;
       try {
-        const activeBatch = await projectContract.getActiveBatch();
-        if (activeBatch.sampleIds && activeBatch.sampleIds.length > 0) {
+        const activeBatch = await this.getActiveBatch(projectAddress);
+        if (activeBatch && activeBatch.sampleIds.length > 0) {
           const sampleId = activeBatch.sampleIds[0];
           const sampleData = this.getSampleDataById(sampleId) || { sampleId, data: 'Sample data' };
           
@@ -478,7 +505,7 @@ export class ALContractService {
         currentBatch: {
           round: Number(currentBatch.round),
           totalSamples: Number(currentBatch.totalSamples),
-          activeSamples: Number(currentBatch.activeSamplesCount),
+          activeSamples: Number(currentBatch.activeSamples),
           completedSamples: Number(currentBatch.completedSamples),
           sampleIds: currentBatch.sampleIds,
           batchActive: currentBatch.batchActive
@@ -520,8 +547,8 @@ export class ALContractService {
       const votingContractInstance = new ethers.Contract(votingContract, ALProjectVoting.abi, this.provider);
       
       const batchProgress = await votingContractInstance.getCurrentBatchProgress();
-    
-    return {
+          
+          return {
         round: Number(batchProgress.round),
         isActive: batchProgress.isActive,
         totalSamples: Number(batchProgress.totalSamples),
@@ -533,6 +560,36 @@ export class ALContractService {
       console.error('Error getting batch progress from voting contract:', error);
       return null;
     }
+  }
+
+  // =====================================================================
+  // OFF-CHAIN CONTRACT FUNCTION DELEGATES
+  // These delegate to OffChainContractService for functions removed from Project.sol
+  // =====================================================================
+
+  /**
+   * @dev Get all join requesters for a project
+   */
+  async getAllRequesters(projectAddress: string): Promise<string[]> {
+    return await offChainContractService.getAllRequesters(projectAddress);
+  }
+
+  /**
+   * @dev Get all active samples for a project
+   */
+  async getActiveSamples(projectAddress: string): Promise<string[]> {
+    return await offChainContractService.getActiveSamples(projectAddress);
+  }
+
+  /**
+   * @dev Get voter statistics for a specific address
+   */
+  async getVoterStats(projectAddress: string, voterAddress: string): Promise<{
+    weight: number;
+    totalVotes: number;
+    isRegistered: boolean;
+  }> {
+    return await offChainContractService.getVoterStats(projectAddress, voterAddress);
   }
 
 }
