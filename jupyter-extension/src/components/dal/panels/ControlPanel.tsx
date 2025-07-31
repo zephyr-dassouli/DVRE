@@ -37,19 +37,122 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       <div className="control-panel">
         <div className="panel-header">
           <h3>Control Panel</h3>
-          <p>Access restricted to project coordinators</p>
+          <p>Project management information</p>
         </div>
+        
+        {/* Explanatory text for contributors */}
         <div style={{ 
-          textAlign: 'center', 
-          padding: '60px',
-          backgroundColor: '#f9fafb',
-          borderRadius: '8px'
+          backgroundColor: '#f0f9ff',
+          border: '1px solid #3b82f6',
+          borderRadius: '8px',
+          padding: '20px',
+          marginBottom: '24px'
         }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
-          <h4>Coordinator Access Required</h4>
-          <p style={{ color: '#666' }}>
-            Only project coordinators can access the control panel to manage AL iterations.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+            <span style={{ fontSize: '24px' }}>ℹ️</span>
+            <h4 style={{ margin: 0, color: '#1e40af' }}>Project Management Access</h4>
+          </div>
+          <p style={{ margin: 0, color: '#1e40af', lineHeight: '1.5' }}>
+            Only the <strong>project coordinator</strong> has the ability to start new iterations and end the project. 
+            As a contributor, you can view the project status below and participate in labeling when new samples are available.
           </p>
+        </div>
+
+        {/* Project Status Summary - same as coordinator view */}
+        <div className="project-status-summary" style={{
+          border: '1px solid #d1d5db',
+          borderRadius: '8px',
+          padding: '24px',
+          backgroundColor: '#f8fafc'
+        }}>
+          <h4 style={{ marginBottom: '16px', color: '#1f2937' }}>📊 Project Status Summary</h4>
+          <div className="status-grid" style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+            gap: '16px' 
+          }}>
+            <div className="status-item">
+              <label style={{ 
+                display: 'block', 
+                fontSize: '12px', 
+                fontWeight: 'bold', 
+                color: '#6b7280', 
+                marginBottom: '4px' 
+              }}>
+                Current Status:
+              </label>
+              <span className={`status-value ${project.status}`} style={{
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                backgroundColor: project.status === 'active' ? '#dcfce7' : '#fef3c7',
+                color: project.status === 'active' ? '#166534' : '#92400e'
+              }}>
+                {project.status.toUpperCase()}
+              </span>
+            </div>
+            
+            <div className="status-item">
+              <label style={{ 
+                display: 'block', 
+                fontSize: '12px', 
+                fontWeight: 'bold', 
+                color: '#6b7280', 
+                marginBottom: '4px' 
+              }}>
+                Active:
+              </label>
+              <span className={`status-value ${project.isActive ? 'active' : 'inactive'}`} style={{
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                backgroundColor: project.isActive ? '#dcfce7' : '#fee2e2',
+                color: project.isActive ? '#166534' : '#dc2626'
+              }}>
+                {project.isActive ? 'Yes' : 'No'}
+              </span>
+            </div>
+            
+            <div className="status-item">
+              <label style={{ 
+                display: 'block', 
+                fontSize: '12px', 
+                fontWeight: 'bold', 
+                color: '#6b7280', 
+                marginBottom: '4px' 
+              }}>
+                Progress:
+              </label>
+              <span className="status-value" style={{
+                fontSize: '14px',
+                fontWeight: 'bold',
+                color: '#1f2937'
+              }}>
+                Round {project.currentRound} of {project.totalRounds} ({Math.round((project.currentRound / project.totalRounds) * 100)}%)
+              </span>
+            </div>
+            
+            <div className="status-item">
+              <label style={{ 
+                display: 'block', 
+                fontSize: '12px', 
+                fontWeight: 'bold', 
+                color: '#6b7280', 
+                marginBottom: '4px' 
+              }}>
+                Contract Address:
+              </label>
+              <span className="status-value" style={{
+                fontSize: '12px',
+                fontFamily: 'monospace',
+                color: '#6b7280'
+              }}>
+                {project.contractAddress.slice(0, 10)}...{project.contractAddress.slice(-8)}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     );

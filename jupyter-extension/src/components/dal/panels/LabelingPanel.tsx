@@ -9,14 +9,6 @@ interface VotingStatus {
   isCheckingStatus: boolean;
 }
 
-interface ProjectEndStatus {
-  hasEnded: boolean;
-  reason: string;
-  trigger: string;
-  endTime: Date | null;
-  isCheckingEnd: boolean;
-}
-
 export const LabelingPanel: React.FC<LabelingPanelProps> = ({
   project,
   currentUser,
@@ -51,15 +43,6 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     totalVoters: 0,
     allVoted: false,
     isCheckingStatus: false
-  });
-
-  // NEW: State for tracking project end status
-  const [projectEndStatus, setProjectEndStatus] = useState<ProjectEndStatus>({
-    hasEnded: false,
-    reason: '',
-    trigger: '',
-    endTime: null,
-    isCheckingEnd: false
   });
 
   // Load active batch when session state changes
@@ -347,187 +330,6 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     };
   }, [sessionState?.phase]);
 
-  // NEW: Polling for project end status  
-  useEffect(() => {
-    let pollInterval: NodeJS.Timeout;
-    
-    // Poll for project end status every 10 seconds
-    if (!projectEndStatus.hasEnded && project?.contractAddress) {
-      console.log('🔄 Starting project end status polling...');
-      
-      pollInterval = setInterval(async () => {
-        await checkProjectEndStatus();
-      }, 10000); // Poll every 10 seconds
-      
-      // Stop polling after 2 hours to prevent infinite polling
-      const stopPollingTimeout = setTimeout(() => {
-        console.log('⏰ Stopping project end status polling after timeout');
-        clearInterval(pollInterval);
-      }, 7200000); // 2 hours
-      
-      return () => {
-        clearInterval(pollInterval);
-        clearTimeout(stopPollingTimeout);
-      };
-    }
-  }, [projectEndStatus.hasEnded, project?.contractAddress]);
-
-  // NEW: Listen for global project end events
-  useEffect(() => {
-    if (!project?.contractAddress) return;
-
-    // Event handler for project end events
-    const handleProjectEndTriggered = (event: any) => {
-      const { projectAddress, trigger, reason, timestamp } = event.detail || {};
-      
-      // Only handle events for this specific project
-      if (projectAddress === project.contractAddress) {
-        console.log(`🚨 Project end detected for ${projectAddress}:`, { trigger, reason });
-        
-        setProjectEndStatus({
-          hasEnded: true,
-          reason: reason || 'Project ended',
-          trigger: trigger || 'system',
-          endTime: new Date(timestamp ? timestamp * 1000 : Date.now()),
-          isCheckingEnd: false
-        });
-        
-        // Clear active batch and voting status when project ends
-        setActiveBatch(null);
-        setBatchVotes({});
-        setVotingStatus({
-          userHasVoted: false,
-          votedCount: 0,
-          totalVoters: 0,
-          allVoted: false,
-          isCheckingStatus: false
-        });
-      }
-    };
-
-    const handleProjectEnded = (event: any) => {
-      const { projectAddress } = event.detail || {};
-      
-      // Only handle events for this specific project
-      if (projectAddress === project.contractAddress) {
-        console.log(`🏁 Project cleanup triggered for ${projectAddress}`);
-        
-        setProjectEndStatus(prev => ({
-          ...prev,
-          hasEnded: true,
-          reason: prev.reason || 'Project ended',
-          trigger: prev.trigger || 'coordinator',
-          endTime: prev.endTime || new Date(),
-          isCheckingEnd: false
-        }));
-      }
-    };
-
-    // Listen for project end events
-    window.addEventListener('dal-project-end-triggered', handleProjectEndTriggered);
-    window.addEventListener('dal-project-ended', handleProjectEnded);
-
-    // Cleanup function
-    return () => {
-      window.removeEventListener('dal-project-end-triggered', handleProjectEndTriggered);
-      window.removeEventListener('dal-project-ended', handleProjectEnded);
-    };
-  }, [project?.contractAddress]);
-
-  // NEW: Listen for DAL session project end events
-  useEffect(() => {
-    const dalSession = (window as any).currentDALSession;
-    if (!dalSession) return;
-
-    const handleSessionProjectShouldEnd = (details: any) => {
-      console.log('🚨 DAL Session: Project should end:', details);
-      
-      setProjectEndStatus({
-        hasEnded: true,
-        reason: details.reason || 'Project ended',
-        trigger: details.trigger || 'system',
-        endTime: new Date(details.timestamp || Date.now()),
-        isCheckingEnd: false
-      });
-      
-      // Clear active batch and voting status
-      setActiveBatch(null);
-      setBatchVotes({});
-      setVotingStatus({
-        userHasVoted: false,
-        votedCount: 0,
-        totalVoters: 0,
-        allVoted: false,
-        isCheckingStatus: false
-      });
-    };
-
-    const handleSessionEnded = () => {
-      console.log('🏁 DAL Session ended');
-      
-      setProjectEndStatus(prev => ({
-        ...prev,
-        hasEnded: true,
-        reason: prev.reason || 'Session ended',
-        endTime: prev.endTime || new Date()
-      }));
-    };
-
-    // Add DAL session event listeners
-    dalSession.on('project-should-end', handleSessionProjectShouldEnd);
-    dalSession.on('session-ended', handleSessionEnded);
-
-    // Cleanup function
-    return () => {
-      dalSession.off('project-should-end', handleSessionProjectShouldEnd);
-      dalSession.off('session-ended', handleSessionEnded);
-    };
-  }, [project?.contractAddress]);
-
-  // NEW: Function to check project end status via smart contracts
-  const checkProjectEndStatus = async () => {
-    if (!project?.contractAddress || projectEndStatus.hasEnded) return;
-    
-    try {
-      setProjectEndStatus(prev => ({ ...prev, isCheckingEnd: true }));
-      
-      // Import ALContractService dynamically
-      const { ALContractService } = await import('../services/ALContractService');
-      const alContractService = ALContractService.getInstance();
-      
-      // Check project end status from smart contract
-      const endStatus = await alContractService.getProjectEndStatus(project.contractAddress);
-      
-      if (endStatus.shouldEnd) {
-        console.log(`🚨 Project should end detected via polling:`, endStatus);
-        
-        setProjectEndStatus({
-          hasEnded: true,
-          reason: endStatus.reason || 'Project ended',
-          trigger: 'polling',
-          endTime: new Date(),
-          isCheckingEnd: false
-        });
-        
-        // Clear active batch and voting status
-        setActiveBatch(null);
-        setBatchVotes({});
-        setVotingStatus({
-          userHasVoted: false,
-          votedCount: 0,
-          totalVoters: 0,
-          allVoted: false,
-          isCheckingStatus: false
-        });
-      } else {
-        setProjectEndStatus(prev => ({ ...prev, isCheckingEnd: false }));
-      }
-    } catch (error) {
-      console.error('❌ Failed to check project end status:', error);
-      setProjectEndStatus(prev => ({ ...prev, isCheckingEnd: false }));
-    }
-  };
-
   // NEW: Function to check current voting status
   const checkCurrentVotingStatus = async (batch: any = activeBatch) => {
     if (!batch || !project?.contractAddress) return;
@@ -765,66 +567,8 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
         </div>
       )}
       
-      {/* NEW: Show project ended status (highest priority) */}
-      {projectEndStatus.hasEnded && (
-        <div className="project-ended-message" style={{
-          backgroundColor: '#fee2e2',
-          border: '2px solid #dc2626',
-          borderRadius: '8px',
-          padding: '30px',
-          margin: '20px 0',
-          textAlign: 'center'
-        }}>
-          <div style={{ fontSize: '64px', marginBottom: '20px' }}>🏁</div>
-          <h3 style={{ color: '#dc2626', marginBottom: '16px' }}>
-            Project Has Ended
-          </h3>
-          <div style={{ marginBottom: '16px', fontSize: '16px', lineHeight: '1.6' }}>
-            <p><strong>Reason:</strong> {projectEndStatus.reason}</p>
-            {projectEndStatus.endTime && (
-              <p><strong>Ended at:</strong> {projectEndStatus.endTime.toLocaleString()}</p>
-            )}
-            {projectEndStatus.trigger === 'coordinator' && (
-              <p><strong>Ended by:</strong> Project Coordinator</p>
-            )}
-            {projectEndStatus.trigger === 'system' && (
-              <p><strong>Ended by:</strong> System (Max iterations reached)</p>
-            )}
-          </div>
-          <div style={{ 
-            backgroundColor: '#f9fafb', 
-            border: '1px solid #d1d5db', 
-            borderRadius: '6px',
-            padding: '16px',
-            marginTop: '20px',
-            fontSize: '14px',
-            color: '#6b7280'
-          }}>
-            <h4 style={{ marginBottom: '12px', color: '#374151' }}>What happens now?</h4>
-            <ul style={{ textAlign: 'left', margin: 0, paddingLeft: '20px' }}>
-              <li>All voting sessions have been finalized</li>
-              <li>Final results can be viewed in the "Publish Final Results" tab</li>
-              <li>The model performance and labeled dataset are available</li>
-              <li>No more iterations can be started</li>
-            </ul>
-          </div>
-          {isCoordinator && (
-            <div style={{
-              marginTop: '20px',
-              padding: '12px',
-              backgroundColor: '#f0f9ff',
-              border: '1px solid #3b82f6',
-              borderRadius: '6px',
-              fontSize: '14px'
-            }}>
-              <strong>As coordinator:</strong> You can publish final results and download the labeled dataset in the "Publish Final Results" tab.
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* NEW: Show voting status after user has voted (only if project hasn't ended) */}
-      {!projectEndStatus.hasEnded && activeBatch && votingStatus.userHasVoted && !iterationCompleted && (
+      {/* NEW: Show voting status after user has voted (only if project is active) */}
+      {project?.isActive && activeBatch && votingStatus.userHasVoted && !iterationCompleted && (
         <div className="voting-status-message" style={{
           backgroundColor: '#f0f9ff',
           border: '2px solid #3b82f6',
@@ -863,8 +607,8 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
         </div>
       )}
       
-      {/* Batch voting in progress */}
-      {!projectEndStatus.hasEnded && activeBatch && !votingStatus.userHasVoted && !iterationCompleted && (
+      {/* Batch voting in progress (only if project is active) */}
+      {project?.isActive && activeBatch && !votingStatus.userHasVoted && !iterationCompleted && (
         <div className="batch-voting">
           <div className="batch-header">
             <h4>
@@ -975,23 +719,68 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
         </div>
       )}
       
-      {/* No active batch (only show if project hasn't ended) */}
-      {!projectEndStatus.hasEnded && !activeBatch && !iterationCompleted && (
+      {/* No active batch - show project ended content if inactive, otherwise show waiting message */}
+      {!activeBatch && !iterationCompleted && (
         <div className="no-active-voting" style={{ 
           textAlign: 'center', 
           padding: '60px',
           backgroundColor: '#f9fafb',
           borderRadius: '8px'
         }}>
-          <div style={{ fontSize: '64px', marginBottom: '24px' }}>⏳</div>
-          <h4 style={{ marginBottom: '16px' }}>No Active Voting</h4>
-          <p style={{ color: '#666', marginBottom: '20px' }}>
-            Waiting for the next AL iteration to begin...
-          </p>
-          {isCoordinator && (
-            <p style={{ color: '#3b82f6', fontStyle: 'italic' }}>
-              <em>As coordinator, you can start the next iteration from the Control Panel.</em>
-            </p>
+          {!project?.isActive ? (
+            // Project has ended - show ended content
+            <>
+              <div style={{ fontSize: '64px', marginBottom: '20px' }}>🏁</div>
+              <h3 style={{ color: '#374151', marginBottom: '16px' }}>
+                Project Has Ended
+              </h3>
+              <div style={{ marginBottom: '16px', fontSize: '16px', lineHeight: '1.6' }}>
+                <p><strong>Reason:</strong> Project has been deactivated or reached maximum iterations</p>
+              </div>
+              <div style={{ 
+                backgroundColor: '#f9fafb', 
+                border: '1px solid #d1d5db', 
+                borderRadius: '6px',
+                padding: '16px',
+                marginTop: '20px',
+                fontSize: '14px',
+                color: '#6b7280'
+              }}>
+                <h4 style={{ marginBottom: '12px', color: '#374151' }}>What happens now?</h4>
+                <ul style={{ textAlign: 'left', margin: 0, paddingLeft: '20px' }}>
+                  <li>All voting sessions have been finalized</li>
+                  <li>Final results can be viewed in the "Publish Final Results" tab</li>
+                  <li>The model performance and labeled dataset are available</li>
+                  <li>No more iterations can be started</li>
+                </ul>
+              </div>
+              {isCoordinator && (
+                <div style={{
+                  marginTop: '20px',
+                  padding: '12px',
+                  backgroundColor: '#f0f9ff',
+                  border: '1px solid #3b82f6',
+                  borderRadius: '6px',
+                  fontSize: '14px'
+                }}>
+                  <strong>As coordinator:</strong> You can publish final results and download the labeled dataset in the "Publish Final Results" tab.
+                </div>
+              )}
+            </>
+          ) : (
+            // Project is active but no voting session
+            <>
+              <div style={{ fontSize: '64px', marginBottom: '24px' }}>⏳</div>
+              <h4 style={{ marginBottom: '16px' }}>No Active Voting</h4>
+              <p style={{ color: '#666', marginBottom: '20px' }}>
+                Waiting for the next AL iteration to begin...
+              </p>
+              {isCoordinator && (
+                <p style={{ color: '#3b82f6', fontStyle: 'italic' }}>
+                  <em>As coordinator, you can start the next iteration from the Control Panel.</em>
+                </p>
+              )}
+            </>
           )}
         </div>
       )}

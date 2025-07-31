@@ -352,14 +352,12 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         >
           Configuration
         </button>
-        {isCoordinator && (
-          <button 
-            className={`tab ${activeTab === 'control' ? 'active' : ''}`}
-            onClick={() => setActiveTab('control')}
-          >
-            Control Panel
-          </button>
-        )}
+        <button 
+          className={`tab ${activeTab === 'control' ? 'active' : ''}`}
+          onClick={() => setActiveTab('control')}
+        >
+          Control Panel
+        </button>
         <button 
           className={`tab ${activeTab === 'model-updates' ? 'active' : ''}`}
           onClick={() => setActiveTab('model-updates')}
@@ -415,7 +413,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           />
         )}
 
-        {currentUser && activeTab === 'control' && isCoordinator && (
+        {currentUser && activeTab === 'control' && (
           <ControlPanel
             project={project}
             currentUser={currentUser}

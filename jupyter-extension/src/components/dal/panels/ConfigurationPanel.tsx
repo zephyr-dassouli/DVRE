@@ -104,20 +104,6 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     <div className="configuration-panel">
       <div className="panel-header">
         <h3>Project Configuration</h3>
-        <button 
-          onClick={handleRefresh}
-          style={{ 
-            padding: '8px 16px', 
-            backgroundColor: '#10b981', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
-        >
-          🔄 Refresh
-        </button>
       </div>
       {alConfiguration ? (
         <div className="config-grid" style={{ 
