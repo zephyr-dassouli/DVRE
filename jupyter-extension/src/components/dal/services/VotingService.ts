@@ -432,6 +432,39 @@ export class VotingService {
     }
   }
 
+  /**
+   * Get individual votes for a specific sample from ALProjectVoting contract
+   */
+  async getVotesForSample(projectAddress: string, sampleId: string): Promise<Array<{
+    voter: string;
+    label: string;
+    support: boolean;
+  }>> {
+    try {
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const votingContractAddress = await projectContract.votingContract();
+      
+      if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
+        return [];
+      }
+      
+      const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
+      
+      // Get votes for this specific sample
+      const votes = await votingContract.getVotes(sampleId);
+      
+      return votes.map((vote: any) => ({
+        voter: vote.voter,
+        label: vote.label,
+        support: vote.support
+      }));
+      
+    } catch (error) {
+      console.error('Failed to get votes for sample:', error);
+      return [];
+    }
+  }
+
   private getSampleDataById(sampleId: string): any {
     // This would typically come from ALEngineService
     // For now, return basic sample info

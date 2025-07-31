@@ -552,6 +552,55 @@ export class ALContractService {
     }
   }
 
+  /**
+   * Get AL configuration from deployed smart contract
+   */
+  async getALConfiguration(projectAddress: string): Promise<{
+    scenario: string;
+    queryStrategy: string;
+    model: { type: string; parameters: any };
+    queryBatchSize: number;
+    maxIterations: number;
+    votingConsensus: string;
+    votingTimeout: number;
+    labelSpace: string[];
+  } | null> {
+    try {
+      console.log(`⚙️ Fetching AL configuration from contract: ${projectAddress}`);
+      
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      
+      // Check if project has AL contracts
+      const hasALContracts = await projectContract.hasALContracts();
+      if (!hasALContracts) {
+        console.log('📝 Project has no AL contracts deployed');
+        return null;
+      }
+      
+      // Get AL configuration from contract
+      const alConfig = await projectContract.getALConfiguration();
+      console.log('📋 Raw AL config from contract:', alConfig);
+      
+      return {
+        scenario: alConfig._alScenario || 'pool_based',
+        queryStrategy: alConfig._queryStrategy || 'uncertainty_sampling',
+        model: {
+          type: alConfig._modelType || 'logistic_regression',
+          parameters: alConfig._modelParameters || {}
+        },
+        queryBatchSize: Number(alConfig._queryBatchSize) || 2,
+        maxIterations: Number(alConfig._maxIteration) || 10,
+        votingConsensus: alConfig._votingConsensus || 'simple_majority',
+        votingTimeout: Number(alConfig._votingTimeout) || 3600,
+        labelSpace: alConfig._labelSpace ? [...alConfig._labelSpace] : []
+      };
+      
+    } catch (error) {
+      console.error('❌ Failed to fetch AL configuration from contract:', error);
+      return null;
+    }
+  }
+
   async getBatchProgressFromVotingContract(projectAddress: string): Promise<{
     round: number;
     isActive: boolean;
