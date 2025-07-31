@@ -1,11 +1,13 @@
 /**
- * DAL Project Event Listeners - Manages event listeners for Active Learning project operations
+ * DAL Project Event Listeners
+ * Handles setting up event listeners for Active Learning project events
  */
 
-import { createDALProjectSession, type DALProjectSession, type SessionState } from './services/DALProjectSession';
+import { DALProjectSession, SessionState, createDALProjectSession } from './services/DALProjectSession';
+import { DALProject } from './types';
 
 export interface EventListenerDependencies {
-  project: { contractAddress: string };
+  project: DALProject;
   currentUser: string;
   triggerRefresh: () => void;
   setBatchProgress: (progress: any) => void;
@@ -14,6 +16,7 @@ export interface EventListenerDependencies {
   setDalSession: (session: DALProjectSession | null) => void;
   setSessionState: (state: SessionState | null) => void;
   setError: (error: string) => void;
+  setProjectEndStatus: (status: { shouldEnd: boolean; reason: string; currentRound: number; maxIterations: number; }) => void;
 }
 
 export interface EventListenerCleanup {
@@ -31,7 +34,8 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
     setIterationMessage,
     setDalSession,
     setSessionState,
-    setError
+    setError,
+    setProjectEndStatus
   } = deps;
 
   // Set up event listeners for batch voting progress
@@ -84,6 +88,9 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
     const session = createDALProjectSession(project.contractAddress, currentUser);
     setDalSession(session);
 
+    // Store session globally for LabelingPanel access (temporary)
+    (window as any).currentDALSession = session;
+
     // Set up session event listeners
     const handleStateChange = (newState: SessionState) => {
       console.log('📊 Session state changed:', newState);
@@ -119,12 +126,23 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
       setError(`Session Error: ${errorMessage}`);
     };
 
+    const handleProjectShouldEnd = (details: { trigger: string; reason: string; currentRound: number; timestamp: number; }) => {
+      console.log('🚨 Project should end:', details);
+      setProjectEndStatus({
+        shouldEnd: true,
+        reason: details.reason,
+        currentRound: details.currentRound,
+        maxIterations: project.totalRounds || 0
+      });
+    };
+
     session.on('state-changed', handleStateChange);
     session.on('iteration-completed', handleIterationComplete);
     session.on('error', handleSessionError);
+    session.on('project-should-end', handleProjectShouldEnd);
 
     // Check AL-Engine health
-    session.checkALEngineHealth().catch(err => {
+    session.checkALEngineHealth().catch((err: any) => {
       console.warn('⚠️ AL-Engine health check failed:', err);
       setError('AL-Engine is not responsive. Please ensure it is running on localhost:5050');
     });
@@ -146,4 +164,4 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
     cleanupBatchListeners,
     cleanupSessionListeners
   };
-}; 
+};

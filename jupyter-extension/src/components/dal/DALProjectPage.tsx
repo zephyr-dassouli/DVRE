@@ -48,6 +48,19 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
   const [iterationCompleted, setIterationCompleted] = useState(false);
   const [iterationMessage, setIterationMessage] = useState<string>('');
 
+  // Project End State
+  const [projectEndStatus, setProjectEndStatus] = useState<{
+    shouldEnd: boolean;
+    reason: string;
+    currentRound: number;
+    maxIterations: number;
+  }>({
+    shouldEnd: false,
+    reason: '',
+    currentRound: 0,
+    maxIterations: 0
+  });
+
   // Trigger to force data refresh
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -107,7 +120,8 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           setIterationMessage,
           setDalSession,
           setSessionState,
-          setError
+          setError,
+          setProjectEndStatus
         });
       }
     }, 100);
@@ -120,7 +134,34 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         cleanup.cleanupSessionListeners();
       }
     };
-  }, [currentUser, refreshTrigger]); // Add refreshTrigger to dependencies
+  }, [refreshTrigger, project.contractAddress, currentUser]);
+
+  // Check project end conditions periodically
+  useEffect(() => {
+    const checkEndConditions = async () => {
+      if (!project.contractAddress) return;
+      
+      try {
+        const { alContractService } = await import('./services/ALContractService');
+        const endStatus = await alContractService.getProjectEndStatus(project.contractAddress);
+        
+        if (endStatus.shouldEnd && !projectEndStatus.shouldEnd) {
+          console.log('🚨 Project should end based on smart contract conditions:', endStatus);
+          setProjectEndStatus(endStatus);
+        }
+      } catch (error) {
+        console.error('Error checking project end conditions:', error);
+      }
+    };
+
+    // Check immediately
+    checkEndConditions();
+
+    // Check every 30 seconds
+    const interval = setInterval(checkEndConditions, 30000);
+
+    return () => clearInterval(interval);
+  }, [project.contractAddress, projectEndStatus.shouldEnd]);
 
   // Check if wallet is connected AFTER all hooks are called
   if (!account) {
@@ -341,7 +382,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         </div>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* Tab Navigation */}
       <div className="project-tabs">
         <button 
           className={`tab ${activeTab === 'labeling' ? 'active' : ''}`}
@@ -431,6 +472,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             onEndProject={handlers.handleEndProject}
             onRefresh={handlers.handleRefreshData}
             onError={setError}
+            projectEndStatus={projectEndStatus}
           />
         )}
 

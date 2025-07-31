@@ -93,7 +93,8 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
 
     setIsSubmittingBatch(true);
     try {
-      const sampleIds = activeBatch.sampleIds;
+      // Create mutable copies to avoid Ethers.js readonly array errors
+      const sampleIds = [...activeBatch.sampleIds];
       const labels = sampleIds.map(id => batchVotes[id]);
       
       const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
@@ -252,18 +253,6 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
                     ? `Sample Status: ${batchProgress.completedSamples > 0 ? 'Completed' : 'In Progress'}`
                     : `Batch Progress: ${batchProgress.completedSamples}/${batchProgress.totalSamples} samples completed`
                   }
-                </div>
-              )}
-            </div>
-          )}
-          {/* DEBUG: Add debugging info to understand the state */}
-          {process.env.NODE_ENV === 'development' && (
-            <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>
-              Debug: batchProgress.round={batchProgress?.round}, project.currentRound={project.currentRound}
-              {batchProgress && (
-                <div>
-                  BatchProgress: completed={batchProgress.completedSamples}, total={batchProgress.totalSamples}, 
-                  currentIndex={batchProgress.currentSampleIndex}, round={batchProgress.round}
                 </div>
               )}
             </div>

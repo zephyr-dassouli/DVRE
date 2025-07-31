@@ -49,7 +49,7 @@ export interface QuerySample {
 export interface SessionState {
   projectId: string;
   isActive: boolean;
-  phase: 'idle' | 'generating_samples' | 'voting' | 'aggregating' | 'completed' | 'error';
+  phase: 'idle' | 'generating_samples' | 'voting' | 'aggregating' | 'completed' | 'ending' | 'error';
   batchProgress?: {
     totalSamples: number;
     completedSamples: number;
@@ -60,6 +60,9 @@ export interface SessionState {
   querySamples?: QuerySample[];
   error?: string;
   lastUpdate: Date;
+  // Project end fields
+  shouldEnd?: boolean;
+  projectEndReason?: string;
 }
 
 export interface SessionEvents {
@@ -72,6 +75,7 @@ export interface SessionEvents {
   'iteration-completed': (iteration: number, samplesLabeled: number) => void;
   'session-ended': () => void;
   'error': (error: string) => void;
+  'project-should-end': (details: { trigger: string; reason: string; currentRound: number; timestamp: number; }) => void;
 }
 
 export class DALProjectSession extends EventEmitter {
@@ -93,6 +97,7 @@ export class DALProjectSession extends EventEmitter {
     };
 
     this.setupContractEventListeners();
+    this.startProjectEndMonitoring(); // Re-enabled: voting issue was fixed
   }
 
   // =====================================================================
@@ -575,18 +580,41 @@ export class DALProjectSession extends EventEmitter {
       }
     };
 
+    // Listen for project end events - NEW: Handle project end conditions
+    const onProjectEndTriggered = async (event: any) => {
+      const { trigger, reason, currentRound, timestamp } = event.detail || event;
+      console.log('🚨 Project end triggered:', { trigger, reason, currentRound, timestamp });
+      
+      // Update session state to indicate project should end
+      this.updateState({
+        phase: 'ending',
+        projectEndReason: reason,
+        shouldEnd: true
+      });
+      
+      // Emit project end event for UI components
+      this.emit('project-should-end', {
+        trigger,
+        reason,
+        currentRound: Number(currentRound),
+        timestamp: Number(timestamp)
+      });
+    };
+
     // FIXED: Add event listeners with correct event names matching ALContractService
     window.addEventListener('dal-voting-started', onVotingStarted);
     window.addEventListener('vote-submitted', onVoteSubmitted); // Keep this one as is
     window.addEventListener('dal-sample-completed', onVotingEnded);
     window.addEventListener('dal-iteration-completed', onIterationCompleted);
+    window.addEventListener('dal-project-end-triggered', onProjectEndTriggered);
 
     // Store cleanup functions
     this.contractListeners = [
       () => window.removeEventListener('dal-voting-started', onVotingStarted),
       () => window.removeEventListener('vote-submitted', onVoteSubmitted),
       () => window.removeEventListener('dal-sample-completed', onVotingEnded),
-      () => window.removeEventListener('dal-iteration-completed', onIterationCompleted)
+      () => window.removeEventListener('dal-iteration-completed', onIterationCompleted),
+      () => window.removeEventListener('dal-project-end-triggered', onProjectEndTriggered)
     ];
   }
 
@@ -698,6 +726,98 @@ export class DALProjectSession extends EventEmitter {
       console.error('❌ Failed to collect labeled samples:', error);
       throw error;
     }
+  }
+
+  /**
+   * Check if project should end based on smart contract conditions
+   */
+  async checkProjectEndConditions(): Promise<void> {
+    try {
+      const endStatus = await alContractService.getProjectEndStatus(this.state.projectId);
+      
+      if (endStatus.shouldEnd && !this.state.shouldEnd) {
+        console.log('🚨 Project should end:', endStatus);
+        
+        // Update state to indicate project should end
+        this.updateState({
+          phase: 'ending',
+          shouldEnd: true,
+          projectEndReason: endStatus.reason
+        });
+        
+        // Emit event for UI components
+        this.emit('project-should-end', {
+          trigger: 'system',
+          reason: endStatus.reason,
+          currentRound: endStatus.currentRound,
+          timestamp: Date.now()
+        });
+        
+        // Dispatch custom event for other components
+        const event = new CustomEvent('dal-project-should-end', {
+          detail: {
+            projectAddress: this.state.projectId,
+            reason: endStatus.reason,
+            currentRound: endStatus.currentRound,
+            maxIterations: endStatus.maxIterations
+          }
+        });
+        window.dispatchEvent(event);
+      }
+    } catch (error) {
+      console.error('Error checking project end conditions:', error);
+    }
+  }
+
+  /**
+   * Handle when AL-Engine reports that no more unlabeled samples are available
+   */
+  async handleUnlabeledSamplesExhausted(): Promise<void> {
+    try {
+      console.log('🚨 AL-Engine reports no more unlabeled samples available');
+      
+      // Notify the smart contract
+      const success = await alContractService.notifyUnlabeledSamplesExhausted(this.state.projectId);
+      
+      if (success) {
+        // The contract will emit ProjectEndTriggered event, which we'll catch
+        console.log('✅ Successfully notified contract about sample exhaustion');
+      } else {
+        // Fallback: manually trigger project end logic
+        console.log('⚠️ Failed to notify contract, handling locally');
+        this.updateState({
+          phase: 'ending',
+          shouldEnd: true,
+          projectEndReason: 'No more unlabeled samples available'
+        });
+        
+        this.emit('project-should-end', {
+          trigger: 'al-engine',
+          reason: 'No more unlabeled samples available',
+          currentRound: this.state.batchProgress?.round || 0,
+          timestamp: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error('Error handling unlabeled samples exhausted:', error);
+    }
+  }
+
+  /**
+   * Periodic check for project end conditions (called during active session)
+   */
+  private startProjectEndMonitoring(): void {
+    // Check project end conditions every 30 seconds during active session
+    const checkInterval = setInterval(async () => {
+      if (this.state.isActive && !this.state.shouldEnd) {
+        await this.checkProjectEndConditions();
+      } else {
+        clearInterval(checkInterval);
+      }
+    }, 30000); // 30 seconds
+
+    // Store cleanup function
+    this.contractListeners.push(() => clearInterval(checkInterval));
   }
 
   // =====================================================================

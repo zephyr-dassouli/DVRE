@@ -300,6 +300,30 @@ export class ALContractService {
         }
       });
 
+      // Listen for project end triggers (NEW) - with error handling
+      try {
+        const projectEndTriggeredFilter = projectContract.filters.ProjectEndTriggered();
+        projectContract.on(projectEndTriggeredFilter, (trigger, reason, currentRound, timestamp, event) => {
+          console.log(`🚨 Project end triggered by ${trigger}: ${reason} (Round ${currentRound})`);
+          console.log('🔍 Event details:', { trigger, reason, currentRound: Number(currentRound), timestamp: Number(timestamp) });
+          
+          // Trigger custom event for UI updates
+          const customEvent = new CustomEvent('dal-project-end-triggered', {
+            detail: { 
+              projectAddress,
+              trigger: String(trigger),
+              reason: String(reason),
+              currentRound: Number(currentRound),
+              timestamp: Number(timestamp)
+            }
+          });
+          window.dispatchEvent(customEvent);
+        });
+        console.log('✅ ProjectEndTriggered event listener set up successfully');
+      } catch (projectEndError) {
+        console.warn('⚠️ ProjectEndTriggered event not available in contract ABI, skipping listener setup:', projectEndError);
+      }
+
     } catch (error) {
       console.error('❌ Error setting up event listeners:', error);
     }
@@ -559,6 +583,65 @@ export class ALContractService {
     } catch (error) {
       console.error('Error getting batch progress from voting contract:', error);
       return null;
+    }
+  }
+
+  /**
+   * @dev Check if project should end based on smart contract conditions
+   * Uses the shouldProjectEnd() function from Project.sol
+   */
+  async getProjectEndStatus(projectAddress: string): Promise<{
+    shouldEnd: boolean;
+    reason: string;
+    currentRound: number;
+    maxIterations: number;
+  }> {
+    try {
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      
+      // Call the smart contract's shouldProjectEnd function
+      const [shouldEnd, reason] = await projectContract.shouldProjectEnd();
+      const currentRound = await projectContract.currentRound();
+      const alConfig = await projectContract.getALConfiguration();
+      const maxIterations = Number(alConfig._maxIteration) || 0;
+      
+      return {
+        shouldEnd,
+        reason,
+        currentRound: Number(currentRound),
+        maxIterations
+      };
+    } catch (error) {
+      console.error('Error checking project end status:', error);
+      return {
+        shouldEnd: false,
+        reason: 'Error checking end conditions',
+        currentRound: 0,
+        maxIterations: 0
+      };
+    }
+  }
+
+  /**
+   * @dev Notify the contract that unlabeled samples are exhausted
+   * This is called from AL-Engine when no more samples are available
+   */
+  async notifyUnlabeledSamplesExhausted(projectAddress: string): Promise<boolean> {
+    try {
+      console.log('🚨 Notifying contract that unlabeled samples are exhausted');
+      
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
+      
+      const tx = await projectContract.notifyUnlabeledSamplesExhausted();
+      await tx.wait();
+      
+      console.log('✅ Successfully notified contract about sample exhaustion');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to notify unlabeled samples exhausted:', error);
+      return false;
     }
   }
 

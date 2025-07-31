@@ -33,6 +33,12 @@ export interface ConfigurationPanelProps extends BasePanelProps {
 export interface ControlPanelProps extends BasePanelProps {
   onStartNextIteration: () => Promise<void>;
   onEndProject: () => Promise<void>;
+  projectEndStatus: {
+    shouldEnd: boolean;
+    reason: string;
+    currentRound: number;
+    maxIterations: number;
+  };
 }
 
 export interface ModelUpdatesPanelProps extends BasePanelProps {

@@ -7,7 +7,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   isCoordinator,
   onStartNextIteration,
   onEndProject,
-  onError
+  onError,
+  projectEndStatus
 }) => {
 
   const handleStartNextIteration = async () => {
@@ -73,6 +74,32 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           backgroundColor: 'white'
         }}>
           <h4 style={{ marginBottom: '12px', color: '#1f2937' }}>🚀 Start Next Iteration</h4>
+          
+          {/* Show warning if project should end or max iterations reached */}
+          {(projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds) && (
+            <div style={{
+              backgroundColor: '#fef3c7',
+              border: '1px solid #f59e0b',
+              borderRadius: '6px',
+              padding: '12px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ 
+                fontWeight: 'bold', 
+                color: '#92400e',
+                marginBottom: '4px'
+              }}>
+                ⚠️ Cannot Start New Iteration
+              </div>
+              <div style={{ color: '#78350f', fontSize: '14px' }}>
+                {project.currentRound >= project.totalRounds 
+                  ? `Maximum iterations reached (${project.currentRound}/${project.totalRounds})`
+                  : projectEndStatus.reason || 'Project should end'
+                }
+              </div>
+            </div>
+          )}
+          
           <p style={{ color: '#666', marginBottom: '16px', lineHeight: '1.5' }}>
             Trigger a new Active Learning round. This will:
             <br />• Train the model with newly labeled samples
@@ -82,30 +109,32 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           <button 
             className="primary-btn"
             onClick={handleStartNextIteration}
-            disabled={!project.isActive}
+            disabled={!project.isActive || projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds}
             style={{
               padding: '12px 24px',
-              backgroundColor: project.isActive ? '#10b981' : '#9ca3af',
+              backgroundColor: (project.isActive && !projectEndStatus.shouldEnd && project.currentRound < project.totalRounds) ? '#10b981' : '#9ca3af',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
-              cursor: project.isActive ? 'pointer' : 'not-allowed',
+              cursor: (project.isActive && !projectEndStatus.shouldEnd && project.currentRound < project.totalRounds) ? 'pointer' : 'not-allowed',
               fontSize: '16px',
               fontWeight: 'bold',
               transition: 'all 0.2s ease'
             }}
             onMouseEnter={(e) => {
-              if (project.isActive) {
+              if (project.isActive && !projectEndStatus.shouldEnd && project.currentRound < project.totalRounds) {
                 e.currentTarget.style.backgroundColor = '#059669';
               }
             }}
             onMouseLeave={(e) => {
-              if (project.isActive) {
+              if (project.isActive && !projectEndStatus.shouldEnd && project.currentRound < project.totalRounds) {
                 e.currentTarget.style.backgroundColor = '#10b981';
               }
             }}
           >
-            {project.isActive ? 'Start Next Iteration' : 'Project Inactive'}
+            {!project.isActive ? 'Project Inactive' : 
+             (projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds) ? 'Cannot Start (Project Should End)' :
+             'Start Next Iteration'}
           </button>
           {!project.isActive && (
             <div style={{ 
@@ -119,14 +148,48 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
         
         <div className="action-card" style={{
-          border: '1px solid #fca5a5',
+          border: projectEndStatus.shouldEnd ? '2px solid #f59e0b' : '1px solid #fca5a5',
           borderRadius: '8px',
           padding: '24px',
-          backgroundColor: '#fef2f2'
+          backgroundColor: projectEndStatus.shouldEnd ? '#fffbeb' : '#fef2f2'
         }}>
-          <h4 style={{ marginBottom: '12px', color: '#dc2626' }}>🏁 End Project</h4>
+          <h4 style={{ marginBottom: '12px', color: projectEndStatus.shouldEnd ? '#d97706' : '#dc2626' }}>
+            {projectEndStatus.shouldEnd ? '🚨 Project Should End' : '🏁 End Project'}
+          </h4>
+          
+          {projectEndStatus.shouldEnd && (
+            <div style={{
+              backgroundColor: '#fef3c7',
+              border: '1px solid #f59e0b',
+              borderRadius: '6px',
+              padding: '12px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ 
+                fontWeight: 'bold', 
+                color: '#92400e',
+                marginBottom: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <span>{(projectEndStatus.reason && projectEndStatus.reason.includes('Maximum iterations')) ? '🎯' : 
+                        (projectEndStatus.reason && projectEndStatus.reason.includes('unlabeled samples')) ? '📊' : '🚨'}</span>
+                <span>Automatic End Condition Triggered</span>
+              </div>
+              <div style={{ color: '#78350f', fontSize: '14px', lineHeight: '1.4' }}>
+                <strong>Reason:</strong> {projectEndStatus.reason || 'Unknown reason'}
+                <br />
+                <strong>Current Round:</strong> {projectEndStatus.currentRound || 0} of {projectEndStatus.maxIterations || 0}
+              </div>
+            </div>
+          )}
+          
           <p style={{ color: '#666', marginBottom: '16px', lineHeight: '1.5' }}>
-            Manually end the project. This will:
+            {projectEndStatus.shouldEnd ? 
+              'The system recommends ending this project. This will:' :
+              'Manually end the project. This will:'
+            }
             <br />• Deactivate the project permanently
             <br />• Finalize all voting sessions
             <br />• Trigger final results collection
@@ -138,7 +201,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             disabled={!project.isActive}
             style={{
               padding: '12px 24px',
-              backgroundColor: project.isActive ? '#dc2626' : '#9ca3af',
+              backgroundColor: project.isActive ? 
+                (projectEndStatus.shouldEnd ? '#d97706' : '#dc2626') : '#9ca3af',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
@@ -149,16 +213,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             }}
             onMouseEnter={(e) => {
               if (project.isActive) {
-                e.currentTarget.style.backgroundColor = '#b91c1c';
+                e.currentTarget.style.backgroundColor = projectEndStatus.shouldEnd ? '#b45309' : '#b91c1c';
               }
             }}
             onMouseLeave={(e) => {
               if (project.isActive) {
-                e.currentTarget.style.backgroundColor = '#dc2626';
+                e.currentTarget.style.backgroundColor = projectEndStatus.shouldEnd ? '#d97706' : '#dc2626';
               }
             }}
           >
-            {project.isActive ? 'End Project' : 'Project Already Ended'}
+            {!project.isActive ? 'Project Already Ended' : 
+             projectEndStatus.shouldEnd ? 'End Project Now (Recommended)' : 'End Project'}
           </button>
         </div>
       </div>

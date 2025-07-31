@@ -294,7 +294,12 @@ export class VotingService {
       // Submit batch vote through Project (Project will handle auto-registration and AL contract interaction)
       const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
       console.log(`📤 Submitting ${batchType} vote for ${sampleIds.length} samples - Project will auto-register if needed...`);
-      const tx = await projectContract.submitBatchVote(sampleIds, labels);
+      
+      // Create mutable copies to avoid Ethers.js readonly array errors
+      const mutableSampleIds = [...sampleIds];
+      const mutableLabels = [...labels];
+      
+      const tx = await projectContract.submitBatchVote(mutableSampleIds, mutableLabels);
       console.log('📡 Batch vote transaction submitted via Project:', tx.hash);
       
       // Wait for confirmation
