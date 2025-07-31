@@ -37,7 +37,33 @@ export const CollaborationComponent: React.FC<CollaborationComponentProps> = ({
       setProjectToJoin(project);
       try {
         const roles = await getProjectRoles(project.address);
-        setAvailableRoles(roles);
+        
+        // Debug: Log project data and roles
+        console.log('🔍 Project data:', project.projectData);
+        console.log('🔍 Project type:', project.projectData?.projectType);
+        console.log('🔍 Original roles:', roles);
+        
+        // Filter out 'coordinator' role for active learning projects
+        let filteredRoles = roles;
+        const isActivelearning = project.projectData?.projectType === 'active_learning';
+        
+        console.log('🔍 Is active learning project:', isActivelearning);
+        
+        if (isActivelearning) {
+          filteredRoles = roles.filter(role => 
+            role.toLowerCase() !== 'coordinator'
+          );
+          
+          console.log('🔍 Filtered roles (removed coordinator):', filteredRoles);
+          
+          // If no roles remain after filtering, provide 'contributor' as default
+          if (filteredRoles.length === 0) {
+            filteredRoles = ['contributor'];
+            console.log('🔍 No roles left, using default: contributor');
+          }
+        }
+        
+        setAvailableRoles(filteredRoles);
       } catch (err) {
         console.error('Failed to load project roles:', err);
         setAvailableRoles([]);

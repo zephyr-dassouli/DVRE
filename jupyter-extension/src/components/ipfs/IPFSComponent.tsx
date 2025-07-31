@@ -106,12 +106,25 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
             throw new Error('Wallet not connected');
           }
           
-          await assetService.createAsset(assetName, assetType, uploadResult.Hash);
-          await loadAssets();
-          alert(`Asset "${assetName}" created successfully on blockchain! IPFS Hash: ${uploadResult.Hash}`);
-        } catch (error) {
-          console.log('Failed to create blockchain asset, but IPFS upload succeeded:', error);
-          alert(`File uploaded to IPFS successfully, but blockchain registration failed: ${error instanceof Error ? error.message : 'Unknown error'}\nIPFS Hash: ${uploadResult.Hash}`);
+          console.log('Creating blockchain asset...');
+          const assetAddress = await assetService.createAsset(assetName, assetType, uploadResult.Hash);
+          console.log('Asset creation result:', assetAddress);
+          
+          // Reload assets to show the new one
+          try {
+            await loadAssets();
+          } catch (loadError) {
+            console.warn('Failed to reload assets after creation, but asset was created successfully:', loadError);
+          }
+          
+          if (assetAddress === 'SUCCESS_NO_ADDRESS') {
+            alert(`Asset "${assetName}" created successfully on blockchain!\nTransaction completed but asset address not available.\nIPFS Hash: ${uploadResult.Hash}`);
+          } else {
+            alert(`Asset "${assetName}" created successfully on blockchain!\nAsset Address: ${assetAddress}\nIPFS Hash: ${uploadResult.Hash}`);
+          }
+        } catch (blockchainError) {
+          console.error('Blockchain asset creation failed:', blockchainError);
+          alert(`File uploaded to IPFS successfully, but blockchain registration failed: ${blockchainError instanceof Error ? blockchainError.message : 'Unknown error'}\nIPFS Hash: ${uploadResult.Hash}\n\nYour file is still accessible via IPFS.`);
         }
       } else if (blockchainAvailable && !assetName.trim()) {
         alert(`File uploaded to IPFS successfully! IPFS Hash: ${uploadResult.Hash}\n\nTip: Provide an asset name to register it on the blockchain.`);
@@ -119,8 +132,6 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
         alert(`File uploaded to IPFS successfully! IPFS Hash: ${uploadResult.Hash}`);
       }
 
-      // Refresh file list (fallback)
-      
       // Reset form
       setSelectedFile(null);
       setAssetName('');
