@@ -64,22 +64,24 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       setError(null);
       console.log('🏁 Ending project from UI');
       
-      const { useDALProject } = await import('../../hooks/useDALProject');
-      const { endProject } = useDALProject(project.contractAddress);
+      // Use ALContractService directly instead of hook (which can't be called in async functions)
+      const { alContractService } = await import('./services/ALContractService');
       
-      await endProject(project.contractAddress);
+      const success = await alContractService.endProject(project.contractAddress, currentUser);
+      
+      if (!success) {
+        throw new Error('Failed to end project via smart contract');
+      }
       
       // Trigger data refresh to show updated state
       triggerRefresh();
       
-      // Show success message
-      alert('Project ended successfully!');
+      console.log('✅ Project ended successfully');
       
     } catch (error) {
       console.error('❌ Failed to end project:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to end project';
       setError(errorMessage);
-      alert(`Failed to end project: ${errorMessage}`);
     }
   };
 
