@@ -128,7 +128,52 @@ export class OffChainContractService {
       const currentBatchSampleIds = [...currentBatchSampleIdsRaw];
       const labelSpace = [...labelSpaceRaw];
       
+      // If currentBatchSampleIds is empty, check if there's an active batch in the voting contract
       if (currentBatchSampleIds.length === 0) {
+        console.log('📝 currentBatchSampleIds is empty, checking voting contract for active batch...');
+        
+        // Check if there's still an active batch in ALProjectVoting contract
+        const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
+        const batchStatus = await votingContract.getBatchStatus(currentRound);
+        
+        if (batchStatus.isActive && batchStatus.totalSamples > 0) {
+          console.log(`📊 Found active batch in voting contract: ${batchStatus.totalSamples} samples`);
+          
+          // Get the sample IDs from the voting contract instead
+          const batchSampleIds = await votingContract.getBatchSamples(currentRound);
+          if (batchSampleIds.length > 0) {
+            // Build sample active states array
+            const sampleActiveStates: boolean[] = [];
+            for (const sampleId of batchSampleIds) {
+              // Check if voting session is still active for this sample
+              const session = await votingContract.getVotingSession(sampleId);
+              const isActive = session[1] && !session[2]; // isActive && !isFinalized
+              sampleActiveStates.push(isActive);
+            }
+            
+            // Call computeActiveBatch with the recovered sample IDs
+            const activeBatch = await votingContract.computeActiveBatch(
+              batchSampleIds,
+              sampleActiveStates,
+              labelSpace,
+              votingTimeout,
+              currentRound
+            );
+            
+            if (activeBatch.activeSampleIds && activeBatch.activeSampleIds.length > 0) {
+              console.log(`✅ Recovered ${activeBatch.activeSampleIds.length} active samples from voting contract`);
+              return {
+                activeSampleIds: activeBatch.activeSampleIds,
+                sampleData: activeBatch.sampleData,
+                labelOptions: activeBatch.labelOptions,
+                timeRemaining: Number(activeBatch.timeRemaining),
+                round: Number(activeBatch.round)
+              };
+            }
+          }
+        }
+        
+        console.log('📝 No active batch found in either contract');
         return null;
       }
       

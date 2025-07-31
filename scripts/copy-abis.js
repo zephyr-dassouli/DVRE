@@ -10,7 +10,8 @@ const path = require('path');
  */
 
 const ARTIFACTS_DIR = path.join(__dirname, '..', 'artifacts', 'contracts');
-const DESTINATION_DIR = path.join(__dirname, '..', 'jupyter-extension', 'src', 'abis');
+const SRC_DESTINATION_DIR = path.join(__dirname, '..', 'jupyter-extension', 'src', 'abis');
+const LIB_DESTINATION_DIR = path.join(__dirname, '..', 'jupyter-extension', 'lib', 'abis');
 
 function ensureDirectoryExists(dirPath) {
     if (!fs.existsSync(dirPath)) {
@@ -20,7 +21,12 @@ function ensureDirectoryExists(dirPath) {
 }
 
 function copyABIFiles(sourceDir, destDir) {
-    const copiedFiles = [];
+    const results = {
+        new: [],
+        changed: [],
+        unchanged: [],
+        failed: []
+    };
     
     function processDirectory(currentDir, relativePath = '') {
         const items = fs.readdirSync(currentDir);
@@ -33,26 +39,47 @@ function copyABIFiles(sourceDir, destDir) {
                 // Recursively process subdirectories
                 processDirectory(itemPath, path.join(relativePath, item));
             } else if (stat.isFile() && item.endsWith('.json') && !item.endsWith('.dbg.json')) {
-                // Copy .json files but skip .dbg.json debug files
+                // Process .json files but skip .dbg.json debug files
                 const destPath = path.join(destDir, item);
                 
                 try {
-                    fs.copyFileSync(itemPath, destPath);
-                    copiedFiles.push({
+                    const sourceContent = fs.readFileSync(itemPath, 'utf8');
+                    const fileInfo = {
                         name: item,
                         source: itemPath,
                         dest: destPath,
                         size: (stat.size / 1024).toFixed(1) + 'KB'
-                    });
+                    };
+                    
+                    if (fs.existsSync(destPath)) {
+                        // File exists, check if content is different
+                        const destContent = fs.readFileSync(destPath, 'utf8');
+                        if (sourceContent !== destContent) {
+                            // Content is different, copy and mark as changed
+                            fs.copyFileSync(itemPath, destPath);
+                            results.changed.push(fileInfo);
+                        } else {
+                            // Content is the same, mark as unchanged
+                            results.unchanged.push(fileInfo);
+                        }
+                    } else {
+                        // File doesn't exist, copy and mark as new
+                        fs.copyFileSync(itemPath, destPath);
+                        results.new.push(fileInfo);
+                    }
                 } catch (error) {
-                    console.error(`❌ Failed to copy ${item}:`, error.message);
+                    console.error(`❌ Failed to process ${item}:`, error.message);
+                    results.failed.push({
+                        name: item,
+                        error: error.message
+                    });
                 }
             }
         }
     }
     
     processDirectory(sourceDir);
-    return copiedFiles;
+    return results;
 }
 
 function main() {
@@ -65,44 +92,74 @@ function main() {
         process.exit(1);
     }
     
-    // Ensure destination directory exists
-    ensureDirectoryExists(DESTINATION_DIR);
+    // Ensure destination directories exist
+    ensureDirectoryExists(SRC_DESTINATION_DIR);
+    ensureDirectoryExists(LIB_DESTINATION_DIR);
     
-    // Copy ABI files
+    // Copy ABI files to both destinations
     console.log(`📂 Copying ABIs from: ${ARTIFACTS_DIR}`);
-    console.log(`📂 Copying ABIs to: ${DESTINATION_DIR}\n`);
+    console.log(`📂 Copying ABIs to:`);
+    console.log(`   • ${SRC_DESTINATION_DIR} (TypeScript source)`);
+    console.log(`   • ${LIB_DESTINATION_DIR} (Runtime/compiled)\n`);
     
-    const copiedFiles = copyABIFiles(ARTIFACTS_DIR, DESTINATION_DIR);
+    const srcResults = copyABIFiles(ARTIFACTS_DIR, SRC_DESTINATION_DIR);
+    const libResults = copyABIFiles(ARTIFACTS_DIR, LIB_DESTINATION_DIR);
     
-    if (copiedFiles.length === 0) {
+    if (srcResults.new.length === 0 && srcResults.changed.length === 0 && srcResults.unchanged.length === 0 && srcResults.failed.length === 0) {
         console.log('⚠️  No ABI files found to copy');
         return;
     }
     
-    // Display results
-    console.log('✅ Successfully copied the following ABIs:\n');
+    // Display detailed results
+    console.log('✅ ABI update results:\n');
     
-    const contractFiles = copiedFiles.filter(f => !f.name.startsWith('I')); // Main contracts
-    const interfaceFiles = copiedFiles.filter(f => f.name.startsWith('I')); // Interfaces
-    
-    if (contractFiles.length > 0) {
-        console.log('📋 Main Contracts:');
-        contractFiles.forEach(file => {
+    // Show new files
+    if (srcResults.new.length > 0) {
+        console.log(`🆕 New files (${srcResults.new.length}):`);
+        srcResults.new.forEach(file => {
             console.log(`   • ${file.name} (${file.size})`);
         });
         console.log('');
     }
     
-    if (interfaceFiles.length > 0) {
-        console.log('🔗 Interfaces:');
-        interfaceFiles.forEach(file => {
+    // Show changed files
+    if (srcResults.changed.length > 0) {
+        console.log(`🔄 Changed files (${srcResults.changed.length}):`);
+        srcResults.changed.forEach(file => {
             console.log(`   • ${file.name} (${file.size})`);
         });
         console.log('');
     }
     
-    console.log(`🎉 Total: ${copiedFiles.length} ABI files copied successfully!`);
-    console.log('\n💡 The frontend can now use the updated contract ABIs.');
+    // Show unchanged files
+    if (srcResults.unchanged.length > 0) {
+        console.log(`✅ Unchanged files (${srcResults.unchanged.length}):`);
+        srcResults.unchanged.forEach(file => {
+            console.log(`   • ${file.name} (${file.size})`);
+        });
+        console.log('');
+    }
+    
+    // Show failed files
+    if (srcResults.failed.length > 0) {
+        console.log(`❌ Failed files (${srcResults.failed.length}):`);
+        srcResults.failed.forEach(file => {
+            console.log(`   • ${file.name}: ${file.error}`);
+        });
+        console.log('');
+    }
+    
+    // Summary
+    const totalProcessed = srcResults.new.length + srcResults.changed.length + srcResults.unchanged.length;
+    const totalUpdated = srcResults.new.length + srcResults.changed.length;
+    
+    if (totalUpdated > 0) {
+        console.log(`🎉 ${totalUpdated} files updated, ${srcResults.unchanged.length} unchanged (${totalProcessed} total processed)`);
+        console.log('\n💡 Updated ABIs are now available in both src/ and lib/ directories without needing yarn build!');
+    } else {
+        console.log(`ℹ️  All ${totalProcessed} ABI files are already up to date!`);
+        console.log('\n💡 No changes needed - your ABIs are current.');
+    }
 }
 
 // Run the script

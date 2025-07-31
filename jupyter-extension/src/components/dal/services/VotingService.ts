@@ -101,6 +101,16 @@ export class VotingService {
               // Get sample data if available
               const sampleData = this.getSampleDataById ? this.getSampleDataById(sampleId) : { sampleId };
 
+              // Check if true consensus was achieved using the contract function
+              let consensusReached = false;
+              try {
+                consensusReached = await votingContract.wasConsensusAchieved(sampleId);
+              } catch (consensusError) {
+                console.warn(`⚠️ Failed to check consensus for ${sampleId}:`, consensusError);
+                // Fallback: no consensus if we can't check
+                consensusReached = false;
+              }
+
               const votingRecord: VotingRecord = {
                 sampleId,
                 sampleData,
@@ -109,7 +119,7 @@ export class VotingService {
                 votingDistribution: distributionMap,
                 timestamp: new Date(Number(startTime) * 1000), // Use start time as timestamp
                 iterationNumber: round,
-                consensusReached: Object.keys(voterVotes).length > 0 // Has votes means some consensus was reached
+                consensusReached // Now using actual consensus check from contract
               };
 
               votingRecords.push(votingRecord);

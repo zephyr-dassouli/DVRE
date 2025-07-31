@@ -220,6 +220,8 @@ contract ALProjectVoting {
         require(sampleIds.length > 0, "Empty batch");
         require(voterWeights[voter] > 0, "Voter not registered");
         
+        uint256 currentBatchRound = 0;
+        
         for (uint256 i = 0; i < sampleIds.length; i++) {
             string memory sampleId = sampleIds[i];
             string memory label = labels[i];
@@ -227,6 +229,11 @@ contract ALProjectVoting {
             require(votingSessions[sampleId].isActive, "Voting session not active");
             require(!votingSessions[sampleId].isFinalized, "Voting session already finalized");
             require(!votingSessions[sampleId].hasVoted[voter], "Already voted on this sample");
+            
+            // Get the round from the first sample
+            if (i == 0) {
+                currentBatchRound = votingSessions[sampleId].round;
+            }
             
             // Check timeout for each sample
             if (_isTimeoutReached(sampleId)) {
@@ -249,14 +256,24 @@ contract ALProjectVoting {
             votingSessions[sampleId].labelWeights[label] += voterWeights[voter];
             
             emit VoteSubmitted(sampleId, voter, label, true, block.timestamp);
-            
-            // Check for automatic finalization conditions
-            string memory consensusLabel = _checkForConsensus(sampleId);
-            if (bytes(consensusLabel).length > 0) {
-                _finalizeVotingSession(sampleId, "Consensus reached");
-                emit ConsensusReached(sampleId, consensusLabel);
-            } else if (_allVotersVoted(sampleId)) {
-                _finalizeVotingSession(sampleId, "All voters participated");
+        }
+        
+        // Check if all voters have completed their batch voting for this round
+        if (currentBatchRound > 0 && _allVotersCompletedBatch(currentBatchRound)) {
+            // Finalize all samples in the batch
+            string[] memory batchSampleIds = batches[currentBatchRound].sampleIds;
+            for (uint256 i = 0; i < batchSampleIds.length; i++) {
+                string memory sampleId = batchSampleIds[i];
+                if (votingSessions[sampleId].isActive && !votingSessions[sampleId].isFinalized) {
+                    // Check for consensus first
+                    string memory consensusLabel = _checkForConsensus(sampleId);
+                    if (bytes(consensusLabel).length > 0) {
+                        _finalizeVotingSession(sampleId, "Consensus reached");
+                        emit ConsensusReached(sampleId, consensusLabel);
+                    } else {
+                        _finalizeVotingSession(sampleId, "All voters completed batch");
+                    }
+                }
             }
         }
     }
@@ -304,42 +321,72 @@ contract ALProjectVoting {
             }
             
             emit VoteSubmitted(sampleId, msg.sender, label, sampleSupport, block.timestamp);
+        }
+        
+        // Check if all voters have completed their batch voting for this round
+        // Get the round from the first sample
+        if (sampleIds.length > 0) {
+            uint256 currentBatchRound = votingSessions[sampleIds[0]].round;
             
-            // Check for automatic finalization conditions
-            string memory consensusLabel = _checkForConsensus(sampleId);
-            if (bytes(consensusLabel).length > 0) {
-                _finalizeVotingSession(sampleId, "Consensus reached");
-                emit ConsensusReached(sampleId, consensusLabel);
-            } else if (_allVotersVoted(sampleId)) {
-                _finalizeVotingSession(sampleId, "All voters participated");
+            if (currentBatchRound > 0 && _allVotersCompletedBatch(currentBatchRound)) {
+                // Finalize all samples in the batch
+                string[] memory batchSampleIds = batches[currentBatchRound].sampleIds;
+                for (uint256 i = 0; i < batchSampleIds.length; i++) {
+                    string memory sampleId = batchSampleIds[i];
+                    if (votingSessions[sampleId].isActive && !votingSessions[sampleId].isFinalized) {
+                        // Check for consensus first
+                        string memory consensusLabel = _checkForConsensus(sampleId);
+                        if (bytes(consensusLabel).length > 0) {
+                            _finalizeVotingSession(sampleId, "Consensus reached");
+                            emit ConsensusReached(sampleId, consensusLabel);
+                        } else {
+                            _finalizeVotingSession(sampleId, "All voters completed batch");
+                        }
+                    }
+                }
             }
         }
     }
     
     function _checkConsensus(string memory sampleId, string memory label) internal view returns (bool) {
         Vote[] memory voteList = votes[sampleId];
-        uint256 supportWeight = 0;
+        if (voteList.length == 0) return false;
         
-        // Count support weight for this specific label
+        uint256 labelSupportCount = 0;
+        uint256 labelTotalCount = 0;
+        
+        // Count votes for this specific label (ignoring weights for now)
         for (uint256 i = 0; i < voteList.length; i++) {
             if (keccak256(bytes(voteList[i].label)) == keccak256(bytes(label))) {
-                uint256 weight = voterWeights[voteList[i].voter];
+                labelTotalCount++;
                 if (voteList[i].support) {
-                    supportWeight += weight;
+                    labelSupportCount++;
                 }
+                
+                // Weight-based calculation (commented out for now):
+                // uint256 weight = voterWeights[voteList[i].voter];
+                // labelTotalWeight += weight;
+                // if (voteList[i].support) {
+                //     labelSupportWeight += weight;
+                // }
             }
         }
         
-        // Calculate total weight of ALL eligible voters (not just those who voted)
-        uint256 totalEligibleWeight = 0;
-        for (uint256 i = 0; i < voterList.length; i++) {
-            totalEligibleWeight += voterWeights[voterList[i]];
+        // If no one voted for this label, no consensus
+        if (labelTotalCount == 0) return false;
+        
+        // Simple vote counting: if ALL voters who chose this label support it, 
+        // and this label has majority among all actual votes, that's consensus
+        bool allVotersSupportThisLabel = (labelSupportCount == labelTotalCount);
+        
+        if (allVotersSupportThisLabel) {
+            // Check if this label has majority support among all actual votes
+            uint256 totalVotes = voteList.length;
+            uint256 labelPercentage = (labelSupportCount * 100) / totalVotes;
+            return labelPercentage >= consensusThreshold;
         }
         
-        if (totalEligibleWeight == 0) return false;
-        
-        // Check if support for this label meets consensus threshold against ALL eligible voters
-        return (supportWeight * 100 / totalEligibleWeight) >= consensusThreshold;
+        return false;
     }
     
     function getVotes(string memory sampleId) external view returns (Vote[] memory) {
@@ -512,6 +559,28 @@ contract ALProjectVoting {
             }
         }
         return votedCount == votingSessions[sampleId].totalVoters;
+    }
+    
+    function _allVotersCompletedBatch(uint256 round) internal view returns (bool) {
+        string[] memory sampleIds = batches[round].sampleIds;
+        if (sampleIds.length == 0) return false;
+        
+        // Check if every voter has voted on every sample in the batch
+        for (uint256 voterIndex = 0; voterIndex < voterList.length; voterIndex++) {
+            address voter = voterList[voterIndex];
+            
+            for (uint256 sampleIndex = 0; sampleIndex < sampleIds.length; sampleIndex++) {
+                string memory sampleId = sampleIds[sampleIndex];
+                
+                // If this voter hasn't voted on this sample, batch is not complete
+                if (!votingSessions[sampleId].hasVoted[voter]) {
+                    return false;
+                }
+            }
+        }
+        
+        // All voters have voted on all samples in the batch
+        return true;
     }
     
     function _checkForConsensus(string memory sampleId) internal view returns (string memory) {
@@ -732,11 +801,27 @@ contract ALProjectVoting {
         );
     }
     
+    function wasConsensusAchieved(string memory sampleId) external view returns (bool) {
+        if (!votingSessions[sampleId].isFinalized) {
+            return false;
+        }
+        
+        string memory finalLabel = votingSessions[sampleId].finalLabel;
+        if (bytes(finalLabel).length == 0 || 
+            keccak256(bytes(finalLabel)) == keccak256(bytes("NO_CONSENSUS")) ||
+            keccak256(bytes(finalLabel)) == keccak256(bytes("NO_VOTES"))) {
+            return false;
+        }
+        
+        // Check if the final label achieved true consensus
+        return _checkConsensus(sampleId, finalLabel);
+    }
+    
     function _aggregateVotes(string memory sampleId) internal view returns (string memory) {
         Vote[] memory voteList = votes[sampleId];
         if (voteList.length == 0) return "NO_VOTES";
         
-        // Simple majority voting based on support
+        // Find label with highest weighted support for tie-breaking
         mapping(string => uint256) storage labelWeights = votingSessions[sampleId].labelWeights;
         
         string memory bestLabel = "";

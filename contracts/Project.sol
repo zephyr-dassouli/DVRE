@@ -248,7 +248,18 @@ contract Project {
             exists: true
         });
         
-        requesters.push(msg.sender);
+        // Only add to requesters array if not already present
+        bool alreadyInArray = false;
+        for (uint256 i = 0; i < requesters.length; i++) {
+            if (requesters[i] == msg.sender) {
+                alreadyInArray = true;
+                break;
+            }
+        }
+        if (!alreadyInArray) {
+            requesters.push(msg.sender);
+        }
+        
         emit JoinRequestSubmitted(msg.sender, _role, block.timestamp);
     }
     
@@ -281,6 +292,78 @@ contract Project {
     ) {
         JoinRequest memory request = joinRequests[_requester];
         return (request.requester, request.role, request.timestamp, request.exists);
+    }
+    
+    // --- Invitations ---
+    function sendInvitation(address _invitee, string memory _role) external onlyCreator onlyActive {
+        require(_invitee != address(0), "Invalid invitee address");
+        require(_invitee != creator, "Cannot invite creator");
+        require(!invitations[_invitee].exists, "Invitation already exists");
+        require(bytes(_role).length > 0, "Empty role");
+        require(bytes(participantRoles[_invitee]).length == 0, "Already participant");
+        
+        invitations[_invitee] = Invitation({
+            invitee: _invitee,
+            role: _role,
+            timestamp: block.timestamp,
+            exists: true
+        });
+        
+        // Only add to invitees array if not already present
+        bool alreadyInArray = false;
+        for (uint256 i = 0; i < invitees.length; i++) {
+            if (invitees[i] == _invitee) {
+                alreadyInArray = true;
+                break;
+            }
+        }
+        if (!alreadyInArray) {
+            invitees.push(_invitee);
+        }
+        
+        emit InvitationSent(_invitee, msg.sender, _role, block.timestamp);
+    }
+    
+    function acceptInvitation() external onlyActive {
+        require(invitations[msg.sender].exists, "No invitation found");
+        require(bytes(participantRoles[msg.sender]).length == 0, "Already participant");
+        
+        // Get the role from the invitation
+        string memory invitedRole = invitations[msg.sender].role;
+        
+        // Auto-add as participant with the invited role and default weight
+        _addParticipantInternal(msg.sender, invitedRole, 1);
+        
+        // Clean up the invitation
+        delete invitations[msg.sender];
+        
+        emit InvitationAccepted(msg.sender, address(this), block.timestamp);
+    }
+    
+    function rejectInvitation() external {
+        require(invitations[msg.sender].exists, "No invitation found");
+        delete invitations[msg.sender];
+        emit InvitationRejected(msg.sender, address(this), block.timestamp);
+    }
+    
+    function getInvitation(address _invitee) external view returns (
+        address invitee,
+        string memory role,
+        uint256 timestamp,
+        bool exists
+    ) {
+        Invitation memory invitation = invitations[_invitee];
+        return (invitation.invitee, invitation.role, invitation.timestamp, invitation.exists);
+    }
+    
+    // Allow invitation acceptors to update project data after joining
+    function updateProjectDataAfterAcceptance(string memory _newProjectData) external onlyActive {
+        require(bytes(_newProjectData).length > 0, "Empty data");
+        require(bytes(participantRoles[msg.sender]).length > 0, "Not a project participant");
+        
+        projectData = _newProjectData;
+        lastModified = block.timestamp;
+        emit ProjectUpdated(msg.sender, block.timestamp);
     }
     
     // --- Project Status ---
@@ -665,7 +748,7 @@ contract Project {
         if (allCompleted && currentBatchSampleIds.length > 0) {
             emit ALBatchCompleted(currentRound, completedCount, block.timestamp);
             
-            // Clear the batch
+            // Clear the batch after all samples are completed
             delete currentBatchSampleIds;
         }
     }
