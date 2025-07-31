@@ -2,7 +2,8 @@ import React from 'react';
 import { ModelUpdatesPanelProps } from './PanelTypes';
 
 export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
-  modelUpdates
+  modelUpdates,
+  isCoordinator
 }) => {
   const formatTimeAgo = (date: Date): string => {
     const now = new Date();
@@ -18,6 +19,32 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
       return 'Recently';
     }
   };
+
+  if (!isCoordinator) {
+    return (
+      <div className="model-updates-panel">
+        <div className="panel-header">
+          <h3>Model Updates History</h3>
+          <p>Performance statistics and model updates information</p>
+        </div>
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '60px',
+          backgroundColor: '#f9fafb',
+          borderRadius: '8px'
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
+          <h4>Contributor Access</h4>
+          <p style={{ color: '#666', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto' }}>
+            Model updates are only available to project coordinators during active learning.
+            <br /><br />
+            After the project ends and final results are published, all model performance 
+            data and updates will be visible and available in the project storage.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="model-updates-panel">

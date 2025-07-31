@@ -98,6 +98,43 @@ export class DALProjectSession extends EventEmitter {
 
     this.setupContractEventListeners();
     this.startProjectEndMonitoring(); // Re-enabled: voting issue was fixed
+    
+    // Initialize and restore active session state if voting is ongoing
+    this.initializeSessionState();
+  }
+
+  /**
+   * Initialize and restore session state by checking for active voting sessions
+   */
+  private async initializeSessionState(): Promise<void> {
+    try {
+      console.log('🔄 Initializing DAL session state...');
+      
+      // Check if there's an active batch voting session
+      const activeBatch = await this.getActiveBatch();
+      
+      if (activeBatch) {
+        console.log('✅ Found active voting session, restoring state:', activeBatch);
+        
+        // Update state to indicate voting is active
+        this.updateState({
+          isActive: true,
+          phase: 'voting',
+          batchProgress: {
+            totalSamples: activeBatch.batchSize,
+            completedSamples: 0, // Will be updated by event listeners
+            currentSampleIndex: 0,
+            sampleIds: activeBatch.sampleIds,
+            round: activeBatch.round
+          }
+        });
+      } else {
+        console.log('ℹ️ No active voting session found');
+      }
+    } catch (error) {
+      console.error('❌ Failed to initialize session state:', error);
+      // Don't throw - let the session work normally even if initialization fails
+    }
   }
 
   // =====================================================================
@@ -532,9 +569,33 @@ export class DALProjectSession extends EventEmitter {
           });
 
           // Check if batch is complete based on contract state
-          if (updatedProgress.completedSamples >= updatedProgress.totalSamples || !enhancedStatus.currentBatch.batchActive) {
-            console.log('🎉 Batch complete according to contract, triggering handleBatchCompleted');
+          // 🔧 FIX: Don't end batch just because contract says batchActive: false
+          // Verify that completion is legitimate (all eligible voters participated)
+          if (updatedProgress.completedSamples >= updatedProgress.totalSamples) {
+            // All samples show as completed - this should be legitimate
+            console.log('🎉 All samples completed, triggering handleBatchCompleted');
             await this.handleBatchCompleted();
+          } else if (!enhancedStatus.currentBatch.batchActive && updatedProgress.completedSamples < updatedProgress.totalSamples) {
+            // Batch inactive but not all samples completed - likely a premature finalization bug
+            console.warn('🚨 DETECTED PREMATURE BATCH FINALIZATION');
+            console.warn(`   Batch inactive but only ${updatedProgress.completedSamples}/${updatedProgress.totalSamples} samples completed`);
+            console.warn('   Keeping session active to allow more voters to participate');
+            
+            // Force the batch to stay active in the session state even if contract says otherwise
+            this.updateState({
+              phase: 'voting', // Keep in voting phase
+              batchProgress: {
+                ...updatedProgress,
+                // Override the contract state to keep the batch appearing active in UI
+                totalSamples: updatedProgress.totalSamples,
+                completedSamples: 0, // Reset to 0 so UI shows all samples as available for voting
+                currentSampleIndex: 0,
+                sampleIds: updatedProgress.sampleIds,
+                round: updatedProgress.round
+              }
+            });
+            
+            console.log('✅ Session kept active for additional voter participation');
           }
         } else {
           console.log('📝 Batch no longer active according to contract');
@@ -592,7 +653,7 @@ export class DALProjectSession extends EventEmitter {
         shouldEnd: true
       });
       
-      // Emit project end event for UI components
+      // Emit event for UI components
       this.emit('project-should-end', {
         trigger,
         reason,

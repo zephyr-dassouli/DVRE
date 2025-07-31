@@ -31,45 +31,80 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
   // Load active batch when session state changes
   useEffect(() => {
     const loadActiveBatch = async () => {
-      if (sessionState && sessionState.phase === 'voting') {
-        try {
-          // Get DAL session from window context (temporary way to access it)
-          const dalSession = (window as any).currentDALSession;
-          if (dalSession) {
-            const batch = await dalSession.getActiveBatch();
+      try {
+        // Get DAL session from window context (temporary way to access it)
+        const dalSession = (window as any).currentDALSession;
+        if (dalSession) {
+          const batch = await dalSession.getActiveBatch();
+          
+          if (batch) {
+            console.log(`🗳️ Loaded batch with ${batch.batchSize} samples for simultaneous voting`);
             setActiveBatch(batch);
-            
-            if (batch) {
-              console.log(`🗳️ Loaded batch with ${batch.batchSize} samples for simultaneous voting`);
-              // Reset batch votes
-              setBatchVotes({});
-            }
+            // Reset batch votes when loading a new batch
+            setBatchVotes({});
+          } else {
+            // Clear active batch if none found
+            setActiveBatch(null);
+            setBatchVotes({});
           }
-        } catch (error) {
-          console.error('Failed to load active batch:', error);
         }
-      } else {
-        setActiveBatch(null);
-        setBatchVotes({});
+      } catch (error) {
+        console.error('Failed to load active batch:', error);
       }
     };
     
+    // Load batch immediately when session changes
     loadActiveBatch();
-  }, [sessionState]);
-
-  const handleSingleVote = async (label: string) => {
-    if (!project.activeVoting) {
-      onError('No active voting session');
-      return;
-    }
     
-    try {
-      await onVoteSubmission(project.activeVoting.sampleId, label);
-    } catch (error) {
-      console.error('❌ Failed to submit vote:', error);
-      onError(error instanceof Error ? error.message : 'Failed to submit vote');
+    // Also retry loading after a short delay if session is still initializing
+    // This handles the case where session state hasn't been updated yet but voting is active
+    const retryTimeout = setTimeout(() => {
+      if (!activeBatch) {
+        console.log('🔄 Retrying active batch load after session initialization...');
+        loadActiveBatch();
+      }
+    }, 1000);
+    
+    return () => clearTimeout(retryTimeout);
+  }, [sessionState]); // Keep dependency on sessionState
+  
+  // Additional effect to poll for active batches when component first mounts
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+    
+    // If we don't have an active batch initially, poll for it
+    if (!activeBatch) {
+      console.log('🔍 Starting polling for active voting sessions...');
+      
+      pollInterval = setInterval(async () => {
+        try {
+          const dalSession = (window as any).currentDALSession;
+          if (dalSession) {
+            const batch = await dalSession.getActiveBatch();
+            if (batch) {
+              console.log('✅ Found active batch during polling:', batch);
+              setActiveBatch(batch);
+              setBatchVotes({});
+              clearInterval(pollInterval); // Stop polling once we find an active batch
+            }
+          }
+        } catch (error) {
+          console.error('Error during active batch polling:', error);
+        }
+      }, 2000); // Poll every 2 seconds
+      
+      // Stop polling after 30 seconds to avoid infinite polling
+      const stopPollingTimeout = setTimeout(() => {
+        console.log('⏰ Stopping active batch polling after timeout');
+        clearInterval(pollInterval);
+      }, 30000);
+      
+      return () => {
+        clearInterval(pollInterval);
+        clearTimeout(stopPollingTimeout);
+      };
     }
-  };
+  }, [activeBatch]); // Include activeBatch in dependencies
 
   const handleBatchVoteChange = (sampleId: string, label: string) => {
     setBatchVotes(prev => ({
@@ -78,150 +113,122 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     }));
   };
 
-  const handleSubmitBatchVote = async () => {
-    if (!activeBatch) {
-      onError('No active batch found');
-      return;
-    }
-
-    // Check if all samples have votes
+  const handleBatchSubmit = async () => {
+    if (!activeBatch || !onBatchVoteSubmission) return;
+    
+    // Validate all samples have votes
     const missingVotes = activeBatch.sampleIds.filter(id => !batchVotes[id]);
     if (missingVotes.length > 0) {
-      onError(`Please vote on all samples. Missing votes for: ${missingVotes.join(', ')}`);
+      onError?.(`Please vote on all samples. Missing votes: ${missingVotes.join(', ')}`);
       return;
     }
-
+    
     setIsSubmittingBatch(true);
     try {
-      // Create mutable copies to avoid Ethers.js readonly array errors
-      const sampleIds = [...activeBatch.sampleIds];
+      // Convert batchVotes object to arrays expected by the interface
+      const sampleIds = activeBatch.sampleIds;
       const labels = sampleIds.map(id => batchVotes[id]);
       
-      const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
-      console.log(`🗳️ Submitting ${batchType} vote:`, sampleIds.map((id, i) => `${id}: ${labels[i]}`));
-      
-      // Use the new batch vote submission prop
       await onBatchVoteSubmission(sampleIds, labels);
-      
-      // Clear batch votes after successful submission
       setBatchVotes({});
-      setActiveBatch(null);
-      
-      console.log(`✅ ${batchType} vote submitted successfully`);
-      
     } catch (error) {
-      console.error('❌ Failed to submit batch vote:', error);
-      onError(error instanceof Error ? error.message : 'Failed to submit batch vote');
+      console.error('Failed to submit batch votes:', error);
+      onError?.('Failed to submit batch votes');
     } finally {
       setIsSubmittingBatch(false);
     }
   };
 
+  // Helper function to render sample data in a readable format
   const renderSampleData = (sampleData: any) => {
-    if (!sampleData) return null;
-
-    // If the sample data is from AL-Engine (iris dataset), format it nicely
-    if (typeof sampleData === 'object' && 'sepal length (cm)' in sampleData) {
-      return (
-        <div className="iris-sample-display">
-          <h5>🌸 Iris Flower Sample</h5>
-          <div className="sample-features">
-            <div className="feature-grid">
-              <div className="feature-item">
-                <span className="feature-label">Sepal Length:</span>
-                <span className="feature-value">{sampleData['sepal length (cm)']} cm</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-label">Sepal Width:</span>
-                <span className="feature-value">{sampleData['sepal width (cm)']} cm</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-label">Petal Length:</span>
-                <span className="feature-value">{sampleData['petal length (cm)']} cm</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-label">Petal Width:</span>
-                <span className="feature-value">{sampleData['petal width (cm)']} cm</span>
-              </div>
-            </div>
-            {sampleData.original_index && (
-              <div className="sample-metadata">
-                <span className="metadata-label">Dataset Index:</span>
-                <span className="metadata-value">#{sampleData.original_index}</span>
-              </div>
-            )}
+    if (!sampleData) return <p>No sample data available</p>;
+    
+    if (typeof sampleData === 'string') {
+      try {
+        const parsed = JSON.parse(sampleData);
+        return (
+          <div className="sample-data">
+            <pre style={{ 
+              backgroundColor: '#f8f9fa', 
+              padding: '12px', 
+              borderRadius: '4px',
+              fontSize: '14px',
+              whiteSpace: 'pre-wrap' 
+            }}>
+              {JSON.stringify(parsed, null, 2)}
+            </pre>
           </div>
+        );
+      } catch {
+        return (
+          <div className="sample-data">
+            <p style={{ fontFamily: 'monospace' }}>{sampleData}</p>
+          </div>
+        );
+      }
+    }
+    
+    if (typeof sampleData === 'object') {
+      return (
+        <div className="sample-data">
+          <pre style={{ 
+            backgroundColor: '#f8f9fa', 
+            padding: '12px', 
+            borderRadius: '4px',
+            fontSize: '14px',
+            whiteSpace: 'pre-wrap' 
+          }}>
+            {JSON.stringify(sampleData, null, 2)}
+          </pre>
         </div>
       );
     }
-
-    // Fallback to JSON display for other data types
-    return (
-      <div className="generic-sample-display">
-        <h5>Sample Data</h5>
-        <pre className="sample-json">{JSON.stringify(sampleData, null, 2)}</pre>
-      </div>
-    );
+    
+    return <p>{String(sampleData)}</p>;
   };
 
-  const renderLabelButtons = (labelOptions: string[], sampleId?: string) => {
-    // Enhanced label buttons with descriptions for iris dataset
-    const irisLabels = {
-      'setosa': '🌺 Setosa (smaller, compact flowers)',
-      'versicolor': '🌸 Versicolor (medium-sized flowers)', 
-      'virginica': '🌼 Virginica (larger flowers)'
-    };
-
+  // Helper function to render label buttons
+  const renderLabelButtons = (labelOptions: string[], sampleId: string) => {
     return (
-      <div className="label-options-enhanced">
-        {labelOptions.map(label => (
+      <div className="label-buttons" style={{ 
+        display: 'flex', 
+        gap: '12px', 
+        flexWrap: 'wrap',
+        marginBottom: '16px' 
+      }}>
+        {labelOptions.map((label) => (
           <button
             key={label}
-            className="label-button-enhanced"
-            onClick={() => {
-              if (sampleId) {
-                // Batch voting mode
-                handleBatchVoteChange(sampleId, label);
-              } else {
-                // Single voting mode
-                handleSingleVote(label);
-              }
-            }}
+            className={`label-button ${batchVotes[sampleId] === label ? 'selected' : ''}`}
             style={{
-              padding: '16px 24px',
-              margin: '8px',
-              backgroundColor: sampleId && batchVotes[sampleId] === label ? '#10b981' : '#3b82f6',
-              color: 'white',
+              padding: '12px 24px',
               border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
+              borderRadius: '6px',
+              backgroundColor: batchVotes[sampleId] === label ? '#3b82f6' : '#6366f1',
+              color: 'white',
               fontSize: '16px',
               fontWeight: 'bold',
-              minWidth: '200px',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              cursor: 'pointer',
+              minWidth: '80px',
+              opacity: batchVotes[sampleId] === label ? 1 : 0.8,
+              transform: batchVotes[sampleId] === label ? 'scale(1.05)' : 'scale(1)',
+              transition: 'all 0.2s ease'
             }}
-            onMouseEnter={(e) => {
-              if (!(sampleId && batchVotes[sampleId] === label)) {
-                e.currentTarget.style.backgroundColor = '#2563eb';
-                e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+            onClick={() => handleBatchVoteChange(sampleId, label)}
+            onMouseOver={(e) => {
+              if (batchVotes[sampleId] !== label) {
+                (e.target as HTMLButtonElement).style.transform = 'scale(1.05)';
+                (e.target as HTMLButtonElement).style.opacity = '1';
               }
             }}
-            onMouseLeave={(e) => {
-              if (!(sampleId && batchVotes[sampleId] === label)) {
-                e.currentTarget.style.backgroundColor = '#3b82f6';
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+            onMouseOut={(e) => {
+              if (batchVotes[sampleId] !== label) {
+                (e.target as HTMLButtonElement).style.transform = 'scale(1)';
+                (e.target as HTMLButtonElement).style.opacity = '0.8';
               }
             }}
           >
-            <div>{irisLabels[label as keyof typeof irisLabels] || label}</div>
-            {irisLabels[label as keyof typeof irisLabels] && (
-              <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '4px' }}>
-                Click to classify as {label}
-              </div>
-            )}
+            {label}
           </button>
         ))}
       </div>
@@ -370,7 +377,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
 
           <div className="submit-batch-vote" style={{ marginTop: '20px' }}>
             <button 
-              onClick={handleSubmitBatchVote}
+              onClick={handleBatchSubmit}
               disabled={isSubmittingBatch}
               style={{ 
                 padding: '10px 20px', 
@@ -396,56 +403,6 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
             >
               {isSubmittingBatch ? 'Submitting...' : 'Submit Batch Vote'}
             </button>
-          </div>
-        </div>
-      )}
-      
-      {/* Single sample voting (fallback when batch voting not available) */}
-      {project.activeVoting && !activeBatch && (
-        <div className="active-voting">
-          <div className="sample-display" style={{ 
-            border: '1px solid #d1d5db', 
-            borderRadius: '8px', 
-            padding: '20px', 
-            marginBottom: '20px',
-            backgroundColor: '#f9fafb'
-          }}>
-            <h4 style={{ marginBottom: '16px' }}>Current Sample: {project.activeVoting.sampleId}</h4>
-            {renderSampleData(project.activeVoting.sampleData)}
-          </div>
-          
-          <div className="voting-interface" style={{ marginBottom: '20px' }}>
-            <h4 style={{ marginBottom: '16px' }}>🏷️ Select Classification</h4>
-            {renderLabelButtons(project.activeVoting.labelOptions)}
-          </div>
-          
-          <div className="live-voting" style={{ 
-            border: '1px solid #d1d5db', 
-            borderRadius: '8px', 
-            padding: '16px',
-            backgroundColor: '#f8fafc'
-          }}>
-            <h4 style={{ marginBottom: '12px' }}>📊 Live Voting Distribution</h4>
-            <div className="vote-distribution" style={{ 
-              display: 'flex', 
-              gap: '16px', 
-              marginBottom: '12px' 
-            }}>
-              {Object.entries(project.activeVoting?.currentVotes || {}).map(([label, count]) => (
-                <div key={label} className="vote-item" style={{
-                  padding: '8px 12px',
-                  backgroundColor: '#e5e7eb',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}>
-                  <span className="vote-label" style={{ fontWeight: 'bold' }}>{label}:</span>
-                  <span className="vote-count" style={{ marginLeft: '4px' }}>{count as number}</span>
-                </div>
-              ))}
-            </div>
-            <div className="time-remaining" style={{ fontSize: '14px', color: '#666' }}>
-              ⏱️ Time remaining: {Math.floor(project.activeVoting.timeRemaining / 60)}m {project.activeVoting.timeRemaining % 60}s
-            </div>
           </div>
         </div>
       )}

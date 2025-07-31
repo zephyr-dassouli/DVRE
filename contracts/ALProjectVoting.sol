@@ -123,7 +123,8 @@ contract ALProjectVoting {
         uint256 eligibleCount = 0;
         for (uint256 i = 0; i < participants.length; i++) {
             if (keccak256(bytes(roles[i])) == keccak256(bytes("creator")) ||
-                keccak256(bytes(roles[i])) == keccak256(bytes("contributor"))) {
+                keccak256(bytes(roles[i])) == keccak256(bytes("contributor")) ||
+                keccak256(bytes(roles[i])) == keccak256(bytes("coordinator"))) {
                 eligibleCount++;
             }
         }
@@ -135,7 +136,8 @@ contract ALProjectVoting {
         
         for (uint256 i = 0; i < participants.length; i++) {
             if (keccak256(bytes(roles[i])) == keccak256(bytes("creator")) ||
-                keccak256(bytes(roles[i])) == keccak256(bytes("contributor"))) {
+                keccak256(bytes(roles[i])) == keccak256(bytes("contributor")) ||
+                keccak256(bytes(roles[i])) == keccak256(bytes("coordinator"))) {
                 voters[index] = participants[i];
                 eligibleWeights[index] = weights[i];
                 index++;
@@ -316,21 +318,28 @@ contract ALProjectVoting {
     
     function _checkConsensus(string memory sampleId, string memory label) internal view returns (bool) {
         Vote[] memory voteList = votes[sampleId];
-        uint256 totalWeight = 0;
         uint256 supportWeight = 0;
         
+        // Count support weight for this specific label
         for (uint256 i = 0; i < voteList.length; i++) {
             if (keccak256(bytes(voteList[i].label)) == keccak256(bytes(label))) {
                 uint256 weight = voterWeights[voteList[i].voter];
-                totalWeight += weight;
                 if (voteList[i].support) {
                     supportWeight += weight;
                 }
             }
         }
         
-        if (totalWeight == 0) return false;
-        return (supportWeight * 100 / totalWeight) >= consensusThreshold;
+        // Calculate total weight of ALL eligible voters (not just those who voted)
+        uint256 totalEligibleWeight = 0;
+        for (uint256 i = 0; i < voterList.length; i++) {
+            totalEligibleWeight += voterWeights[voterList[i]];
+        }
+        
+        if (totalEligibleWeight == 0) return false;
+        
+        // Check if support for this label meets consensus threshold against ALL eligible voters
+        return (supportWeight * 100 / totalEligibleWeight) >= consensusThreshold;
     }
     
     function getVotes(string memory sampleId) external view returns (Vote[] memory) {

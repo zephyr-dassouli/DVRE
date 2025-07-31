@@ -360,14 +360,12 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             Control Panel
           </button>
         )}
-        {isCoordinator && (
-          <button 
-            className={`tab ${activeTab === 'model-updates' ? 'active' : ''}`}
-            onClick={() => setActiveTab('model-updates')}
-          >
-            Model Updates
-          </button>
-        )}
+        <button 
+          className={`tab ${activeTab === 'model-updates' ? 'active' : ''}`}
+          onClick={() => setActiveTab('model-updates')}
+        >
+          Model Updates
+        </button>
         <button 
           className={`tab ${activeTab === 'users' ? 'active' : ''}`}
           onClick={() => setActiveTab('users')}
@@ -380,14 +378,12 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         >
           Voting History
         </button>
-        {isCoordinator && (
-          <button 
-            className={`tab ${activeTab === 'publish-results' ? 'active' : ''}`}
-            onClick={() => setActiveTab('publish-results')}
-          >
-            Publish Final Results
-          </button>
-        )}
+        <button 
+          className={`tab ${activeTab === 'publish-results' ? 'active' : ''}`}
+          onClick={() => setActiveTab('publish-results')}
+        >
+          Publish Final Results
+        </button>
       </div>
 
       {/* Tab Content - Using Panel Components */}
@@ -432,7 +428,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           />
         )}
 
-        {currentUser && activeTab === 'model-updates' && isCoordinator && (
+        {currentUser && activeTab === 'model-updates' && (
           <ModelUpdatesPanel
             project={project}
             currentUser={currentUser}
@@ -466,7 +462,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           />
         )}
 
-        {currentUser && activeTab === 'publish-results' && isCoordinator && (
+        {currentUser && activeTab === 'publish-results' && (
           <PublishFinalResultsPanel
             project={project}
             currentUser={currentUser}

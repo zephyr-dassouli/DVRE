@@ -76,6 +76,13 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
       // For each user project, ensure it has a RO-Crate configuration
       for (const project of currentUserProjects) {
         try {
+          // ✅ SECURITY: Only allow project owners to see projects in deployment UI
+          const isOwner = project.creator?.toLowerCase() === account.toLowerCase();
+          if (!isOwner) {
+            console.log(`🔒 Skipping project ${project.address} - user is not the owner`);
+            continue; // Skip projects where user is not the creator/owner
+          }
+          
           console.log(`🔍 Processing project ${project.address}:`, {
             projectId: project.projectId,
             projectData: project.projectData,
@@ -500,9 +507,10 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
         </div>
       ) : projects.length === 0 ? (
         <div className="empty-state">
-          <h4>No Projects Found</h4>
-          <p>You don't own any projects yet.</p>
-          <p>Create a new project in <strong>Project Collaboration</strong> to get started.</p>
+          <h4>No Deployable Projects Found</h4>
+          <p>Only project <strong>owners/creators</strong> can deploy projects.</p>
+          <p>If you've joined projects as a contributor, those projects won't appear here - only the project creator can deploy them.</p>
+          <p>Create a new project in <strong>Project Collaboration</strong> to deploy your own project.</p>
         </div>
       ) : (
         <div className="projects-grid">
