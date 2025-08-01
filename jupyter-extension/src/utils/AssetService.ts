@@ -131,27 +131,52 @@ export class AssetService {
       );
 
       console.log('AssetService: Creating asset with name:', name, 'type:', assetType, 'hash:', ipfsHash);
+      console.log('AssetService: Factory address:', this.assetFactoryAddress);
+      
       const tx = await factory.createAsset(name, assetType, ipfsHash);
-      console.log('AssetService: Transaction sent, waiting for confirmation...');
+      console.log('AssetService: Transaction sent:', tx.hash);
+      console.log('AssetService: Waiting for confirmation...');
       
       const receipt = await tx.wait();
-      console.log('AssetService: Transaction confirmed:', receipt.hash);
+      console.log('AssetService: Transaction receipt received');
+      console.log('AssetService: Receipt status:', receipt.status);
+      console.log('AssetService: Receipt status type:', typeof receipt.status);
+      console.log('AssetService: Transaction hash:', receipt.hash);
+      console.log('AssetService: Full receipt:', receipt);
 
-      // If transaction succeeded, that's all we need to know
+      // Check transaction status - in ethers v6, status should be 1 for success
       if (receipt.status === 1) {
         console.log('AssetService: Asset creation transaction successful');
         return `SUCCESS_${receipt.hash}`;
       } else {
-        throw new Error('Transaction failed');
+        console.error('AssetService: Transaction failed with status:', receipt.status);
+        throw new Error(`Transaction failed with status: ${receipt.status}`);
       }
     } catch (error: any) {
-      console.error('AssetService: Failed to create asset:', error);
+      console.error('AssetService: Error in createAsset:', error);
+      console.error('AssetService: Error type:', typeof error);
+      console.error('AssetService: Error message:', error.message);
+      console.error('AssetService: Error code:', error.code);
+      console.error('AssetService: Full error object:', error);
       
-      if (error.message?.includes("user rejected")) {
+      // Check if this is a user rejection
+      if (error.message?.includes("user rejected") || error.code === 4001) {
         throw new Error('Transaction rejected by user. Please approve the transaction in MetaMask.');
-      } else {
-        throw new Error(`Failed to create asset: ${error.message || "Unknown error"}`);
       }
+      
+      // Check if this is a transaction revert
+      if (error.message?.includes("execution reverted")) {
+        throw new Error(`Smart contract execution failed: ${error.message}`);
+      }
+      
+      // Check if transaction was actually successful despite the error
+      if (error.receipt && error.receipt.status === 1) {
+        console.log('AssetService: Transaction actually succeeded despite error');
+        return `SUCCESS_${error.receipt.hash}`;
+      }
+      
+      // Re-throw with more context
+      throw new Error(`Failed to create asset: ${error.message || "Unknown error"}`);
     }
   }
 

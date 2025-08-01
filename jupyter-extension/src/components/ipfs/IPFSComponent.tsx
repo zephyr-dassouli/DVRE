@@ -106,24 +106,38 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
             throw new Error('Wallet not connected');
           }
           
-          console.log('Creating blockchain asset...');
+          console.log('IPFSComponent: Creating blockchain asset...');
+          console.log('IPFSComponent: Asset name:', assetName);
+          console.log('IPFSComponent: Asset type:', assetType);
+          console.log('IPFSComponent: IPFS hash:', uploadResult.Hash);
+          console.log('IPFSComponent: User account:', account);
+          
           const result = await assetService.createAsset(assetName, assetType, uploadResult.Hash);
-          console.log('Asset creation result:', result);
+          console.log('IPFSComponent: Asset creation result:', result);
+          console.log('IPFSComponent: Result type:', typeof result);
           
           // Reload assets to show the new one
           try {
             await loadAssets();
+            console.log('IPFSComponent: Assets reloaded successfully');
           } catch (loadError) {
-            console.warn('Failed to reload assets after creation, but asset was created successfully:', loadError);
+            console.warn('IPFSComponent: Failed to reload assets after creation, but asset was created successfully:', loadError);
           }
           
           if (result.startsWith('SUCCESS_')) {
-            alert(`Asset "${assetName}" created successfully on blockchain!\nTransaction Hash: ${result.replace('SUCCESS_', '')}\nIPFS Hash: ${uploadResult.Hash}`);
+            const txHash = result.replace('SUCCESS_', '');
+            console.log('IPFSComponent: Asset creation successful, transaction hash:', txHash);
+            alert(`Asset "${assetName}" created successfully on blockchain!\nTransaction Hash: ${txHash}\nIPFS Hash: ${uploadResult.Hash}`);
           } else {
+            console.log('IPFSComponent: Asset creation successful, asset address:', result);
             alert(`Asset "${assetName}" created successfully on blockchain!\nAsset Address: ${result}\nIPFS Hash: ${uploadResult.Hash}`);
           }
         } catch (blockchainError) {
-          console.error('Blockchain asset creation failed:', blockchainError);
+          console.error('IPFSComponent: Blockchain asset creation failed');
+          console.error('IPFSComponent: Error type:', typeof blockchainError);
+          console.error('IPFSComponent: Error message:', blockchainError instanceof Error ? blockchainError.message : 'Unknown error');
+          console.error('IPFSComponent: Full error object:', blockchainError);
+          
           alert(`File uploaded to IPFS successfully, but blockchain registration failed: ${blockchainError instanceof Error ? blockchainError.message : 'Unknown error'}\nIPFS Hash: ${uploadResult.Hash}\n\nYour file is still accessible via IPFS.`);
         }
       } else if (blockchainAvailable && !assetName.trim()) {
