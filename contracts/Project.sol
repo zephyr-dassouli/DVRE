@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 // AL Contract Interfaces (no imports needed - just interfaces)
 interface IALProjectVoting {
-    function startBatchVoting(string[] memory sampleIds, uint256 round) external; // Internal call to voting contract
+    function startBatchVoting(string[] memory sampleIds, uint256 round, string[] memory sampleDataHashes) external; // Internal call to voting contract
     function endBatchVoting(uint256 round) external; // Manual batch ending
     function setVoters(address[] memory _voters, uint256[] memory _weights) external;
     function submitBatchVoteOnBehalf(string[] memory sampleIds, string[] memory labels, address voter) external; // Batch vote method (works for single samples too)
@@ -617,7 +617,7 @@ contract Project {
      * Always use this method (even for single samples) for consistent event handling
      * Voters are automatically managed when project membership changes
      */
-    function startBatchVoting(string[] memory sampleIds) external onlyCreator {
+    function startBatchVoting(string[] memory sampleIds, string[] memory sampleDataHashes) external onlyCreator {
         require(votingContract != address(0), "Voting contract not set");
         require(sampleIds.length > 0, "Empty sample batch");
         
@@ -628,7 +628,7 @@ contract Project {
         _checkProjectEndConditions();
         
         // Start the batch voting session (voters already set from membership)
-        IALProjectVoting(votingContract).startBatchVoting(sampleIds, currentRound);
+        IALProjectVoting(votingContract).startBatchVoting(sampleIds, currentRound, sampleDataHashes);
         
         emit ALBatchStarted(currentRound, sampleIds.length, block.timestamp);
     }

@@ -277,6 +277,11 @@
           "internalType": "uint256",
           "name": "round",
           "type": "uint256"
+        },
+        {
+          "internalType": "string[]",
+          "name": "sampleDataHashes",
+          "type": "string[]"
         }
       ],
       "name": "startBatchVoting",

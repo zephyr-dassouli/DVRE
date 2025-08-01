@@ -238,21 +238,70 @@ export class ALContractService {
 
       console.log(`📊 Generated ${sampleIds.length} samples for iteration ${iterationNumber}`);
 
-      // Store samples for labeling
+      // NEW: Upload each sample individually to IPFS
+      console.log('📤 Uploading individual samples to IPFS...');
+      const sampleDataHashes: string[] = [];
+      
+      try {
+        const { IPFSService } = await import('../../deployment/services/IPFSService');
+        const ipfsService = IPFSService.getInstance();
+        
+        // Upload each sample individually
+        for (let i = 0; i < realSamples.length; i++) {
+          const sampleId = sampleIds[i];
+          const sampleData = realSamples[i];
+          
+          console.log(`📤 Uploading sample ${i + 1}/${realSamples.length}: ${sampleId}`);
+          
+          // Create individual sample JSON
+          const sampleContent = JSON.stringify({
+            sampleId,
+            projectAddress,
+            iterationNumber,
+            timestamp,
+            index: i,
+            data: sampleData
+          }, null, 2);
+          
+          // Upload individual sample to IPFS
+          const ipfsResult = await ipfsService.uploadFile({
+            name: `sample_${sampleId}.json`,
+            content: sampleContent,
+            type: 'application/json'
+          });
+          
+          sampleDataHashes.push(ipfsResult.hash);
+          console.log(`✅ Sample ${sampleId} uploaded to IPFS: ${ipfsResult.hash}`);
+        }
+        
+        console.log(`✅ All ${sampleDataHashes.length} samples uploaded to IPFS individually`);
+        
+      } catch (ipfsError) {
+        console.warn('⚠️ Failed to upload samples to IPFS:', ipfsError);
+        console.log('🔄 Continuing with local storage fallback...');
+        // Fill with empty hashes as fallback
+        for (let i = 0; i < realSamples.length; i++) {
+          sampleDataHashes.push('');
+        }
+      }
+
+      // Store samples for labeling (fallback for immediate coordinator access)
       this.storeALSamplesForLabeling(projectAddress, sampleIds, realSamples);
 
       // Setup event listeners and start batch voting
       this.setupProjectEventListeners(projectAddress, iterationNumber, sampleIds);
 
-      // Start batch voting in smart contract
+      // Start batch voting in smart contract with individual IPFS hashes
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
       const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
-      const tx = await projectContract.startBatchVoting(sampleIds);
+      console.log(`🗳️ Starting batch voting with ${sampleDataHashes.length} individual IPFS hashes`);
+      console.log('📋 Sample hashes:', sampleDataHashes);
+      const tx = await projectContract.startBatchVoting(sampleIds, sampleDataHashes);
       await tx.wait();
 
-      console.log('✅ Batch voting started on blockchain');
+      console.log('✅ Batch voting started on blockchain with individual sample IPFS data');
 
       return { 
         success: true, 
@@ -382,12 +431,50 @@ export class ALContractService {
       }
 
       console.log(`📊 Active batch found with ${activeBatch.activeSampleIds.length} samples`);
+      console.log('📋 Raw sample data from contract:', activeBatch.sampleData);
 
-      // Get sample data for each active sample (from stored AL samples)
-      const sampleData = activeBatch.activeSampleIds.map((sampleId: string) => {
-        const storedData = this.getSampleDataById(sampleId);
-        return storedData || { sampleId, data: `Sample data for ${sampleId}` };
-      });
+      // Process sample data from the smart contract
+      const sampleData: any[] = [];
+      
+      for (let i = 0; i < activeBatch.activeSampleIds.length; i++) {
+        const sampleId = activeBatch.activeSampleIds[i];
+        const ipfsHashOrData = activeBatch.sampleData[i];
+        
+        // Check if this is an IPFS hash (starts with 'Qm' typically) or placeholder text
+        if (ipfsHashOrData && !ipfsHashOrData.startsWith('Sample data for ')) {
+          console.log(`📥 Fetching sample data from IPFS: ${sampleId} -> ${ipfsHashOrData}`);
+          
+          try {
+            // Fetch the individual sample data from IPFS using private network
+            const { config } = await import('../../../config');
+            const ipfsUrl = `${config.ipfs.publicUrl}/${ipfsHashOrData}`;
+            console.log(`📥 Fetching from private IPFS: ${ipfsUrl}`);
+            
+            const response = await fetch(ipfsUrl);
+            if (response.ok) {
+              const ipfsData = await response.json();
+              
+              // Extract the actual sample data from the IPFS structure
+              if (ipfsData.data) {
+                sampleData.push(ipfsData.data);
+                console.log(`✅ Loaded sample data from IPFS for ${sampleId}`);
+              } else {
+                sampleData.push({ sampleId, data: 'Sample failed to load from IPFS' });
+              }
+            } else {
+              console.warn(`⚠️ Failed to fetch sample ${sampleId} from IPFS: ${response.status}`);
+              sampleData.push({ sampleId, data: 'Sample failed to load from IPFS' });
+            }
+          } catch (ipfsError) {
+            console.warn(`⚠️ Failed to fetch sample ${sampleId} from IPFS:`, ipfsError);
+            sampleData.push({ sampleId, data: 'Sample failed to load from IPFS' });
+          }
+        } else {
+          // This is placeholder text from the contract
+          console.log(`📝 Using placeholder data for ${sampleId}: ${ipfsHashOrData}`);
+          sampleData.push({ sampleId, data: ipfsHashOrData });
+        }
+      }
 
       // Adapt interface to match expected format
       return {

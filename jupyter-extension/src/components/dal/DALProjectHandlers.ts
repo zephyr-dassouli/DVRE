@@ -214,6 +214,8 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       }
       
       console.log('🔗 Step 5: Creating blockchain asset and updating smart contract...');
+      let contributors: string[] = []; // Declare contributors in broader scope
+      
       try {
         // Step 5a: Create blockchain asset for final RO-Crate
         console.log('📋 Creating blockchain asset for final results...');
@@ -238,9 +240,34 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
         
         console.log(`🔗 Creating final results asset: "${assetName}" with IPFS hash: ${ipfsResults.hash}`);
         
-        // Create the asset
-        const assetContractAddress = await assetService.createAsset(assetName, assetType, ipfsResults.hash);
-        console.log('✅ Final results asset created at:', assetContractAddress);
+        // Get project contributors to add as viewers
+        try {
+          console.log('👥 Getting project contributors for final results asset viewers...');
+          const { getAllParticipantsForProject } = await import('../../hooks/useProjects');
+          
+          // Get all project participants
+          const participantsData = await getAllParticipantsForProject(project.contractAddress);
+          console.log('📋 Retrieved participants:', participantsData.participantAddresses.length, 'participants');
+          
+          // Filter for contributors (exclude current user who is the asset owner)
+          contributors = participantsData.participantAddresses.filter((address, index) => {
+            const role = participantsData.roles[index];
+            const isNotCurrentUser = address.toLowerCase() !== currentUser.toLowerCase();
+            const isContributor = role === 'contributor' || role === 'coordinator';
+            return isNotCurrentUser && isContributor;
+          });
+          
+          console.log('👥 Found', contributors.length, 'contributors to add as viewers');
+          console.log('📋 Contributors:', contributors);
+        } catch (error) {
+          console.warn('⚠️ Failed to get contributors, creating asset without viewers:', error);
+          contributors = [];
+        }
+        
+        // Create the asset with contributors as viewers
+        const assetContractAddress = await assetService.createAsset(assetName, assetType, ipfsResults.hash, contributors);
+        console.log('✅ Final results asset created with viewers at:', assetContractAddress);
+        console.log(`👥 Added ${contributors.length} contributors as viewers to final results asset`);
         
         // Step 5b: Update Project contract with final RO-Crate hash
         console.log('📋 Updating Project contract with final RO-Crate hash...');
@@ -268,8 +295,10 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
         `🔗 IPFS Hash: ${ipfsResults.hash}\n` +
         `📁 IPFS URL: ${ipfsResults.url}\n\n` +
         `⛓️ Blockchain Asset: ro-crate-${project.contractAddress}-final\n` +
+        `👥 Contributors with Access: ${contributors.length} project contributors added as viewers\n` +
         `📋 Project Contract Updated: Final RO-Crate hash stored on blockchain\n\n` +
         `✅ Your complete Active Learning project folder is now publicly available!\n` +
+        `🔗 All project contributors can now access the final results from their Storage tab.\n` +
         `You can download the final RO-Crate folder from the Storage tab.`;
       
       alert(successMessage);

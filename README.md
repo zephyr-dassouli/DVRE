@@ -70,10 +70,16 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install in development mode
-yarn build & pip install -e .
+# yarn build & pip install -e . - broken atm
+
+npx tsc --sourceMap
+pip install -e . && jupyter lab build
+
+# Run jupyter lab
+jupyter lab
 
 
-# CACHING ISSUE FULL CLEAN
+# CACHING ISSUE FULL CLEAN BUILD
 # From the jupyter-extension directory
 
 # 1. Manual Clean
@@ -95,5 +101,3 @@ pip install -e .
 # 5. Rebuild Core (if needed after cleaning)
 jupyter lab build
 
-# 6. Run
-jupyter lab

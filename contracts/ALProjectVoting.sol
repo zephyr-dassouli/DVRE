@@ -46,6 +46,7 @@ contract ALProjectVoting {
         uint256 completedCount;
         bool isActive;
         uint256 startTime;
+        mapping(string => string) sampleDataHashes; // NEW: Map each sampleId to its IPFS hash
     }
     
     mapping(address => uint256) public voterWeights;
@@ -147,8 +148,9 @@ contract ALProjectVoting {
         return (voters, eligibleWeights);
     }
     
-    function startBatchVoting(string[] memory sampleIds, uint256 round) external onlyProject {
+    function startBatchVoting(string[] memory sampleIds, uint256 round, string[] memory sampleDataHashes) external onlyProject {
         require(sampleIds.length > 0, "Empty sample batch");
+        require(sampleIds.length == sampleDataHashes.length, "Sample IDs and hashes length mismatch");
         require(!batches[round].isActive, "Batch already active for this round");
         
         // Initialize batch
@@ -157,6 +159,12 @@ contract ALProjectVoting {
         batches[round].completedCount = 0;
         batches[round].isActive = true;
         batches[round].startTime = block.timestamp;
+        
+        // Store individual IPFS hashes for each sample
+        for (uint256 i = 0; i < sampleIds.length; i++) {
+            batches[round].sampleDataHashes[sampleIds[i]] = sampleDataHashes[i];
+        }
+        
         currentRound = round;
         
         // Start voting sessions for all samples in the batch
@@ -719,10 +727,23 @@ contract ALProjectVoting {
             }
         }
         
-        // Prepare sample data
+        // Prepare sample data - use IPFS hash from batch info instead of placeholder
         sampleData = new string[](activeSampleIds.length);
+        
+        // Get the IPFS hash for each active sample
+        BatchInfo storage currentBatch = batches[_currentRound];
+        
         for (uint256 i = 0; i < activeSampleIds.length; i++) {
-            sampleData[i] = string(abi.encodePacked("Sample data for ", activeSampleIds[i]));
+            string memory sampleId = activeSampleIds[i];
+            string memory ipfsHash = currentBatch.sampleDataHashes[sampleId];
+            
+            if (bytes(ipfsHash).length > 0) {
+                // Return IPFS hash for frontend to fetch actual sample data
+                sampleData[i] = ipfsHash;
+            } else {
+                // Fallback to placeholder if no IPFS hash available
+                sampleData[i] = string(abi.encodePacked("Sample data for ", sampleId));
+            }
         }
         
         // Get time remaining from first sample

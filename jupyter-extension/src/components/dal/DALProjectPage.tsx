@@ -352,18 +352,18 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         >
           Configuration
         </button>
-        <button 
-          className={`tab ${activeTab === 'control' ? 'active' : ''}`}
-          onClick={() => setActiveTab('control')}
-        >
-          Control Panel
-        </button>
-        <button 
-          className={`tab ${activeTab === 'model-updates' ? 'active' : ''}`}
-          onClick={() => setActiveTab('model-updates')}
-        >
-          Model Updates
-        </button>
+          <button 
+            className={`tab ${activeTab === 'control' ? 'active' : ''}`}
+            onClick={() => setActiveTab('control')}
+          >
+            Control Panel
+          </button>
+          <button 
+            className={`tab ${activeTab === 'model-updates' ? 'active' : ''}`}
+            onClick={() => setActiveTab('model-updates')}
+          >
+            Model Updates
+          </button>
         <button 
           className={`tab ${activeTab === 'users' ? 'active' : ''}`}
           onClick={() => setActiveTab('users')}
@@ -376,12 +376,12 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         >
           Voting History
         </button>
-        <button 
-          className={`tab ${activeTab === 'publish-results' ? 'active' : ''}`}
-          onClick={() => setActiveTab('publish-results')}
-        >
-          Publish Final Results
-        </button>
+          <button 
+            className={`tab ${activeTab === 'publish-results' ? 'active' : ''}`}
+            onClick={() => setActiveTab('publish-results')}
+          >
+            Publish Final Results
+          </button>
       </div>
 
       {/* Tab Content - Using Panel Components */}
