@@ -204,22 +204,54 @@ contract Project {
         emit ProjectUpdated(msg.sender, block.timestamp);
     }
     
-    function setALMetadata(
+    /**
+     * @dev Primary function to set up AL project in a single transaction
+     * Replaces the removed individual functions: linkALContracts + setALMetadata + updateROCrateHash
+     * This is now the only way to configure AL projects, reducing deployment from 5 to 3 transactions
+     */
+    function setupALProject(
+        address _votingContract,
+        address _storageContract,
         string memory _queryStrategy,
         string memory _alScenario,
         uint256 _maxIteration,
         uint256 _queryBatchSize,
-        string[] memory _labelSpace
+        string[] memory _labelSpace,
+        string memory _rocrateHash
     ) external onlyCreator {
+        // Validate inputs
+        require(_votingContract != address(0) && _storageContract != address(0), "Invalid contract addresses");
+        require(votingContract == address(0), "AL contracts already linked");
+        require(storageContract == address(0), "AL contracts already linked");
         require(_maxIteration > 0, "Invalid max iteration");
         require(_queryBatchSize > 0, "Invalid batch size");
+        require(bytes(_rocrateHash).length > 0, "RO-Crate hash cannot be empty");
         
+        // 1. Link AL contracts (from linkALContracts)
+        votingContract = _votingContract;
+        storageContract = _storageContract;
+        
+        // Set initial voters in voting contract
+        _updateVotersInContract();
+        
+        // 2. Set AL metadata (from setALMetadata)
         queryStrategy = _queryStrategy;
         alScenario = _alScenario;
         maxIteration = _maxIteration;
         queryBatchSize = _queryBatchSize;
         labelSpace = _labelSpace;
+        
+        // 3. Update RO-Crate hash (from updateROCrateHash)
+        rocrateHash = _rocrateHash;
+        
+        // Update timestamp
         lastModified = block.timestamp;
+        
+        // Emit events
+        emit ProjectUpdated(msg.sender, block.timestamp);
+        
+        // Note: Consider adding a specific event for AL setup completion
+        // emit ALProjectSetupCompleted(_votingContract, _storageContract, _queryStrategy, _rocrateHash);
     }
     
     function setStartAndEndTime(uint256 _start, uint256 _end) external onlyCreator {
@@ -577,22 +609,6 @@ contract Project {
         
         emit RoundIncremented(currentRound);
         _checkProjectEndConditions();
-    }
-    
-    // --- Linked Contracts ---
-    function linkALContracts(address _voting, address _storage) external onlyCreator {
-        require(_voting != address(0) && _storage != address(0), "Invalid addresses");
-        require(votingContract == address(0), "Already linked");
-        require(storageContract == address(0), "Already linked");
-        
-        votingContract = _voting;
-        storageContract = _storage;
-        
-        // Set initial voters in voting contract
-        _updateVotersInContract();
-        
-        lastModified = block.timestamp;
-        emit ProjectUpdated(msg.sender, block.timestamp);
     }
     
     // --- Voting Management ---

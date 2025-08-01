@@ -71,3 +71,29 @@ source venv/bin/activate
 
 # Install in development mode
 yarn build & pip install -e .
+
+
+# CACHING ISSUE FULL CLEAN
+# From the jupyter-extension directory
+
+# 1. Manual Clean
+npx rimraf lib tsconfig.tsbuildinfo
+npx rimraf jupyter_dvre/labextension jupyter_dvre/_version.py
+jupyter lab clean --all
+
+# 2. Fresh Dependencies
+rm -rf node_modules yarn.lock
+yarn install
+
+# 3. Manual Build
+npx tsc --sourceMap
+jupyter labextension build .
+
+# 4. Re-install
+pip install -e .
+
+# 5. Rebuild Core (if needed after cleaning)
+jupyter lab build
+
+# 6. Run
+jupyter lab
