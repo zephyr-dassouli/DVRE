@@ -18,6 +18,9 @@ export const JoinProjectDialog: React.FC<JoinProjectDialogProps> = ({
 }) => {
   const [selectedRole, setSelectedRole] = useState<string>('');
 
+  // Check if this is an active learning project
+  const isActiveLearningProject = project.projectData?.project_type === 'active_learning';
+
   useEffect(() => {
     if (availableRoles.length > 0 && !selectedRole) {
       setSelectedRole(availableRoles[0]);
@@ -90,11 +93,41 @@ export const JoinProjectDialog: React.FC<JoinProjectDialogProps> = ({
           <div style={{ color: 'var(--jp-ui-font-color1)', marginBottom: '4px' }}>
             <strong>Created:</strong> {new Date(project.created * 1000).toLocaleDateString()}
           </div>
-          <div style={{ color: 'var(--jp-ui-font-color1)' }}>
+          <div style={{ color: 'var(--jp-ui-font-color1)', marginBottom: '4px' }}>
             <strong>Members:</strong> {project.memberCount}
+          </div>
+          <div style={{ color: 'var(--jp-ui-font-color1)' }}>
+            <strong>Project Type:</strong> {project.projectData?.projectType || 'Standard'}
           </div>
         </div>
       </div>
+
+      {/* Active Learning Project Notice */}
+      {isActiveLearningProject && (
+        <div style={{
+          backgroundColor: '#e0f2fe',
+          border: '1px solid #0288d1',
+          borderRadius: '4px',
+          padding: '12px',
+          marginBottom: '16px'
+        }}>
+          <h4 style={{ 
+            marginTop: 0, 
+            marginBottom: '8px',
+            color: '#01579b',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span style={{ fontSize: '16px' }}>🧠</span>
+            Active Learning Project
+          </h4>
+          <p style={{ margin: 0, color: '#01579b', fontSize: '14px' }}>
+            For Active Learning projects, participants can only join as <strong>contributors</strong>. 
+            The coordinator role is reserved for the project creator to ensure proper AL workflow management.
+          </p>
+        </div>
+      )}
 
       {availableRoles.length > 0 ? (
         <>
@@ -130,6 +163,21 @@ export const JoinProjectDialog: React.FC<JoinProjectDialogProps> = ({
                 </option>
               ))}
             </select>
+
+            {/* Role explanation for Active Learning projects */}
+            {isActiveLearningProject && selectedRole === 'contributor' && (
+              <div style={{
+                marginTop: '8px',
+                padding: '8px',
+                backgroundColor: '#f3f4f6',
+                borderRadius: '3px',
+                fontSize: '12px',
+                color: '#374151'
+              }}>
+                <strong>Contributor role:</strong> You'll be able to participate in voting sessions, 
+                label samples, and view model updates, but cannot start new iterations or end the project.
+              </div>
+            )}
           </div>
 
           <div style={{ 

@@ -40,13 +40,17 @@ export const CollaborationComponent: React.FC<CollaborationComponentProps> = ({
         
         // Debug: Log project data and roles
         console.log('🔍 Project data:', project.projectData);
-        console.log('🔍 Project type:', project.projectData?.projectType);
+        console.log('🔍 Project type (camelCase):', project.projectData?.projectType);
+        console.log('🔍 Project type (underscore):', project.projectData?.project_type);
         console.log('🔍 Original roles:', roles);
         
         // Filter out 'coordinator' role for active learning projects
         let filteredRoles = roles;
-        const isActivelearning = project.projectData?.projectType === 'active_learning';
+        const isActivelearning = project.projectData?.projectType === 'active_learning' || 
+                                project.projectData?.project_type === 'active_learning';
         
+        console.log('🔍 Project type (camelCase):', project.projectData?.projectType);
+        console.log('🔍 Project type (underscore):', project.projectData?.project_type);
         console.log('🔍 Is active learning project:', isActivelearning);
         
         if (isActivelearning) {

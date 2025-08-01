@@ -23,6 +23,10 @@ export const UserInvitationDialog: React.FC<UserInvitationDialogProps> = ({
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [selectedRole, setSelectedRole] = useState(availableRoles[0] || '');
   const [inviting, setInviting] = useState(false);
+  const [projectDetails, setProjectDetails] = useState<any>(null);
+
+  // Check if this is an Active Learning project
+  const isActiveLearningProject = projectDetails?.projectData?.project_type === 'active_learning';
 
   useEffect(() => {
     if (account) {
@@ -35,6 +39,37 @@ export const UserInvitationDialog: React.FC<UserInvitationDialogProps> = ({
       setSelectedRole(availableRoles[0]);
     }
   }, [availableRoles, selectedRole]);
+
+  // Load project details to determine project type
+  useEffect(() => {
+    const loadProjectInfo = async () => {
+      try {
+        const { useProjects } = await import('../../hooks/useProjects');
+        // We need to create a temporary instance to get project info
+        // This is a workaround since we can't use hooks conditionally
+        const provider = new (await import('ethers')).ethers.JsonRpcProvider(
+          (await import('../../config/contracts')).RPC_URL
+        );
+        const Project = (await import('../../abis/Project.json')).default;
+        const projectContract = new (await import('ethers')).ethers.Contract(
+          projectAddress, 
+          Project.abi, 
+          provider
+        );
+        
+        const projectDataString = await projectContract.getProjectData();
+        const projectData = JSON.parse(projectDataString);
+        
+        setProjectDetails({ projectData });
+      } catch (error) {
+        console.warn('Could not load project details for invitation dialog:', error);
+      }
+    };
+
+    if (projectAddress) {
+      loadProjectInfo();
+    }
+  }, [projectAddress]);
 
   // Filter users (exclude current user and those already invited)
   const filteredUsers = users.filter(user => {
@@ -148,6 +183,34 @@ export const UserInvitationDialog: React.FC<UserInvitationDialogProps> = ({
 
         {/* Role selection */}
         <div style={{ padding: '16px', borderBottom: '1px solid var(--jp-border-color2)' }}>
+          {/* Active Learning Project Notice */}
+          {isActiveLearningProject && (
+            <div style={{
+              backgroundColor: '#e0f2fe',
+              border: '1px solid #0288d1',
+              borderRadius: '4px',
+              padding: '12px',
+              marginBottom: '16px'
+            }}>
+              <h4 style={{ 
+                marginTop: 0, 
+                marginBottom: '8px',
+                color: '#01579b',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px'
+              }}>
+                <span style={{ fontSize: '16px' }}>🧠</span>
+                Active Learning Project
+              </h4>
+              <p style={{ margin: 0, color: '#01579b', fontSize: '13px' }}>
+                For Active Learning projects, invited users can only join as <strong>contributors</strong>. 
+                The coordinator role is reserved for the project creator to ensure proper AL workflow management.
+              </p>
+            </div>
+          )}
+
           <label style={{
             display: 'block',
             color: 'var(--jp-ui-font-color1)',
@@ -177,6 +240,21 @@ export const UserInvitationDialog: React.FC<UserInvitationDialogProps> = ({
               </option>
             ))}
           </select>
+
+          {/* Role explanation for Active Learning projects */}
+          {isActiveLearningProject && selectedRole === 'contributor' && (
+            <div style={{
+              marginTop: '8px',
+              padding: '8px',
+              backgroundColor: '#f3f4f6',
+              borderRadius: '3px',
+              fontSize: '12px',
+              color: '#374151'
+            }}>
+              <strong>Contributor role:</strong> Invited users will be able to participate in voting sessions, 
+              label samples, and view model updates, but cannot start new iterations or end the project.
+            </div>
+          )}
         </div>
 
         {/* Search */}
