@@ -300,12 +300,47 @@ export class DeploymentOrchestrator {
           
           // Create the asset using the working AssetService
           if (result.roCrateHash) {
-            const assetContractAddress = await assetService.createAsset(assetName, assetType, result.roCrateHash);
+            // Step 2.6: Get project contributors first for batched asset creation
+            let contributors: string[] = [];
+            if (config.contractAddress) {
+              console.log('👥 Step 2.6: Getting project contributors for RO-Crate asset viewers...');
+              try {
+                // Import getAllParticipantsForProject function
+                const { getAllParticipantsForProject } = await import('../../../hooks/useProjects');
+                
+                // Get all project participants
+                const participantsData = await getAllParticipantsForProject(config.contractAddress);
+                console.log('📋 Retrieved participants:', participantsData.participantAddresses.length, 'participants');
+                
+                // Filter for contributors (exclude owner who is already the asset owner)
+                contributors = participantsData.participantAddresses.filter((address, index) => {
+                  const role = participantsData.roles[index];
+                  const isNotOwner = address.toLowerCase() !== userAddress.toLowerCase();
+                  const isContributor = role === 'contributor' || role === 'coordinator';
+                  return isNotOwner && isContributor;
+                });
+                
+                console.log('👥 Found', contributors.length, 'contributors to add as viewers');
+                console.log('📋 Contributors:', contributors);
+              } catch (error) {
+                console.warn('⚠️ Failed to get contributors, creating asset without viewers:', error);
+                contributors = [];
+              }
+            }
+            
+            // Create asset with viewers in a single transaction
+            const assetContractAddress = await assetService.createAsset(
+              assetName,
+              assetType,
+              result.roCrateHash,
+              contributors
+            );
             
             result.assetContractAddress = assetContractAddress;
             result.steps.assetContractStorage = 'success';
-            console.log('✅ RO-Crate stored in blockchain asset contract:', assetContractAddress);
+            console.log('✅ RO-Crate stored in blockchain asset contract with viewers:', assetContractAddress);
             console.log(`📝 Asset details: Name="${assetName}", Type="${assetType}", Hash="${result.roCrateHash}"`);
+            console.log(`👥 Added ${contributors.length} contributors as viewers in single transaction`);
           }
           
         } catch (error: any) {

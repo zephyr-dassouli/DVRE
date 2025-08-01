@@ -114,7 +114,7 @@ export class AssetService {
     }
   }
 
-  async createAsset(name: string, assetType: string, ipfsHash: string): Promise<string> {
+  async createAsset(name: string, assetType: string, ipfsHash: string, viewers: string[] = []): Promise<string> {
     if (!this.signer) {
       throw new Error('Wallet not connected. Please connect your MetaMask wallet first.');
     }
@@ -131,9 +131,10 @@ export class AssetService {
       );
 
       console.log('AssetService: Creating asset with name:', name, 'type:', assetType, 'hash:', ipfsHash);
+      console.log('AssetService: Viewers to add:', viewers);
       console.log('AssetService: Factory address:', this.assetFactoryAddress);
       
-      const tx = await factory.createAsset(name, assetType, ipfsHash);
+      const tx = await factory.createAsset(name, assetType, ipfsHash, viewers);
       console.log('AssetService: Transaction sent:', tx.hash);
       console.log('AssetService: Waiting for confirmation...');
       
@@ -196,19 +197,27 @@ export class AssetService {
         this.provider
       );
 
-      const assetAddresses = await factory.getUserAssets(userAddress);
+      // Use getAccessibleAssets for privacy - only shows assets user owns or is a viewer of
+      const assetAddresses = await factory.getAccessibleAssets(userAddress);
       const assets: AssetInfo[] = [];
 
       for (const address of assetAddresses) {
         try {
-          const assetInfo = await this.getAssetInfo(address);
-          assets.push(assetInfo);
+          // Explicitly check access before getting asset info
+          const canAccess = await factory.canAccessAsset(address, userAddress);
+          if (canAccess) {
+            const assetInfo = await this.getAssetInfo(address);
+            assets.push(assetInfo);
+          } else {
+            console.warn(`AssetService: Access denied for asset ${address}, skipping`);
+          }
         } catch (error) {
           console.error(`AssetService: Failed to get info for asset ${address}:`, error);
+          console.error(`AssetService: Access denied for asset ${address}, skipping`);
         }
       }
 
-      console.log(`AssetService: Retrieved ${assets.length} assets for user ${userAddress}`);
+      console.log(`AssetService: Retrieved ${assets.length} accessible assets for user ${userAddress}`);
       return assets;
     } catch (error: any) {
       console.error('AssetService: Failed to get user assets:', error);
@@ -308,6 +317,72 @@ export class AssetService {
         throw new Error('Transaction rejected by user. Please approve the transaction in MetaMask.');
       } else {
         throw new Error(`Failed to update asset hash: ${error.message || "Unknown error"}`);
+      }
+    }
+  }
+
+  async addAssetViewer(assetAddress: string, viewerAddress: string): Promise<void> {
+    if (!this.signer) {
+      throw new Error('Wallet not connected. Please connect your MetaMask wallet first.');
+    }
+
+    if (!this.isConfigured()) {
+      throw new Error('Asset factory not configured. Please check your blockchain configuration.');
+    }
+
+    try {
+      const factory = new ethers.Contract(
+        this.assetFactoryAddress,
+        AssetFactoryABI.abi,
+        this.signer
+      );
+
+      console.log('AssetService: Adding viewer to asset:', assetAddress, 'viewer:', viewerAddress);
+      const tx = await factory.addAssetViewer(assetAddress, viewerAddress);
+      console.log('AssetService: Add viewer transaction sent, waiting for confirmation...');
+      
+      await tx.wait();
+      console.log('AssetService: Viewer added successfully');
+    } catch (error: any) {
+      console.error('AssetService: Failed to add asset viewer:', error);
+      
+      if (error.message?.includes("user rejected")) {
+        throw new Error('Transaction rejected by user. Please approve the transaction in MetaMask.');
+      } else {
+        throw new Error(`Failed to add asset viewer: ${error.message || "Unknown error"}`);
+      }
+    }
+  }
+
+  async removeAssetViewer(assetAddress: string, viewerAddress: string): Promise<void> {
+    if (!this.signer) {
+      throw new Error('Wallet not connected. Please connect your MetaMask wallet first.');
+    }
+
+    if (!this.isConfigured()) {
+      throw new Error('Asset factory not configured. Please check your blockchain configuration.');
+    }
+
+    try {
+      const factory = new ethers.Contract(
+        this.assetFactoryAddress,
+        AssetFactoryABI.abi,
+        this.signer
+      );
+
+      console.log('AssetService: Removing viewer from asset:', assetAddress, 'viewer:', viewerAddress);
+      const tx = await factory.removeAssetViewer(assetAddress, viewerAddress);
+      console.log('AssetService: Remove viewer transaction sent, waiting for confirmation...');
+      
+      await tx.wait();
+      console.log('AssetService: Viewer removed successfully');
+    } catch (error: any) {
+      console.error('AssetService: Failed to remove asset viewer:', error);
+      
+      if (error.message?.includes("user rejected")) {
+        throw new Error('Transaction rejected by user. Please approve the transaction in MetaMask.');
+      } else {
+        throw new Error(`Failed to remove asset viewer: ${error.message || "Unknown error"}`);
       }
     }
   }

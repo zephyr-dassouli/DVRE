@@ -5,7 +5,6 @@
     "declaration": false,
     "esModuleInterop": true,
     "incremental": true,
-    "noEmit": false,
     "jsx": "react",
     "lib": ["DOM", "ES2018", "ES2020.Intl"],
     "module": "esnext",

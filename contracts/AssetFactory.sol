@@ -21,14 +21,16 @@ contract AssetFactory {
     function createAsset(
         string memory _name,
         string memory _assetType,
-        string memory _ipfsHash
+        string memory _ipfsHash,
+        address[] memory _viewers
     ) external returns (address) {
-        // Create new Asset contract
+        // Create new Asset contract with initial viewers (empty array if none provided)
         Asset newAsset = new Asset(
             msg.sender,
             _name,
             _assetType,
-            _ipfsHash
+            _ipfsHash,
+            _viewers
         );
 
         address assetAddress = address(newAsset);
@@ -75,5 +77,62 @@ contract AssetFactory {
         
         Asset asset = Asset(_assetAddress);
         return asset.getAssetInfo();
+    }
+
+    // Viewer management functions
+    function addAssetViewer(address _assetAddress, address _viewer) external {
+        require(isAsset[_assetAddress], "Invalid asset address");
+        
+        Asset asset = Asset(_assetAddress);
+        asset.addViewer(_viewer);
+    }
+
+    function removeAssetViewer(address _assetAddress, address _viewer) external {
+        require(isAsset[_assetAddress], "Invalid asset address");
+        
+        Asset asset = Asset(_assetAddress);
+        asset.removeViewer(_viewer);
+    }
+
+    function canAccessAsset(address _assetAddress, address _user) external view returns (bool) {
+        if (!isAsset[_assetAddress]) return false;
+        
+        try Asset(_assetAddress).isViewer(_user) returns (bool result) {
+            return result;
+        } catch {
+            return false;
+        }
+    }
+
+    function getAccessibleAssets(address _user) external view returns (address[] memory) {
+        uint256 accessibleCount = 0;
+        
+        // First pass: count accessible assets
+        for (uint256 i = 0; i < assets.length; i++) {
+            try Asset(assets[i]).isViewer(_user) returns (bool canAccess) {
+                if (canAccess) {
+                    accessibleCount++;
+                }
+            } catch {
+                // Skip assets that can't be accessed or have errors
+            }
+        }
+        
+        // Second pass: collect accessible assets
+        address[] memory accessibleAssets = new address[](accessibleCount);
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < assets.length; i++) {
+            try Asset(assets[i]).isViewer(_user) returns (bool canAccess) {
+                if (canAccess) {
+                    accessibleAssets[index] = assets[i];
+                    index++;
+                }
+            } catch {
+                // Skip assets that can't be accessed or have errors
+            }
+        }
+        
+        return accessibleAssets;
     }
 }
