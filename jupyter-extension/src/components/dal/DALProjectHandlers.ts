@@ -127,6 +127,33 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
     console.log('Publishing final AL project results...');
     
     try {
+      // Step 0: Check if project has ended before allowing publication
+      console.log('🔍 Checking project status before publishing...');
+      
+      if (project?.isActive) {
+        const errorMessage = 'Cannot publish final results while project is still active. Please end the project first using the "End Project" button in the Control Panel.';
+        console.error('❌ Project still active, cannot publish:', errorMessage);
+        setError(errorMessage);
+        return;
+      }
+      
+      // Additional check using smart contract
+      try {
+        const { alContractService } = await import('./services/ALContractService');
+        const projectStatus = await alContractService.getProjectStatus(project.contractAddress);
+        
+        if (projectStatus.isActive) {
+          const errorMessage = 'Smart contract reports project is still active. Please end the project first before publishing final results.';
+          console.error('❌ Smart contract reports project still active:', errorMessage);
+          setError(errorMessage);
+          return;
+        }
+        
+        console.log('✅ Project status check passed - project has ended, ready to publish');
+      } catch (statusError) {
+        console.warn('⚠️ Could not verify project status from smart contract, continuing with publication:', statusError);
+      }
+      
       // Step 1: Get the complete RO-Crate folder from AL-Engine
       console.log('📋 Step 1: Collecting complete RO-Crate folder from AL-Engine...');
       const alEngineUrl = 'http://localhost:5050'; // AL-Engine API base URL

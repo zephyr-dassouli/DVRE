@@ -11,6 +11,12 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
   const [isPublishing, setIsPublishing] = useState(false);
 
   const handlePublishFinalResults = async () => {
+    // Check if project has ended before allowing publication
+    if (project?.isActive) {
+      onError('Cannot publish final results while project is still active. Please end the project first.');
+      return;
+    }
+
     const confirmed = window.confirm(
       'Are you sure you want to publish the final results?\n\n' +
       'This will:\n' +
@@ -56,6 +62,10 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
     );
   }
 
+  // Check if project is still active (not ended)
+  const projectIsActive = project?.isActive !== false;
+  const canPublish = !projectIsActive;
+
   return (
     <div className="publish-results-panel">
       <div className="panel-header">
@@ -64,6 +74,35 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
       </div>
 
       <div className="panel-content">
+        {/* Project Status Check */}
+        {projectIsActive && (
+          <div className="warning-section" style={{
+            backgroundColor: '#fef3c7',
+            border: '2px solid #f59e0b',
+            borderRadius: '8px',
+            padding: '20px',
+            marginBottom: '24px'
+          }}>
+            <h4 style={{ 
+              marginTop: 0, 
+              marginBottom: '12px',
+              color: '#92400e',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '20px' }}>⚠️</span>
+              Project Still Active
+            </h4>
+            <p style={{ margin: '0 0 12px 0', color: '#92400e', fontSize: '16px', fontWeight: 'bold' }}>
+              Cannot publish final results while the project is still active.
+            </p>
+            <p style={{ margin: 0, color: '#92400e', fontSize: '14px' }}>
+              Please end the project first using the "End Project" button in the Control Panel, then return here to publish the final results.
+            </p>
+          </div>
+        )}
+
         {/* Information Section */}
         <div className="info-section" style={{
           backgroundColor: '#f8fafc',
@@ -99,8 +138,8 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
 
         {/* Project Status */}
         <div className="project-status" style={{
-          backgroundColor: '#fefce8',
-          border: '1px solid #facc15',
+          backgroundColor: projectIsActive ? '#fef3c7' : '#f0fdf4',
+          border: `1px solid ${projectIsActive ? '#facc15' : '#22c55e'}`,
           borderRadius: '8px',
           padding: '16px',
           marginBottom: '24px'
@@ -108,81 +147,102 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
           <h4 style={{ 
             marginTop: 0, 
             marginBottom: '8px',
-            color: '#92400e',
+            color: projectIsActive ? '#92400e' : '#166534',
             display: 'flex',
             alignItems: 'center',
             gap: '8px'
           }}>
-            <span style={{ fontSize: '16px' }}>📊</span>
+            <span style={{ fontSize: '16px' }}>{projectIsActive ? '🟡' : '🟢'}</span>
             Current Project Status
           </h4>
-          <div style={{ color: '#92400e', fontSize: '14px' }}>
+          <div style={{ color: projectIsActive ? '#92400e' : '#166534', fontSize: '14px' }}>
             <p><strong>Project ID:</strong> {project.contractAddress}</p>
             <p><strong>Current Round:</strong> {project.currentRound || 0} / {project.totalRounds || 'Unknown'}</p>
-            <p><strong>Status:</strong> {project.status || 'Active'}</p>
+            <p><strong>Status:</strong> {projectIsActive ? 'Active (Running)' : 'Ended (Ready for Publishing)'}</p>
+            {projectIsActive && (
+              <p style={{ fontWeight: 'bold', marginTop: '8px' }}>
+                ⚠️ Project must be ended before publishing final results
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Warning Section */}
-        <div className="warning-section" style={{
-          backgroundColor: '#fef2f2',
-          border: '1px solid #fecaca',
-          borderRadius: '8px',
-          padding: '16px',
-          marginBottom: '32px'
-        }}>
-          <h4 style={{ 
-            marginTop: 0, 
-            marginBottom: '8px',
-            color: '#dc2626',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
+        {/* Warning Section for Non-Active Projects */}
+        {!projectIsActive && (
+          <div className="warning-section" style={{
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '8px',
+            padding: '16px',
+            marginBottom: '32px'
           }}>
-            <span style={{ fontSize: '16px' }}>⚠️</span>
-            Important Note
-          </h4>
-          <p style={{ margin: 0, color: '#dc2626', fontSize: '14px' }}>
-            This action cannot be undone. Make sure your Active Learning project is complete and you're ready to share the final results.
-          </p>
-        </div>
+            <h4 style={{ 
+              marginTop: 0, 
+              marginBottom: '8px',
+              color: '#dc2626',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '16px' }}>⚠️</span>
+              Important Note
+            </h4>
+            <p style={{ margin: 0, color: '#dc2626', fontSize: '14px' }}>
+              This action cannot be undone. Make sure your Active Learning project is complete and you're ready to share the final results.
+            </p>
+          </div>
+        )}
 
         {/* Action Button */}
         <div className="action-section" style={{ textAlign: 'center' }}>
           <button
             onClick={handlePublishFinalResults}
-            disabled={isPublishing}
+            disabled={isPublishing || !canPublish}
             style={{
-              backgroundColor: isPublishing ? '#94a3b8' : '#059669',
+              backgroundColor: (!canPublish || isPublishing) ? '#94a3b8' : '#059669',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
               padding: '12px 32px',
               fontSize: '16px',
               fontWeight: 'bold',
-              cursor: isPublishing ? 'not-allowed' : 'pointer',
+              cursor: (!canPublish || isPublishing) ? 'not-allowed' : 'pointer',
               transition: 'background-color 0.2s',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              margin: '0 auto'
+              margin: '0 auto',
+              opacity: !canPublish ? 0.6 : 1
             }}
             onMouseOver={(e) => {
-              if (!isPublishing) {
+              if (canPublish && !isPublishing) {
                 (e.target as HTMLElement).style.backgroundColor = '#047857';
               }
             }}
             onMouseOut={(e) => {
-              if (!isPublishing) {
+              if (canPublish && !isPublishing) {
                 (e.target as HTMLElement).style.backgroundColor = '#059669';
               }
             }}
           >
             <span style={{ fontSize: '18px' }}>
-              {isPublishing ? '⏳' : '🚀'}
+              {isPublishing ? '⏳' : !canPublish ? '🔒' : '🚀'}
             </span>
-            {isPublishing ? 'Publishing Final Results...' : 'Publish Final Results'}
+            {isPublishing ? 'Publishing Final Results...' : 
+             !canPublish ? 'Project Must Be Ended First' : 
+             'Publish Final Results'}
           </button>
+          
+          {!canPublish && (
+            <p style={{ 
+              marginTop: '12px', 
+              fontSize: '14px', 
+              color: '#6b7280',
+              fontStyle: 'italic'
+            }}>
+              End the project in the Control Panel to enable publishing
+            </p>
+          )}
         </div>
 
         {/* Additional Information */}
