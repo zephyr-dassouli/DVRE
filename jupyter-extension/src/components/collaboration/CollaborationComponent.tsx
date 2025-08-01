@@ -11,15 +11,19 @@ type ViewMode = 'main' | 'create' | 'details' | 'join';
 
 interface CollaborationComponentProps {
   title?: string;
+  initialViewMode?: 'main' | 'create' | 'details' | 'join';
+  initialProjectAddress?: string;
 }
 
 export const CollaborationComponent: React.FC<CollaborationComponentProps> = ({ 
-  title = 'Project Collaboration' 
+  title = 'Project Collaboration',
+  initialViewMode = 'main',
+  initialProjectAddress
 }) => {
   const { account } = useAuth();
   const { projects, userProjects, loading, error, requestToJoinProject, getProjectRoles, loadProjects } = useProjects();
-  const [viewMode, setViewMode] = useState<ViewMode>('main');
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+  const [selectedProject, setSelectedProject] = useState<string | null>(initialProjectAddress || null);
   const [projectToJoin, setProjectToJoin] = useState<ProjectInfo | null>(null);
   const [availableRoles, setAvailableRoles] = useState<string[]>([]);
   const [joinLoading, setJoinLoading] = useState(false);

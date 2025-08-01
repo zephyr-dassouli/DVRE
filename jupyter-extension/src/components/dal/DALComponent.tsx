@@ -222,8 +222,24 @@ export const DALComponent: React.FC<DALComponentProps> = ({
       setSelectedProject(project);
       onProjectSelect?.(project);
     } else {
-      // For non-deployed projects, show a message
-      alert('This project needs to be deployed first. Please deploy it in Project Deployment before accessing Active Learning features.');
+      // For non-deployed projects, show a message with option to go to deployment
+      const shouldDeploy = window.confirm(
+        'This project needs to be deployed first. Would you like to go to Project Deployment now?'
+      );
+      
+      if (shouldDeploy) {
+        // Use the widget opener utility for consistent experience
+        try {
+          const { openCollaborationWidget } = require('../../utils/WidgetOpener');
+          openCollaborationWidget({
+            title: 'Project Deployment',
+            initialViewMode: 'main' // Could be enhanced to go directly to deployment
+          });
+        } catch (error) {
+          console.warn('Could not open deployment via widget opener, falling back to alert');
+          alert('Please open Project Deployment from the launcher to deploy this project first.');
+        }
+      }
     }
   };
 

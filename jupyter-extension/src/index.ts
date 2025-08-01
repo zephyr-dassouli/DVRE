@@ -15,6 +15,8 @@ import { LabIcon } from '@jupyterlab/ui-components';
 import { AuthWidget, CollaborationWidget, GraphWidget, FederatedLearningWidget, IPFSWidget, ProjectDeploymentWidget, DALWidget } from './components';
 import { UserRegistryReactWidget } from './widgets/UserRegistryWidget';
 
+// Export widget opening utilities for use by other components
+export { openCollaborationWidget, openProjectDetails, openProjectCreation, openMainCollaboration } from './utils/WidgetOpener';
 
 // Import CSS
 import '../style/index.css';
@@ -119,6 +121,9 @@ const plugin: JupyterFrontEndPlugin<void> = {
   ) => {
     console.log('DVRE Core is activated!');
 
+    // Make app globally accessible for widget opener utilities
+    (window as any).jupyterApp = app;
+
     // Command for authentication
     const authCommand = 'my-extension:auth';
     app.commands.addCommand(authCommand, {
@@ -126,6 +131,17 @@ const plugin: JupyterFrontEndPlugin<void> = {
       caption: 'Authentication Tool',
       icon: authIcon,
       execute: () => {
+        // Check if an authentication widget already exists
+        const existingWidget = Array.from(app.shell.widgets('main')).find((widget: any) => 
+          widget.id.startsWith('my-auth')
+        );
+        
+        if (existingWidget) {
+          // Activate the existing widget instead of creating a new one
+          app.shell.activateById(existingWidget.id);
+          return;
+        }
+        
         const content = new AuthWidget('Authentication');
         const widget = new MainAreaWidget({ content });
         widget.id = `my-auth-${Date.now()}`;
@@ -144,6 +160,21 @@ const plugin: JupyterFrontEndPlugin<void> = {
       caption: 'Manage and collaborate on projects',
       icon: collaborationIcon,
       execute: () => {
+        // Check if a main collaboration widget already exists
+        const existingWidget = Array.from(app.shell.widgets('main')).find((widget: any) => 
+          widget.id.startsWith('my-collaboration') && 
+          !widget.id.includes('-project-') && 
+          !widget.id.includes('-create') && 
+          !widget.id.includes('-details') && 
+          !widget.id.includes('-join')
+        );
+        
+        if (existingWidget) {
+          // Activate the existing widget instead of creating a new one
+          app.shell.activateById(existingWidget.id);
+          return;
+        }
+        
         const content = new CollaborationWidget('Project Collaboration');
         const widget = new MainAreaWidget({ content });
         widget.id = `my-collaboration-${Date.now()}`;
@@ -154,6 +185,80 @@ const plugin: JupyterFrontEndPlugin<void> = {
         app.shell.activateById(widget.id);
       }
     });
+
+    // Helper function to open collaboration widget with initial state
+    const openCollaborationWidget = (options: { 
+      title?: string, 
+      initialViewMode?: 'main' | 'create' | 'details' | 'join',
+      initialProjectAddress?: string 
+    } = {}) => {
+      const widgetOptions = {
+        title: options.title || 'Project Collaboration',
+        initialViewMode: options.initialViewMode || 'main',
+        initialProjectAddress: options.initialProjectAddress
+      };
+      
+      // Create consistent widget ID based on the content, not timestamp
+      let baseWidgetId = 'my-collaboration';
+      if (options.initialProjectAddress) {
+        baseWidgetId += `-project-${options.initialProjectAddress.slice(-6)}`;
+      }
+      if (options.initialViewMode && options.initialViewMode !== 'main') {
+        baseWidgetId += `-${options.initialViewMode}`;
+      }
+      
+      // Check if a widget with this ID already exists
+      const existingWidget = Array.from(app.shell.widgets('main')).find((widget: any) => 
+        widget.id.startsWith(baseWidgetId)
+      );
+      
+      if (existingWidget) {
+        // Activate the existing widget instead of creating a new one
+        app.shell.activateById(existingWidget.id);
+        return existingWidget;
+      }
+      
+      // Create new widget only if one doesn't exist
+      const content = new CollaborationWidget(widgetOptions);
+      const widget = new MainAreaWidget({ content });
+      
+      // Use base ID with timestamp only for uniqueness if multiple instances are needed
+      const finalWidgetId = `${baseWidgetId}-${Date.now()}`;
+      
+      widget.id = finalWidgetId;
+      widget.title.closable = true;
+      widget.title.icon = collaborationIcon;
+      widget.title.label = widgetOptions.title;
+      
+      app.shell.add(widget, 'main');
+      app.shell.activateById(widget.id);
+      
+      return widget;
+    };
+
+    // Command to open project details directly
+    const openProjectDetailsCommand = 'my-extension:open-project-details';
+    app.commands.addCommand(openProjectDetailsCommand, {
+      label: 'Open Project Details',
+      caption: 'Open specific project details page',
+      icon: collaborationIcon,
+      execute: (args: any) => {
+        const projectAddress = args?.projectAddress;
+        if (projectAddress) {
+          return openCollaborationWidget({
+            title: `Project Details - ${projectAddress.slice(0, 6)}...${projectAddress.slice(-4)}`,
+            initialViewMode: 'details',
+            initialProjectAddress: projectAddress
+          });
+        } else {
+          // Fallback to main collaboration view
+          return openCollaborationWidget();
+        }
+      }
+    });
+
+    // Store the helper function in app context for other components to use
+    (app as any)._dvre_open_collaboration = openCollaborationWidget;
 
     // Command for graph view
     const graphCommand = 'my-extension:graph';
@@ -198,6 +303,17 @@ const plugin: JupyterFrontEndPlugin<void> = {
       caption: 'Manage files on IPFS and blockchain assets',
       icon: ipfsIcon,
       execute: () => {
+        // Check if an IPFS widget already exists
+        const existingWidget = Array.from(app.shell.widgets('main')).find((widget: any) => 
+          widget.id.startsWith('my-ipfs')
+        );
+        
+        if (existingWidget) {
+          // Activate the existing widget instead of creating a new one
+          app.shell.activateById(existingWidget.id);
+          return;
+        }
+        
         const content = new IPFSWidget('Storage');
         const widget = new MainAreaWidget({ content });
         widget.id = `my-ipfs-${Date.now()}`;
@@ -215,6 +331,17 @@ const plugin: JupyterFrontEndPlugin<void> = {
       caption: 'Deploy projects with RO-Crate and orchestration server integration',
       icon: deploymentIcon,
       execute: () => {
+        // Check if a deployment widget already exists
+        const existingWidget = Array.from(app.shell.widgets('main')).find((widget: any) => 
+          widget.id.startsWith('my-deployment')
+        );
+        
+        if (existingWidget) {
+          // Activate the existing widget instead of creating a new one
+          app.shell.activateById(existingWidget.id);
+          return;
+        }
+        
         const content = new ProjectDeploymentWidget({
           title: 'Project Deployment'
         });
@@ -234,6 +361,17 @@ const plugin: JupyterFrontEndPlugin<void> = {
       caption: 'Manage and participate in decentralized active learning projects',
       icon: dalIcon,
       execute: () => {
+        // Check if a DAL widget already exists
+        const existingWidget = Array.from(app.shell.widgets('main')).find((widget: any) => 
+          widget.id.startsWith('my-dal')
+        );
+        
+        if (existingWidget) {
+          // Activate the existing widget instead of creating a new one
+          app.shell.activateById(existingWidget.id);
+          return;
+        }
+        
         const content = new DALWidget();
         const widget = new MainAreaWidget({ content });
         widget.id = `my-dal-${Date.now()}`;
