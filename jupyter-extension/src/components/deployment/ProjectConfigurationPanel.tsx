@@ -364,7 +364,10 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                 min="0"
                 max="100"
                 value={config.maxIterations}
-                onChange={(e) => handleConfigChange('maxIterations', parseInt(e.target.value) || 5)}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  handleConfigChange('maxIterations', isNaN(value) ? 0 : value);
+                }}
                 disabled={isDeployed}
               />
               <small>Maximum number of AL iterations (0 for infinite)</small>

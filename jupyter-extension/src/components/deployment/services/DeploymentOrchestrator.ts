@@ -97,7 +97,40 @@ export class DeploymentOrchestrator {
       
       if (!datasets || Object.keys(datasets).length === 0) {
         console.log('❌ No datasets found');
-        validationErrors.push('• At least one dataset is required');
+        validationErrors.push('At least one dataset is required');
+      } else {
+        // For AL projects, check that datasets are actually selected in the configuration
+        const isALProject = this.isActivelearningProject(config);
+        if (isALProject) {
+          const dalConfig = config.extensions?.dal;
+          
+          if (!dalConfig?.trainingDataset) {
+            validationErrors.push('Training dataset must be selected');
+          }
+          if (!dalConfig?.labelingDataset) {
+            validationErrors.push('Labeling dataset must be selected');
+          }
+          
+          console.log('🔍 Training dataset selected:', !!dalConfig?.trainingDataset);
+          console.log('🔍 Labeling dataset selected:', !!dalConfig?.labelingDataset);
+        } else {
+          // For non-AL projects, validate that datasets have actual content (not just placeholders)
+          for (const [key, dataset] of Object.entries(datasets as any)) {
+            const datasetObj = dataset as any; // Type assertion for dataset object
+            
+            if (!datasetObj.url && !datasetObj.path && !datasetObj.contentUrl) {
+              validationErrors.push(`Dataset "${datasetObj.name || key}" must have a valid file path or URL`);
+            }
+            
+            // Check for placeholder values
+            const placeholderKeywords = ['placeholder', 'example', 'sample', 'default', 'template'];
+            const datasetText = JSON.stringify(datasetObj).toLowerCase();
+            
+            if (placeholderKeywords.some(keyword => datasetText.includes(keyword))) {
+              validationErrors.push(`Dataset "${datasetObj.name || key}" contains placeholder values`);
+            }
+          }
+        }
       }
 
       // Check if project is Active Learning
@@ -110,7 +143,17 @@ export class DeploymentOrchestrator {
         
         if (!labelSpace || !Array.isArray(labelSpace) || labelSpace.length === 0) {
           console.log('❌ No label space found');
-          validationErrors.push('• Label space is required for Active Learning projects');
+          validationErrors.push('Label space is required');
+        } else {
+          // Check for placeholder values in label space
+          const hasPlaceholders = labelSpace.some(label => 
+            typeof label === 'string' && 
+            ['placeholder', 'example', 'sample', 'label', 'positive', 'negative'].includes(label.toLowerCase())
+          );
+          
+          if (hasPlaceholders) {
+            validationErrors.push('Label space contains placeholder values');
+          }
         }
         
         // Check for other required AL fields
@@ -119,11 +162,11 @@ export class DeploymentOrchestrator {
         
         if (!dalConfig?.queryStrategy) {
           console.log('❌ No query strategy found');
-          validationErrors.push('• Query strategy is required for Active Learning projects');
+          validationErrors.push('Query strategy is required');
         }
-        if (!dalConfig?.maxIterations || dalConfig.maxIterations <= 0) {
+        if (dalConfig?.maxIterations == null || dalConfig.maxIterations < 0) {
           console.log('❌ Invalid max iterations:', dalConfig?.maxIterations);
-          validationErrors.push('• Max iterations must be greater than 0 for Active Learning projects');
+          validationErrors.push('Max iterations must be 0 or greater (0 = infinite)');
         }
       }
       
@@ -131,7 +174,7 @@ export class DeploymentOrchestrator {
       
       // If validation fails, throw error to stop deployment
       if (validationErrors.length > 0) {
-        const errorMessage = `Cannot deploy project. Please fix the following issues:\n\n${validationErrors.join('\n')}\n\nPlease configure these fields in the Project Configuration section.`;
+        const errorMessage = `Cannot deploy project. Please fix the following issues:\n\n${validationErrors.join('. ')}.`;
         console.log('❌ Validation failed:', errorMessage);
         throw new Error(errorMessage);
       }

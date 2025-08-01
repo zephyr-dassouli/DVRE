@@ -258,6 +258,15 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
       const { deploymentOrchestrator } = await import('./services/DeploymentOrchestrator');
       const result = await deploymentOrchestrator.deployProject(selectedProject.projectId, account, computationMode);
 
+      // Check if deployment failed due to validation errors
+      if (result.error) {
+        // If it's a validation error, show it as an error, not as "deployment completed"
+        if (result.error.includes('Cannot deploy project. Please fix the following issues:')) {
+          setError(result.error);
+          return; // Don't show deployment completed message
+        }
+      }
+
       // Generate success message based on deployment results
       let deploymentMessage = `Project deployment completed!\n\n`;
       
