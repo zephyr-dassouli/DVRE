@@ -152,8 +152,8 @@ contract ProjectTemplateRegistry {
         template.fields.push(TemplateField("objective", "string", true, ""));
         template.fields.push(TemplateField("roles", "array", true, '["coordinator","contributor"]'));
         template.fields.push(TemplateField("participants", "array", false, "[]"));
-        template.fields.push(TemplateField("policies", "object", true, '{"permissions":{"coordinator":["manage_project","start_rounds","approve_participants","view_all","modify_settings"],"contributor":["vote","view_results","submit_labels"]},"voting":{"enabled":true,"threshold":0.5,"revocable_by":"coordinator"}}'));
-
+        template.fields.push(TemplateField("policies", "object", true, '{"access":{}}'));
+        
         templatesByType["active_learning"].push(templateId);
         templatesByCreator[address(this)].push(templateId);
 

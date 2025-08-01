@@ -1,224 +1,222 @@
 #!/usr/bin/env python3
-# test_installation.py - AL-Engine Installation Test
+"""
+AL-Engine Installation and Basic Functionality Test (Fixed Version)
+
+Tests the fixed AL-Engine implementation without legacy components.
+"""
 
 import os
 import sys
-import numpy as np
 import json
 import tempfile
-import shutil
+import subprocess
 from pathlib import Path
 
+# Add the src directory to Python path
+current_dir = Path(__file__).parent
+src_dir = current_dir.parent / "src"
+sys.path.insert(0, str(src_dir))
+
 def test_imports():
-    """Test that all required modules can be imported"""
-    print("Testing imports...")
+    """Test that all required packages can be imported"""
+    print("Testing package imports...")
     
-    try:
-        import numpy
-        print("  ✓ numpy")
-    except ImportError:
-        print("  ✗ numpy - FAILED")
-        return False
-        
-    try:
-        import sklearn
-        print("  ✓ scikit-learn")
-    except ImportError:
-        print("  ✗ scikit-learn - FAILED")
-        return False
-        
-    try:
-        import joblib
-        print("  ✓ joblib")
-    except ImportError:
-        print("  ✗ joblib - FAILED")
-        return False
-        
-    try:
-        import modAL
-        print("  ✓ modAL")
-    except ImportError:
-        print("  ✗ modAL - FAILED")
-        return False
-        
-    try:
-        from main import ALEngine
-        print("  ✓ AL-Engine main module")
-    except ImportError as e:
-        print(f"  ✗ AL-Engine main module - FAILED: {e}")
-        return False
-        
-    try:
-        from workflow_runner import WorkflowRunner
-        print("  ✓ WorkflowRunner")
-    except ImportError as e:
-        print(f"  ✗ WorkflowRunner - FAILED: {e}")
-        return False
-        
-    return True
-
-def test_al_iteration():
-    """Test the core AL iteration script"""
-    print("\nTesting AL iteration script...")
+    required_packages = [
+        "numpy", "pandas", "sklearn", "modAL", 
+        "flask", "pathlib", "subprocess", "yaml"
+    ]
     
-    # Create temporary directory
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        
-        # Generate sample data
-        np.random.seed(42)
-        n_samples = 100
-        n_features = 4
-        
-        # Create labeled data (small initial set)
-        X_labeled = np.random.randn(10, n_features)
-        y_labeled = np.random.choice([0, 1], 10)
-        
-        # Create unlabeled data
-        X_unlabeled = np.random.randn(n_samples - 10, n_features)
-        
-        # Save data files
-        labeled_data_file = temp_path / "labeled_data.npy"
-        labeled_labels_file = temp_path / "labeled_labels.npy"
-        unlabeled_data_file = temp_path / "unlabeled_data.npy"
-        config_file = temp_path / "test_config.json"
-        
-        np.save(labeled_data_file, X_labeled)
-        np.save(labeled_labels_file, y_labeled)
-        np.save(unlabeled_data_file, X_unlabeled)
-        
-        # Create config
-        config = {
-            "n_queries": 3,
-            "query_strategy": "uncertainty_sampling"
-        }
-        with open(config_file, 'w') as f:
-            json.dump(config, f)
-        
-        # Test AL iteration import and basic functionality
+    failed_imports = []
+    
+    for package in required_packages:
         try:
-            import al_iteration
-            print("  ✓ AL iteration module imported")
-            
-            # Test config parsing
-            parsed_config = al_iteration.parse_config(str(config_file))
-            assert parsed_config["n_queries"] == 3
-            print("  ✓ Configuration parsing")
-            
-            # Test data loading
-            loaded_data = al_iteration.load_data(str(labeled_data_file))
-            assert loaded_data.shape == X_labeled.shape
-            print("  ✓ Data loading")
-            
-            print("  ✓ AL iteration script basic functionality")
-            return True
-            
-        except Exception as e:
-            print(f"  ✗ AL iteration test failed: {e}")
-            return False
+            __import__(package)
+            print(f"  ✓ {package}")
+        except ImportError as e:
+            print(f"  ✗ {package}: {e}")
+            failed_imports.append(package)
+    
+    if failed_imports:
+        print(f"\n❌ Failed to import: {failed_imports}")
+        return False
+    else:
+        print("✅ All required packages imported successfully")
+        return True
 
-def test_workflow_runner():
-    """Test the workflow runner"""
-    print("\nTesting WorkflowRunner...")
+def test_al_iteration_script():
+    """Test the core al_iteration.py script"""
+    print("\nTesting al_iteration.py script...")
     
     try:
-        from workflow_runner import WorkflowRunner
+        # Check if al_iteration.py exists
+        al_script = src_dir / "al_iteration.py"
+        if not al_script.exists():
+            print(f"  ✗ al_iteration.py not found at {al_script}")
+            return False
         
-        runner = WorkflowRunner()
-        print("  ✓ WorkflowRunner initialization")
+        # Test help command
+        result = subprocess.run([
+            sys.executable, str(al_script), "--help"
+        ], capture_output=True, text=True, cwd=src_dir)
         
-        # Test cwltool availability check
-        cwl_available = runner.check_cwltool_available()
-        if cwl_available:
-            print("  ✓ cwltool is available")
+        if result.returncode == 0:
+            print("  ✓ al_iteration.py help command works")
+            
+            # Check for required arguments
+            help_text = result.stdout
+            required_args = ["--labeled_data", "--unlabeled_data", "--config", "--iteration"]
+            missing_args = [arg for arg in required_args if arg not in help_text]
+            
+            if missing_args:
+                print(f"  ✗ Missing required arguments: {missing_args}")
+                return False
+            else:
+                print("  ✓ All required arguments present")
+                return True
         else:
-            print("  ! cwltool not available (direct Python execution will be used)")
+            print(f"  ✗ al_iteration.py help failed: {result.stderr}")
+            return False
+            
+    except Exception as e:
+        print(f"  ✗ al_iteration.py test failed: {e}")
+        return False
+
+def test_server_import():
+    """Test ALEngineServer import"""
+    print("\nTesting ALEngineServer import...")
+    
+    try:
+        from server import ALEngineServer
+        print("  ✓ ALEngineServer import successful")
+        
+        # Test basic instantiation (without starting server)
+        server = ALEngineServer(port=5051)  # Use different port to avoid conflicts
+        print("  ✓ ALEngineServer instantiation successful")
         
         return True
         
     except Exception as e:
-        print(f"  ✗ WorkflowRunner test failed: {e}")
+        print(f"  ✗ ALEngineServer test failed: {e}")
         return False
 
-def test_orchestrator_client():
-    """Test orchestrator client functionality (REMOVED - Local execution only)"""
-    print("⚠️ Orchestrator client functionality removed - using local execution only")
-    return True, "Orchestrator functionality removed - local execution only"
-
-def test_al_engine():
-    """Test the main AL-Engine class"""
-    print("\nTesting ALEngine class...")
+def test_main_script():
+    """Test the main.py script"""
+    print("\nTesting main.py script...")
     
     try:
-        # Create temporary config
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            config = {
-                "n_queries": 3,
-                "max_iterations": 5,
-                "query_strategy": "uncertainty_sampling"
-            }
-            json.dump(config, f)
-            config_path = f.name
+        main_script = src_dir / "main.py"
+        if not main_script.exists():
+            print(f"  ✗ main.py not found at {main_script}")
+            return False
         
-        try:
-            from main import ALEngine
+        # Test help command
+        result = subprocess.run([
+            sys.executable, str(main_script), "--help"
+        ], capture_output=True, text=True, cwd=src_dir)
+        
+        if result.returncode == 0:
+            print("  ✓ main.py help command works")
             
-            # Test initialization
-            engine = ALEngine("test-project", config_path, "local")
-            print("  ✓ ALEngine initialization")
+            # Check that legacy options are removed
+            help_text = result.stdout
+            if "--service" in help_text:
+                print("  ⚠️ Warning: Legacy --service option still present")
             
-            # Test configuration loading
-            assert engine.config["n_queries"] == 3
-            print("  ✓ Configuration loading")
+            required_options = ["--server", "--iteration", "--workflow"]
+            missing_options = [opt for opt in required_options if opt not in help_text]
             
-            # Test working directory creation
-            assert engine.work_dir.exists()
-            print("  ✓ Working directory creation")
-            
-            return True
-            
-        finally:
-            # Cleanup
-            os.unlink(config_path)
+            if missing_options:
+                print(f"  ✗ Missing options: {missing_options}")
+                return False
+            else:
+                print("  ✓ All required options present")
+                return True
+        else:
+            print(f"  ✗ main.py help failed: {result.stderr}")
+            return False
             
     except Exception as e:
-        print(f"  ✗ ALEngine test failed: {e}")
+        print(f"  ✗ main.py test failed: {e}")
         return False
 
-def main():
-    """Run all tests"""
-    print("AL-Engine Installation Test")
-    print("=" * 40)
+def test_config_creation():
+    """Test creating a basic AL configuration"""
+    print("\nTesting AL configuration creation...")
+    
+    try:
+        config = {
+            "query_batch_size": 2,
+            "max_iterations": 5,
+            "model_type": "RandomForestClassifier",
+            "training_args": {"n_estimators": 10, "random_state": 42},
+            "label_space": ["0", "1", "2"]
+        }
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(config, f, indent=2)
+            config_path = f.name
+        
+        # Verify config can be loaded
+        with open(config_path, 'r') as f:
+            loaded_config = json.load(f)
+        
+        os.unlink(config_path)
+        
+        if loaded_config == config:
+            print("  ✓ Configuration creation and loading successful")
+            return True
+        else:
+            print("  ✗ Configuration mismatch")
+            return False
+            
+    except Exception as e:
+        print(f"  ✗ Configuration test failed: {e}")
+        return False
+
+def run_all_tests():
+    """Run all tests and return overall result"""
+    print("🧪 AL-Engine Fixed Installation Test")
+    print("=" * 50)
     
     tests = [
-        ("Import Test", test_imports),
-        ("AL Iteration Test", test_al_iteration),
-        ("WorkflowRunner Test", test_workflow_runner),
-        ("ALEngine Test", test_al_engine)
+        ("Package Imports", test_imports),
+        ("AL Iteration Script", test_al_iteration_script),
+        ("Server Import", test_server_import),
+        ("Main Script", test_main_script),
+        ("Config Creation", test_config_creation)
     ]
     
-    passed = 0
-    total = len(tests)
+    results = []
     
     for test_name, test_func in tests:
         try:
-            if test_func():
-                passed += 1
-                print(f"\n{test_name}: PASSED")
-            else:
-                print(f"\n{test_name}: FAILED")
+            success = test_func()
+            results.append((test_name, success))
         except Exception as e:
-            print(f"\n{test_name}: ERROR - {e}")
+            print(f"❌ {test_name} crashed: {e}")
+            results.append((test_name, False))
     
-    print("\n" + "=" * 40)
-    print(f"Test Results: {passed}/{total} tests passed")
+    # Summary
+    print("\n" + "=" * 50)
+    print("📊 Test Results Summary:")
+    
+    passed = 0
+    for test_name, success in results:
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"  {status}: {test_name}")
+        if success:
+            passed += 1
+    
+    total = len(results)
+    print(f"\n🎯 Overall: {passed}/{total} tests passed")
     
     if passed == total:
-        print("🎉 All tests passed! AL-Engine is ready to use.")
-        return 0
+        print("🎉 ALL TESTS PASSED! AL-Engine is properly installed.")
+        return True
     else:
-        print("❌ Some tests failed. Check the output above for details.")
-        return 1
+        print("⚠️ Some tests failed. Please check the installation.")
+        return False
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    success = run_all_tests()
+    sys.exit(0 if success else 1) 

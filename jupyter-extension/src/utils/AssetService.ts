@@ -137,57 +137,17 @@ export class AssetService {
       const receipt = await tx.wait();
       console.log('AssetService: Transaction confirmed:', receipt.hash);
 
-      // Extract the asset address from the event - Updated for ethers.js v6
-      let assetAddress = null;
-      
-      console.log('AssetService: Parsing transaction receipt with', receipt.logs.length, 'logs');
-      
-      // Try to find the event in logs
-      for (const log of receipt.logs) {
-        try {
-          const parsedLog = factory.interface.parseLog(log);
-          console.log('AssetService: Parsed log:', parsedLog?.name);
-          if (parsedLog && parsedLog.name === 'AssetCreated') {
-            assetAddress = parsedLog.args.assetAddress;
-            console.log('AssetService: Found AssetCreated event with address:', assetAddress);
-            break;
-          }
-        } catch (e) {
-          // This log doesn't belong to our contract or has parsing issues, continue silently
-          continue;
-        }
+      // If transaction succeeded, that's all we need to know
+      if (receipt.status === 1) {
+        console.log('AssetService: Asset creation transaction successful');
+        return `SUCCESS_${receipt.hash}`;
+      } else {
+        throw new Error('Transaction failed');
       }
-      
-      if (!assetAddress) {
-        console.log('AssetService: No AssetCreated event found, trying fallback method');
-        // Fallback: try the old method for compatibility
-        try {
-          const event = receipt.events?.find((e: any) => e.event === 'AssetCreated');
-          assetAddress = event?.args?.assetAddress;
-          if (assetAddress) {
-            console.log('AssetService: Found asset address via fallback method:', assetAddress);
-          }
-        } catch (fallbackError) {
-          console.log('AssetService: Fallback method also failed:', fallbackError);
-        }
-      }
-      
-      if (!assetAddress) {
-        console.warn('AssetService: Could not extract asset address from events, but transaction succeeded');
-        console.log('AssetService: Transaction hash:', receipt.hash);
-        console.log('AssetService: Transaction status:', receipt.status);
-        // Return a success indicator instead of throwing - the transaction succeeded
-        return 'SUCCESS_NO_ADDRESS';
-      }
-      
-      console.log('AssetService: Asset created at address:', assetAddress);
-      return assetAddress;
     } catch (error: any) {
       console.error('AssetService: Failed to create asset:', error);
       
-      if (error.message?.includes("insufficient funds")) {
-        throw new Error('Insufficient funds for transaction. Please ensure your wallet has enough ETH for gas fees.');
-      } else if (error.message?.includes("user rejected")) {
+      if (error.message?.includes("user rejected")) {
         throw new Error('Transaction rejected by user. Please approve the transaction in MetaMask.');
       } else {
         throw new Error(`Failed to create asset: ${error.message || "Unknown error"}`);

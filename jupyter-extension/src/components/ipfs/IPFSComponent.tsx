@@ -107,8 +107,8 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
           }
           
           console.log('Creating blockchain asset...');
-          const assetAddress = await assetService.createAsset(assetName, assetType, uploadResult.Hash);
-          console.log('Asset creation result:', assetAddress);
+          const result = await assetService.createAsset(assetName, assetType, uploadResult.Hash);
+          console.log('Asset creation result:', result);
           
           // Reload assets to show the new one
           try {
@@ -117,10 +117,10 @@ export const IPFSComponent: React.FC<IPFSComponentProps> = ({
             console.warn('Failed to reload assets after creation, but asset was created successfully:', loadError);
           }
           
-          if (assetAddress === 'SUCCESS_NO_ADDRESS') {
-            alert(`Asset "${assetName}" created successfully on blockchain!\nTransaction completed but asset address not available.\nIPFS Hash: ${uploadResult.Hash}`);
+          if (result.startsWith('SUCCESS_')) {
+            alert(`Asset "${assetName}" created successfully on blockchain!\nTransaction Hash: ${result.replace('SUCCESS_', '')}\nIPFS Hash: ${uploadResult.Hash}`);
           } else {
-            alert(`Asset "${assetName}" created successfully on blockchain!\nAsset Address: ${assetAddress}\nIPFS Hash: ${uploadResult.Hash}`);
+            alert(`Asset "${assetName}" created successfully on blockchain!\nAsset Address: ${result}\nIPFS Hash: ${uploadResult.Hash}`);
           }
         } catch (blockchainError) {
           console.error('Blockchain asset creation failed:', blockchainError);

@@ -173,7 +173,7 @@ export const useDALProject = (projectAddress?: string) => {
             votingTimeout: 3600, // Default timeout
             labelSpace: metadata._labelSpace && metadata._labelSpace.length > 0 
               ? metadata._labelSpace 
-              : ['positive', 'negative']
+              : []
           };
 
           // If AL contracts are deployed, try to get additional voting configuration
@@ -220,7 +220,7 @@ export const useDALProject = (projectAddress?: string) => {
               queryBatchSize: dalConfig.queryBatchSize || 10,
               votingConsensus: dalConfig.votingConsensus || 'simple_majority',
               votingTimeout: dalConfig.votingTimeout || 3600,
-              labelSpace: dalConfig.labelSpace || ['positive', 'negative']
+              labelSpace: dalConfig.labelSpace || [] // Remove default ['positive', 'negative']
             };
             console.log('📁 Using fallback AL configuration from local storage:', alConfiguration);
           }

@@ -1,4 +1,4 @@
-# server.py - AL-Engine HTTP API Server
+# server.py - AL-Engine HTTP API Server (Fixed Version)
 
 import json
 import logging
@@ -10,7 +10,6 @@ import subprocess
 import numpy as np
 from pathlib import Path
 from flask import Flask
-from workflow_runner import WorkflowRunner
 from endpoints import ALEngineEndpoints
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,6 @@ class ALEngineServer:
         self.project_id = project_id
         self.config_path = config_path
         self.port = port
-        self.workflow_runner = WorkflowRunner()
         self.running = False
         
         # These will be initialized when needed via API calls
@@ -230,26 +228,83 @@ class ALEngineServer:
         return outputs
 
     def _run_fallback_iteration(self, iteration_number, config_file):
-        """Fallback execution using WorkflowRunner if CWL is not available"""
-        logger.info(f"Running fallback iteration {iteration_number} using WorkflowRunner")
+        """Fallback execution using direct call to al_iteration.py if CWL is not available"""
+        logger.info(f"Running fallback iteration {iteration_number} using direct al_iteration.py call")
         
-        # Prepare input files paths
-        inputs = {
-            'labeled_data': str(self.work_dir / f"labeled_data_iter_{iteration_number}.npy"),
-            'labeled_labels': str(self.work_dir / f"labeled_labels_iter_{iteration_number}.npy"),
-            'unlabeled_data': str(self.work_dir / f"unlabeled_data_iter_{iteration_number}.npy"),
-            'config': str(config_file)
-        }
-        
-        # Add model input if not first iteration
-        if iteration_number > 1:
-            inputs['model_in'] = str(self.work_dir / f"model_iter_{iteration_number-1}.pkl")
-        
-        # Run the AL iteration workflow using WorkflowRunner
-        result = self.workflow_runner.run_al_iteration(inputs, self.work_dir)
-        
-        logger.info(f"Fallback iteration {iteration_number} completed")
-        return result
+        try:
+            # Set up file paths
+            project_dir = Path(f"../ro-crates/{self.project_id}")
+            labeled_data = project_dir / "inputs" / "datasets" / "labeled_samples.csv"
+            unlabeled_data = project_dir / "inputs" / "datasets" / "unlabeled_samples.csv"
+            outputs_dir = project_dir / "outputs"
+            outputs_dir.mkdir(exist_ok=True)
+            
+            # Build command to run our fixed al_iteration.py
+            cmd = [
+                "python", "al_iteration.py",
+                "--labeled_data", str(labeled_data),
+                "--labeled_labels", str(labeled_data),  # Same file for iris dataset
+                "--unlabeled_data", str(unlabeled_data),
+                "--config", str(config_file),
+                "--iteration", str(iteration_number),
+                "--project_id", self.project_id
+            ]
+            
+            # Add model input for iterations > 1
+            if iteration_number > 1:
+                model_file = outputs_dir / f"model_round_{iteration_number-1}.pkl"
+                if model_file.exists():
+                    cmd.extend(["--model_in", str(model_file)])
+            
+            logger.info(f"🔧 Fallback executing: {' '.join(cmd)}")
+            
+            # Execute our fixed AL iteration script
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=Path(__file__).parent  # Run from src directory
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"✅ Fallback iteration {iteration_number} completed successfully")
+                
+                # Check for expected outputs
+                query_file = outputs_dir / f"query_samples_round_{iteration_number}.json"
+                model_file = outputs_dir / f"model_round_{iteration_number}.pkl"
+                perf_file = outputs_dir / f"performance_round_{iteration_number}.json"
+                
+                outputs = {}
+                if query_file.exists():
+                    outputs['query_samples'] = str(query_file)
+                if model_file.exists():
+                    outputs['model_out'] = str(model_file)
+                if perf_file.exists():
+                    outputs['performance'] = str(perf_file)
+                
+                return {
+                    'success': True,
+                    'outputs': outputs,
+                    'stdout': result.stdout,
+                    'execution_method': 'direct_python'
+                }
+            else:
+                logger.error(f"❌ Fallback iteration {iteration_number} failed")
+                logger.error(f"STDERR: {result.stderr}")
+                return {
+                    'success': False,
+                    'error': result.stderr,
+                    'stdout': result.stdout,
+                    'execution_method': 'direct_python'
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Fallback execution failed: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'execution_method': 'direct_python'
+            }
 
     def _process_labeled_samples(self, iteration_number, labeled_samples, project_id):
         """Process and store labeled samples for the next training iteration"""

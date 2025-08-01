@@ -131,7 +131,7 @@ export class ALEngineService {
         config_override: {
           n_queries: alConfig.n_queries || 2,
           query_strategy: alConfig.query_strategy || 'uncertainty_sampling',
-          label_space: alConfig.label_space || ['positive', 'negative']
+          label_space: alConfig.label_space || [] // Remove default ['positive', 'negative']
         }
       };
       

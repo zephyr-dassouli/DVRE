@@ -70,7 +70,7 @@ export class SmartContractService {
               alScenario: projectMetadata._alScenario || 'pool_based',
               maxIterations: Number(projectMetadata._maxIteration) || 10,
               queryBatchSize: Number(projectMetadata._queryBatchSize) || 5,
-              labelSpace: projectMetadata._labelSpace || ['positive', 'negative'],
+              labelSpace: projectMetadata._labelSpace || [], // Remove default ['positive', 'negative']
               votingContract: await projectContract.votingContract?.() || null,
               storageContract: await projectContract.storageContract?.() || null
             };
@@ -83,7 +83,7 @@ export class SmartContractService {
               alScenario: config.extensions.dal.alScenario || 'pool_based',
               maxIterations: config.extensions.dal.maxIterations || 10,
               queryBatchSize: config.extensions.dal.queryBatchSize || 5,
-              labelSpace: config.extensions.dal.labelSpace || ['positive', 'negative']
+              labelSpace: config.extensions.dal.labelSpace || []
             };
           }
         } catch (error) {
@@ -93,7 +93,7 @@ export class SmartContractService {
             alScenario: config.extensions.dal.alScenario || 'pool_based',
             maxIterations: config.extensions.dal.maxIterations || 10,
             queryBatchSize: config.extensions.dal.queryBatchSize || 5,
-            labelSpace: config.extensions.dal.labelSpace || ['positive', 'negative']
+            labelSpace: config.extensions.dal.labelSpace || []
           };
         }
       } else {
@@ -103,7 +103,7 @@ export class SmartContractService {
           alScenario: config.extensions.dal.alScenario || 'pool_based',
           maxIterations: config.extensions.dal.maxIterations || 10,
           queryBatchSize: config.extensions.dal.queryBatchSize || 5,
-          labelSpace: config.extensions.dal.labelSpace || ['positive', 'negative']
+          labelSpace: config.extensions.dal.labelSpace || []
         };
       }
 

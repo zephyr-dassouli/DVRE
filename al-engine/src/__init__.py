@@ -1,38 +1,32 @@
 # AL-Engine Package
-
 """
-AL-Engine - Active Learning Engine for DVRE
+AL-Engine - Decentralized Active Learning Engine (Fixed Version)
 
-This package provides active learning capabilities for the Decentralized Virtual
-Research Environment (DVRE) system. Local execution only.
+This package provides a fixed AL-Engine with proper cumulative learning that:
+- Accumulates newly labeled samples from voting results
+- Removes previously queried samples from the unlabeled pool
+- Ensures each iteration queries genuinely different samples
 
-Main Components:
-- ALEngine: Main engine class for managing AL workflows (local execution)
-- ALEngineServer: HTTP API server for DAL integration (local execution)
-- WorkflowRunner: Executes CWL workflows locally
+Components:
+- ALEngineServer: HTTP API server for DAL integration (recommended)
+- Direct execution: Run AL iterations directly using fixed al_iteration.py
 
-Usage:
-    from al_engine import ALEngine
-    
-    engine = ALEngine(project_id="test", config_path="config.json")
-    results = engine.run_full_workflow()
-    
-    # Or use HTTP API server mode
-    from al_engine import ALEngineServer
-    
-    server = ALEngineServer(project_id="test", config_path="config.json")
-    server.start_server()
+Example usage:
+
+# HTTP API Server mode (recommended):
+from al_engine import ALEngineServer
+server = ALEngineServer(port=5050)
+server.start_server()
+
+# Direct execution via main.py:
+# python main.py --project_id <project_id> --config <config.json> --iteration 1
+
+The legacy ALEngine class has been removed in favor of the fixed implementation.
 """
 
-__version__ = "1.0.0"
-__author__ = "DVRE Team"
+from .server import ALEngineServer
 
-# Import main classes for easy access
-from .main import ALEngine, ALEngineServer
-from .workflow_runner import WorkflowRunner
-
+__version__ = "2.0.0-fixed"
 __all__ = [
-    "ALEngine",
-    "ALEngineServer", 
-    "WorkflowRunner"
+    "ALEngineServer",
 ] 

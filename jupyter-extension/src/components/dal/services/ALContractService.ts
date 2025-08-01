@@ -211,7 +211,7 @@ export class ALContractService {
       const alConfig = {
         n_queries: Number(metadata._queryBatchSize) || 2,
         query_strategy: metadata._queryStrategy || 'uncertainty_sampling',  
-        label_space: metadata._labelSpace || ['positive', 'negative']
+        label_space: metadata._labelSpace || []
       };
 
       const pythonResult = await this.triggerPythonALEngine(projectAddress, iterationNumber, alConfig);
@@ -523,7 +523,7 @@ export class ALContractService {
         alScenario: alConfig._alScenario || 'pool_based',
         queryBatchSize: Number(alConfig._queryBatchSize) || 2,
         votingTimeout: Number(alConfig._votingTimeout) || 3600,
-        labelSpace: alConfig._labelSpace || [],
+        labelSpace: alConfig._labelSpace ? [...alConfig._labelSpace] : [], // Remove default ['positive', 'negative']
         
         // Current batch info
         currentBatch: {
@@ -546,6 +546,7 @@ export class ALContractService {
         // Active voting (if any)
         activeVoting
       };
+      
     } catch (error) {
       console.error('Error getting enhanced project status:', error);
       throw error;

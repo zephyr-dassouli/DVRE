@@ -295,7 +295,7 @@ export class ROCrateService {
       voting_timeout_seconds: dalConfig.votingTimeout || 3600,
       
       // Label space
-      label_space: dalConfig.labelSpace || ['positive', 'negative'],
+      label_space: dalConfig.labelSpace || [], // Remove default ['positive', 'negative']
       
       // Runtime configuration
       execution: {

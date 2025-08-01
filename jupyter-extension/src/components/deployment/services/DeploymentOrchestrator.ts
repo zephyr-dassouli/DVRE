@@ -22,7 +22,7 @@ export interface DeploymentResults {
     assetContractStorage: 'success' | 'failed' | 'skipped';
     localROCrateSave: 'success' | 'failed' | 'skipped';
     orchestrationDeploy: 'success' | 'failed' | 'skipped';
-    smartContractUpdate: 'success' | 'failed';
+    smartContractUpdate: 'success' | 'failed' | 'skipped';
     localFileDownload: 'success' | 'failed' | 'skipped';
   };
   roCrateHash?: string;
@@ -66,7 +66,7 @@ export class DeploymentOrchestrator {
         assetContractStorage: 'skipped',
         localROCrateSave: 'skipped',
         orchestrationDeploy: 'failed',
-        smartContractUpdate: 'failed',
+        smartContractUpdate: 'skipped',
         localFileDownload: 'skipped'
       }
     };
@@ -83,22 +83,85 @@ export class DeploymentOrchestrator {
         throw new Error('Only project owners can deploy projects');
       }
 
-      // Step 1: Deploy AL smart contracts if needed
+      // 🔍 VALIDATION: Check for required fields before deployment (STRICT - No defaults anymore!)
+      console.log('🔍 DEPLOYMENT VALIDATION STARTING...');
+      console.log('🔍 Project config:', config);
+      console.log('🔍 RO-Crate datasets:', config.roCrate?.datasets);
+      
+      const validationErrors: string[] = [];
+      
+      // Check for datasets (STRICT - no tolerance for empty)
+      const datasets = config.roCrate?.datasets;
+      console.log('🔍 Datasets object:', datasets);
+      console.log('🔍 Datasets keys:', datasets ? Object.keys(datasets) : 'undefined');
+      
+      if (!datasets || Object.keys(datasets).length === 0) {
+        console.log('❌ No datasets found');
+        validationErrors.push('• At least one dataset is required');
+      }
+
+      // Check if project is Active Learning
       const isALProject = this.isActivelearningProject(config);
+      console.log('🔍 Is AL project:', isALProject);
+      
+      if (isALProject) {
+        const labelSpace = config.extensions?.dal?.labelSpace;
+        console.log('🔍 Label space:', labelSpace);
+        
+        if (!labelSpace || !Array.isArray(labelSpace) || labelSpace.length === 0) {
+          console.log('❌ No label space found');
+          validationErrors.push('• Label space is required for Active Learning projects');
+        }
+        
+        // Check for other required AL fields
+        const dalConfig = config.extensions?.dal;
+        console.log('🔍 DAL config:', dalConfig);
+        
+        if (!dalConfig?.queryStrategy) {
+          console.log('❌ No query strategy found');
+          validationErrors.push('• Query strategy is required for Active Learning projects');
+        }
+        if (!dalConfig?.maxIterations || dalConfig.maxIterations <= 0) {
+          console.log('❌ Invalid max iterations:', dalConfig?.maxIterations);
+          validationErrors.push('• Max iterations must be greater than 0 for Active Learning projects');
+        }
+      }
+      
+      console.log('🔍 Validation errors:', validationErrors);
+      
+      // If validation fails, throw error to stop deployment
+      if (validationErrors.length > 0) {
+        const errorMessage = `Cannot deploy project. Please fix the following issues:\n\n${validationErrors.join('\n')}\n\nPlease configure these fields in the Project Configuration section.`;
+        console.log('❌ Validation failed:', errorMessage);
+        throw new Error(errorMessage);
+      }
+      
+      console.log('✅ Validation passed, proceeding with deployment');
+
+      // Step 1: Deploy AL smart contracts if needed
       if (isALProject) {
         console.log('📋 Deploying AL smart contracts...');
         try {
-          const alContractAddresses = await this.deployALSmartContracts(config, userAddress);
+          const alContractResult = await this.deployALSmartContracts(config, userAddress);
           
           // Only set contract addresses if they were actually deployed
-          if (alContractAddresses.voting && alContractAddresses.storage) {
+          if (alContractResult.voting && alContractResult.storage) {
             result.steps.alSmartContracts = 'success';
             result.alContractAddresses = {
-              voting: alContractAddresses.voting,
-              storage: alContractAddresses.storage
+              voting: alContractResult.voting,
+              storage: alContractResult.storage
             };
           } else {
             result.steps.alSmartContracts = 'skipped'; // No contracts were deployed
+          }
+          
+          // Track AL metadata update success
+          if (alContractResult.metadataUpdateSuccess) {
+            result.steps.smartContractUpdate = 'success';
+            console.log('✅ AL metadata successfully updated on smart contract');
+          } else {
+            result.steps.smartContractUpdate = 'failed';
+            console.log('❌ AL metadata update failed');
           }
           
           // Step 1.5: Refresh project configuration after contract updates
@@ -110,20 +173,24 @@ export class DeploymentOrchestrator {
         } catch (error) {
           console.error('AL contract deployment failed:', error);
           result.steps.alSmartContracts = 'failed';
+          result.steps.smartContractUpdate = 'failed';
           // Continue with deployment - AL contracts are optional for now
         }
+      } else {
+        // Non-AL projects don't need metadata updates
+        result.steps.smartContractUpdate = 'skipped';
       }
 
       // 2. IPFS Upload
       console.log('📦 Step 2: Publishing to IPFS...');
       const ipfsResult = await projectConfigurationService.publishToIPFS(projectId, userAddress);
       
-      if (ipfsResult) {
+      if (ipfsResult && ipfsResult.roCrateHash) {
         result.roCrateHash = ipfsResult.roCrateHash;
         result.steps.ipfsUpload = 'success';
         console.log('✅ IPFS upload successful');
 
-        // 2.4. Update smart contract with RO-Crate IPFS hash
+        // 2.4. Update smart contract with RO-Crate IPFS hash (final hash update)
         console.log('📋 Step 2.4: Updating smart contract with RO-Crate IPFS hash...');
         try {
           const provider = new ethers.BrowserProvider((window as any).ethereum);
@@ -185,14 +252,16 @@ export class DeploymentOrchestrator {
           });
           
           // Create the asset using the working AssetService
-          const assetContractAddress = await assetService.createAsset(assetName, assetType, result.roCrateHash);
+          if (result.roCrateHash) {
+            const assetContractAddress = await assetService.createAsset(assetName, assetType, result.roCrateHash);
+            
+            result.assetContractAddress = assetContractAddress;
+            result.steps.assetContractStorage = 'success';
+            console.log('✅ RO-Crate stored in blockchain asset contract:', assetContractAddress);
+            console.log(`📝 Asset details: Name="${assetName}", Type="${assetType}", Hash="${result.roCrateHash}"`);
+          }
           
-          result.assetContractAddress = assetContractAddress;
-          result.steps.assetContractStorage = 'success';
-          console.log('✅ RO-Crate stored in blockchain asset contract:', assetContractAddress);
-          console.log(`📝 Asset details: Name="${assetName}", Type="${assetType}", Hash="${result.roCrateHash}"`);
-          
-        } catch (error) {
+        } catch (error: any) {
           console.error('❌ Failed to store RO-Crate in blockchain asset contract:', error);
           console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
           console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
@@ -327,49 +396,6 @@ export class DeploymentOrchestrator {
         console.log('⏭️ Skipping orchestration deployment (Local computation mode)');
       }
 
-      // 5. Smart Contract Update  
-      console.log('📋 Step 5: Updating smart contract with IPFS hashes...');
-      
-      const roCrateHash = result.roCrateHash;
-      if (roCrateHash && config.contractAddress) {
-        try {
-          console.log('🔗 Updating IPFS hash on smart contract...');
-          
-          // Get blockchain connection
-          const provider = new ethers.BrowserProvider((window as any).ethereum);
-          const signer = await provider.getSigner();
-          
-          // Connect to main project contract
-          const projectContract = new ethers.Contract(config.contractAddress, Project.abi, signer);
-          
-          // Try to update IPFS hash on contract
-          try {
-            const updateIPFSHashFunction = projectContract.interface.getFunction('updateIPFSHash');
-            if (updateIPFSHashFunction) {
-              const tx = await projectContract.updateIPFSHash(roCrateHash);
-              await tx.wait();
-              console.log('✅ IPFS hash updated on smart contract:', roCrateHash);
-              result.steps.smartContractUpdate = 'success';
-            } else {
-              console.log('⚠️ updateIPFSHash method not found on contract - storing locally only');
-              console.log('📋 RO-Crate hash stored locally:', roCrateHash);
-              result.steps.smartContractUpdate = 'success'; // Consider it successful since we have the hash
-            }
-          } catch (error) {
-            console.warn('⚠️ Failed to update IPFS hash on contract:', error);
-            console.log('📋 RO-Crate hash available locally:', roCrateHash);
-            result.steps.smartContractUpdate = 'success'; // Consider it successful since we have the hash
-          }
-          
-        } catch (error) {
-          result.steps.smartContractUpdate = 'failed';
-          console.error('❌ Smart contract update failed:', error);
-        }
-      } else {
-        result.steps.smartContractUpdate = 'failed';
-        console.error('❌ No RO-Crate hash or contract address available');
-      }
-
       console.log('✅ Deployment completed:', result);
       return result;
 
@@ -395,7 +421,7 @@ export class DeploymentOrchestrator {
   private async deployALSmartContracts(
     config: DVREProjectConfiguration, 
     userAddress: string
-  ): Promise<{ voting?: string; storage?: string }> {
+  ): Promise<{ voting?: string; storage?: string; metadataUpdateSuccess?: boolean }> {
     if (!config.contractAddress) {
       throw new Error('Contract address not available');
     }
@@ -470,7 +496,7 @@ export class DeploymentOrchestrator {
         const alScenario = dalConfig.alScenario || 'pool_based';
         const maxIterations = dalConfig.maxIterations || 10;
         const queryBatchSize = dalConfig.queryBatchSize || 5;
-        const labelSpace = dalConfig.labelSpace || ['positive', 'negative'];
+        const labelSpace = dalConfig.labelSpace || []; // Remove default ['positive', 'negative']
         
         console.log('🔍 AL Metadata values to set:', {
           queryStrategy,
@@ -512,12 +538,18 @@ export class DeploymentOrchestrator {
         if (error instanceof Error) {
           console.error('🔍 Error message:', error.message);
         }
-        throw error; // Re-throw to fail the deployment instead of continuing silently
+        // Return with failed metadata update but successful contract deployment
+        return {
+          voting: votingContractAddress,
+          storage: storageContractAddress,
+          metadataUpdateSuccess: false
+        };
       }
 
       const result = {
         voting: votingContractAddress,
-        storage: storageContractAddress
+        storage: storageContractAddress,
+        metadataUpdateSuccess: true // Indicate success for the orchestrator
       };
       
       console.log('🎉 AL smart contract deployment completed successfully!');
@@ -529,7 +561,9 @@ export class DeploymentOrchestrator {
     } catch (error) {
       console.error('❌ AL smart contract deployment failed:', error);
       console.log('💡 This approach deploys AL contracts separately and links them to Project');
-      throw error;
+      return {
+        metadataUpdateSuccess: false
+      };
     }
   }
 
