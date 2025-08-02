@@ -198,11 +198,11 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     // Check immediately
     checkALEngineStatus();
 
-    // Check every 30 seconds for coordinators
-    const interval = setInterval(checkALEngineStatus, 30000);
+    // Check every 5  
+    const interval = setInterval(checkALEngineStatus, 5000);
 
     return () => clearInterval(interval);
-  }, [isCoordinator]);
+  }, [isCoordinator, refreshTrigger]); // Add refreshTrigger to dependencies
 
   // Check if wallet is connected AFTER all hooks are called
   if (!account) {
@@ -350,6 +350,27 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
       </div>
 
       {/* AL-Engine Status Notification for Coordinators */}
+      {isCoordinator && alEngineStatus === 'checking' && (
+        <div style={{
+          backgroundColor: '#e0f2fe',
+          border: '1px solid #0284c7',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span style={{ color: '#0369a1', fontSize: '16px', fontWeight: 'bold' }}>...</span>
+          <div>
+            <strong style={{ color: '#0369a1' }}>Checking AL-Engine Connection</strong>
+            <p style={{ margin: '4px 0 0 0', color: '#0369a1', fontSize: '14px' }}>
+              Verifying AL-Engine server status...
+            </p>
+          </div>
+        </div>
+      )}
+
       {isCoordinator && alEngineStatus === 'disconnected' && (
         <div style={{
           backgroundColor: '#fef3c7',
@@ -362,7 +383,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           gap: '8px'
         }}>
           <span style={{ color: '#92400e', fontSize: '16px', fontWeight: 'bold' }}>!</span>
-          <div>
+          <div style={{ flex: 1 }}>
             <strong style={{ color: '#92400e' }}>AL-Engine Not Connected</strong>
             <p style={{ margin: '4px 0 0 0', color: '#92400e', fontSize: '14px' }}>
               The computation mode is set to local, which requires the AL-Engine server to be running on your device. 
@@ -370,6 +391,21 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
               Please ensure AL-Engine is running on localhost:5050 for full functionality.
             </p>
           </div>
+          <button
+            onClick={() => triggerRefresh()}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#f59e0b',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Check Again
+          </button>
         </div>
       )}
 
