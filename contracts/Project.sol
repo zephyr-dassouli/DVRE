@@ -52,6 +52,9 @@ contract Project {
     mapping(address => uint256) public participantWeights; // Voting weights per participant
     mapping(address => uint256) public joinedAt; // Timestamp when participant joined
     
+    // AL Extension Support
+    address public alExtension; // Link to ALProject contract for AL projects
+    
     // Common Project Events
     event ProjectCreated(address indexed creator, uint256 timestamp);
     event ProjectUpdated(address indexed updater, uint256 timestamp);
@@ -402,14 +405,31 @@ contract Project {
         uint256 _start,
         uint256 _end
     ) {
-        return (
-            title,
-            description,
-            creator,
-            projectType,
-            rocrateHash,
-            startTime,
-            endTime
-        );
+        return (title, description, creator, projectType, rocrateHash, startTime, endTime);
+    }
+    
+    // --- AL Extension Management ---
+    /**
+     * @dev Link an ALProject extension to this project
+     * @param _alExtension Address of the deployed ALProject contract
+     */
+    function setALExtension(address _alExtension) external onlyCreator {
+        require(_alExtension != address(0), "Invalid AL extension address");
+        require(alExtension == address(0), "AL extension already set");
+        alExtension = _alExtension;
+    }
+    
+    /**
+     * @dev Check if this project has an AL extension
+     */
+    function hasALExtension() external view returns (bool) {
+        return alExtension != address(0);
+    }
+    
+    /**
+     * @dev Get the AL extension address
+     */
+    function getALExtension() external view returns (address) {
+        return alExtension;
     }
 }

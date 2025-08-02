@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
   "contractName": "IALProjectVoting",
-  "sourceName": "contracts/Project.sol",
+  "sourceName": "contracts/ALProject.sol",
   "abi": [
     {
       "inputs": [

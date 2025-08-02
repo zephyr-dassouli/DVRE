@@ -23,9 +23,19 @@ const templateRegistryJson = JSON.parse(fs.readFileSync(templateRegistryPath));
 const assetFactoryPath = path.join(__dirname, "../artifacts/contracts/AssetFactory.sol/AssetFactory.json");
 const assetFactoryJson = JSON.parse(fs.readFileSync(assetFactoryPath));
 
-// Load new AL project contracts
+// Load AL deployment contracts
+const alProjectLinkerPath = path.join(__dirname, "../artifacts/contracts/ALProjectLinker.sol/ALProjectLinker.json");
+const alProjectLinkerJson = JSON.parse(fs.readFileSync(alProjectLinkerPath));
+
+const alProjectDeployerPath = path.join(__dirname, "../artifacts/contracts/ALProjectDeployer.sol/ALProjectDeployer.json");
+const alProjectDeployerJson = JSON.parse(fs.readFileSync(alProjectDeployerPath));
+
+// Load AL contract bytecodes (for ALProjectDeployer constructor)
 const projectPath = path.join(__dirname, "../artifacts/contracts/Project.sol/Project.json");
 const projectJson = JSON.parse(fs.readFileSync(projectPath));
+
+const alProjectPath = path.join(__dirname, "../artifacts/contracts/ALProject.sol/ALProject.json");
+const alProjectJson = JSON.parse(fs.readFileSync(alProjectPath));
 
 const alProjectVotingPath = path.join(__dirname, "../artifacts/contracts/ALProjectVoting.sol/ALProjectVoting.json");
 const alProjectVotingJson = JSON.parse(fs.readFileSync(alProjectVotingPath));
@@ -108,6 +118,51 @@ const deploy = async () => {
   const assetFactoryReceipt = await web3.eth.sendSignedTransaction(assetFactorySignedTx.rawTransaction);
   console.log("AssetFactory deployed at:", assetFactoryReceipt.contractAddress);
 
+  // Deploy ALProjectLinker
+  console.log("\nDeploying ALProjectLinker...");
+  const alProjectLinkerContract = new web3.eth.Contract(alProjectLinkerJson.abi);
+  const alProjectLinkerDeployTx = alProjectLinkerContract.deploy({ data: alProjectLinkerJson.bytecode });
+
+  const alProjectLinkerGas = await alProjectLinkerDeployTx.estimateGas();
+  const alProjectLinkerTx = {
+    from: account.address,
+    gas: Math.floor(Number(alProjectLinkerGas) * 1.2),
+    gasPrice: 0,
+    data: alProjectLinkerDeployTx.encodeABI()
+  };
+
+  const alProjectLinkerSignedTx = await web3.eth.accounts.signTransaction(alProjectLinkerTx, privateKey);
+  const alProjectLinkerReceipt = await web3.eth.sendSignedTransaction(alProjectLinkerSignedTx.rawTransaction);
+  console.log("ALProjectLinker deployed at:", alProjectLinkerReceipt.contractAddress);
+
+  // Deploy ALProjectDeployer
+  console.log("\nDeploying ALProjectDeployer...");
+  const alProjectDeployerContract = new web3.eth.Contract(alProjectDeployerJson.abi);
+  
+  // ALProjectDeployer needs bytecodes and addresses as constructor parameters
+  const alProjectDeployerDeployTx = alProjectDeployerContract.deploy({ 
+    data: alProjectDeployerJson.bytecode,
+    arguments: [
+      alProjectJson.bytecode,        // ALProject bytecode
+      alProjectVotingJson.bytecode,  // ALProjectVoting bytecode  
+      alProjectStorageJson.bytecode, // ALProjectStorage bytecode
+      alProjectLinkerReceipt.contractAddress, // ALProjectLinker address
+      assetFactoryReceipt.contractAddress     // AssetFactory address
+    ]
+  });
+
+  const alProjectDeployerGas = await alProjectDeployerDeployTx.estimateGas();
+  const alProjectDeployerTx = {
+    from: account.address,
+    gas: Math.floor(Number(alProjectDeployerGas) * 1.2),
+    gasPrice: 0,
+    data: alProjectDeployerDeployTx.encodeABI()
+  };
+
+  const alProjectDeployerSignedTx = await web3.eth.accounts.signTransaction(alProjectDeployerTx, privateKey);
+  const alProjectDeployerReceipt = await web3.eth.sendSignedTransaction(alProjectDeployerSignedTx.rawTransaction);
+  console.log("ALProjectDeployer deployed at:", alProjectDeployerReceipt.contractAddress);
+
   // Verify initial templates
   console.log("\nVerifying initial templates...");
   const templateRegistryInstance = new web3.eth.Contract(templateRegistryJson.abi, templateRegistryReceipt.contractAddress);
@@ -123,134 +178,6 @@ const deploy = async () => {
     }
   }
 
-  // AL contract deployment and testing commented out
-  // The AL contracts will be deployed separately via DeploymentOrchestrator
-  // when users create AL projects through the frontend
-  
-  /*
-  // Deploy AL contracts for this project
-  console.log("\nDeploying ALProjectVoting for test project...");
-  const alVotingContract = new web3.eth.Contract(alProjectVotingJson.abi);
-  const alVotingDeployTx = alVotingContract.deploy({ 
-    data: alProjectVotingJson.bytecode,
-    arguments: [projectAddress, "simple_majority", 3600] // 1 hour timeout
-  });
-
-  const alVotingGas = await alVotingDeployTx.estimateGas();
-  const alVotingTx = {
-    from: account.address,
-    gas: Math.floor(Number(alVotingGas) * 1.2),
-    gasPrice: 0,
-    data: alVotingDeployTx.encodeABI()
-  };
-
-  const alVotingSignedTx = await web3.eth.accounts.signTransaction(alVotingTx, privateKey);
-  const alVotingReceipt = await web3.eth.sendSignedTransaction(alVotingSignedTx.rawTransaction);
-  console.log("ALProjectVoting deployed at:", alVotingReceipt.contractAddress);
-
-  console.log("\nDeploying ALProjectStorage for test project...");
-  const alStorageContract = new web3.eth.Contract(alProjectStorageJson.abi);
-  const alStorageDeployTx = alStorageContract.deploy({ 
-    data: alProjectStorageJson.bytecode,
-    arguments: [projectAddress]
-  });
-
-  const alStorageGas = await alStorageDeployTx.estimateGas();
-  const alStorageTx = {
-    from: account.address,
-    gas: Math.floor(Number(alStorageGas) * 1.2),
-    gasPrice: 0,
-    data: alStorageDeployTx.encodeABI()
-  };
-
-  const alStorageSignedTx = await web3.eth.accounts.signTransaction(alStorageTx, privateKey);
-  const alStorageReceipt = await web3.eth.sendSignedTransaction(alStorageSignedTx.rawTransaction);
-  console.log("ALProjectStorage deployed at:", alStorageReceipt.contractAddress);
-
-  // Link AL contracts to the main project
-  console.log("\nLinking AL contracts to main project...");
-  const projectInstance = new web3.eth.Contract(projectJson.abi, projectAddress);
-  
-  await projectInstance.methods.linkALContracts(
-    alVotingReceipt.contractAddress,
-    alStorageReceipt.contractAddress
-  ).send({
-    from: account.address,
-    gas: 200000,
-    gasPrice: 0
-  });
-  console.log("AL contracts linked successfully");
-
-  // Configure project metadata
-  console.log("\nConfiguring project metadata...");
-  await projectInstance.methods.setProjectMetadata(
-    "Test AL Project",
-    "A comprehensive test of the new AL architecture",
-    "active_learning",
-    "", // rocrateHash - will be set later
-    "workflow_123"
-  ).send({
-    from: account.address,
-    gas: 300000,
-    gasPrice: 0
-  });
-
-  await projectInstance.methods.setALMetadata(
-    "uncertainty_sampling",
-    "text_classification",
-    10,  // max iterations
-    50,  // query batch size
-    ["positive", "negative", "neutral"]  // label space
-  ).send({
-    from: account.address,
-    gas: 300000,
-    gasPrice: 0
-  });
-  console.log("Project configured with AL parameters");
-
-  // Set up test voters
-  console.log("\nSetting up test voters...");
-  
-  await projectInstance.methods.setProjectVoters([account.address], [1]).send({
-    from: account.address,
-    gas: 200000,
-    gasPrice: 0
-  });
-  console.log("Test voters configured");
-
-  // Test basic functionality
-  console.log("\nTesting basic AL functionality...");
-  
-  // Trigger new round
-  await projectInstance.methods.triggerNextRound("Initial test round").send({
-    from: account.address,
-    gas: 200000,
-    gasPrice: 0
-  });
-  
-  const currentRound = await projectInstance.methods.currentRound().call();
-  console.log("Current round:", currentRound);
-
-  // Start voting session
-  await projectInstance.methods.startVotingSession("sample_001").send({
-    from: account.address,
-    gas: 200000,
-    gasPrice: 0
-  });
-  
-  const alVotingInstance = new web3.eth.Contract(alProjectVotingJson.abi, alVotingReceipt.contractAddress);
-  const isVotingActive = await alVotingInstance.methods.isVotingActive("sample_001").call();
-  console.log("Voting session active for sample_001:", isVotingActive);
-
-  // Submit a test vote
-  await alVotingInstance.methods.submitVote("sample_001", "positive", true).send({
-    from: account.address,
-    gas: 200000,
-    gasPrice: 0
-  });
-  console.log("Test vote submitted successfully");
-  */
-
   // Print summary
   console.log("\nDeployment completed successfully!");
   console.log("================================================");
@@ -259,6 +186,8 @@ const deploy = async () => {
   console.log(`ProjectTemplateRegistry:  ${templateRegistryReceipt.contractAddress}`);
   console.log(`ProjectFactory:           ${projectFactoryReceipt.contractAddress}`);
   console.log(`AssetFactory:             ${assetFactoryReceipt.contractAddress}`);
+  console.log(`ALProjectLinker:          ${alProjectLinkerReceipt.contractAddress}`);
+  console.log(`ALProjectDeployer:        ${alProjectDeployerReceipt.contractAddress}`);
   console.log("================================================");
   console.log(`\nDeployer: ${account.address}`);
   console.log(`\nNOTE: AL contracts (ALProjectVoting, ALProjectStorage) will be`);
@@ -270,7 +199,9 @@ const deploy = async () => {
     { name: "UserMetadataFactory", address: userMetadataFactoryReceipt.contractAddress },
     { name: "ProjectTemplateRegistry", address: templateRegistryReceipt.contractAddress },
     { name: "ProjectFactory", address: projectFactoryReceipt.contractAddress },
-    { name: "AssetFactory", address: assetFactoryReceipt.contractAddress }
+    { name: "AssetFactory", address: assetFactoryReceipt.contractAddress },
+    { name: "ALProjectLinker", address: alProjectLinkerReceipt.contractAddress },
+    { name: "ALProjectDeployer", address: alProjectDeployerReceipt.contractAddress }
     // Note: Per-project contracts (Project, ALProjectVoting, ALProjectStorage) 
     // are discovered through the project's state, not the registry
   ];
@@ -292,7 +223,9 @@ const deploy = async () => {
       UserMetadataFactory: userMetadataFactoryReceipt.contractAddress,
       ProjectTemplateRegistry: templateRegistryReceipt.contractAddress,
       ProjectFactory: projectFactoryReceipt.contractAddress,
-      AssetFactory: assetFactoryReceipt.contractAddress
+      AssetFactory: assetFactoryReceipt.contractAddress,
+      ALProjectLinker: alProjectLinkerReceipt.contractAddress,
+      ALProjectDeployer: alProjectDeployerReceipt.contractAddress
     },
     note: "AL contracts (ALProjectVoting, ALProjectStorage) are deployed separately when users create AL projects via the frontend DeploymentOrchestrator.",
     alContractDeployment: {

@@ -5,8 +5,9 @@
 import { DALProject, ModelUpdate, VotingRecord, UserContribution } from './types';
 import { alContractService } from './services/ALContractService';
 import { ethers } from 'ethers';
+import { useState, useEffect } from 'react';
+import ALProject from '../../abis/ALProject.json';
 import { RPC_URL } from '../../config/contracts';
-import Project from '../../abis/Project.json';
 
 export interface ProjectDataState {
   modelUpdates: ModelUpdate[];
@@ -66,7 +67,7 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
       try {
         console.log('🔍 Fetching project description from project data...');
         const provider = new ethers.JsonRpcProvider(RPC_URL);
-        const projectContract = new ethers.Contract(project.contractAddress, Project.abi, provider);
+        const projectContract = new ethers.Contract(project.contractAddress, ALProject.abi, provider);
         
         // Get the project data JSON that was stored during creation
         const projectDataString = await projectContract.getProjectData();

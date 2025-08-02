@@ -4,8 +4,9 @@
  */
 
 import { ethers } from 'ethers';
+import { EventEmitter } from 'events';
 import { RPC_URL } from '../../../config/contracts';
-import Project from '../../../abis/Project.json';
+import ALProject from '../../../abis/ALProject.json';
 import ALProjectVoting from '../../../abis/ALProjectVoting.json';
 
 // Import our modular services
@@ -100,7 +101,7 @@ export class ALContractService {
 
   async getActiveVoting(projectAddress: string): Promise<ActiveVoting | null> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
@@ -139,7 +140,7 @@ export class ALContractService {
     activeVoting: ActiveVoting | null;
   }> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       const currentRound = await projectContract.currentRound();
       const metadata = await projectContract.getProjectMetadata();
@@ -174,7 +175,7 @@ export class ALContractService {
       console.log(`🚀 Starting next AL iteration for project ${projectAddress}`);
       
       // Get project metadata for AL configuration
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       const metadata = await projectContract.getProjectMetadata();
       const currentRound = await projectContract.currentRound();
       const iterationNumber = Number(currentRound) + 1;
@@ -294,7 +295,7 @@ export class ALContractService {
       // Start batch voting in smart contract with individual IPFS hashes
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, signer);
       
       console.log(`🗳️ Starting batch voting with ${sampleDataHashes.length} individual IPFS hashes`);
       console.log('📋 Sample hashes:', sampleDataHashes);
@@ -316,7 +317,7 @@ export class ALContractService {
 
   private setupProjectEventListeners(projectAddress: string, round: number, sampleIds: string[]): void {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
 
       const votingSessionEndedFilter = projectContract.filters.VotingSessionEnded();
       const batchCompletedFilter = projectContract.filters.ALBatchCompleted();
@@ -384,7 +385,7 @@ export class ALContractService {
       
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, signer);
       
       const tx = await projectContract.deactivateProject();
       await tx.wait();
@@ -532,7 +533,7 @@ export class ALContractService {
     };
   }> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       // Get basic project info
       const isActive = await projectContract.getIsActive();
@@ -656,7 +657,7 @@ export class ALContractService {
     try {
       console.log(`⚙️ Fetching AL configuration from contract: ${projectAddress}`);
       
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
@@ -697,7 +698,7 @@ export class ALContractService {
     sampleIds: string[];
   } | null> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       const hasALContracts = await projectContract.hasALContracts();
       if (!hasALContracts) {
@@ -734,7 +735,7 @@ export class ALContractService {
     maxIterations: number;
   }> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       // Call the smart contract's shouldProjectEnd function
       const [shouldEnd, reason] = await projectContract.shouldProjectEnd();
@@ -769,7 +770,7 @@ export class ALContractService {
       
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, signer);
       
       const tx = await projectContract.notifyUnlabeledSamplesExhausted();
       await tx.wait();

@@ -9,8 +9,9 @@
  */
 
 import { ethers } from 'ethers';
+import { EventEmitter } from 'events';
 import { RPC_URL } from '../../../config/contracts';
-import Project from '../../../abis/Project.json';
+import ALProject from '../../../abis/ALProject.json';
 import ALProjectVoting from '../../../abis/ALProjectVoting.json';
 
 // Import utility functions from useProjects (single source of truth)
@@ -48,7 +49,7 @@ export class OffChainContractService {
     batchActive: boolean;
   } | null> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
@@ -108,7 +109,7 @@ export class OffChainContractService {
     round: number;
   } | null> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
@@ -270,7 +271,7 @@ export class OffChainContractService {
     isRegistered: boolean;
   }> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();

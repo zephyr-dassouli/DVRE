@@ -4,6 +4,7 @@
 
 import { DALProject } from './types';
 import { SessionState } from './services/DALProjectSession';
+import ALProject from '../../abis/ALProject.json';
 
 export interface ProjectHandlers {
   handleStartNextIteration: () => Promise<void>;
@@ -298,8 +299,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
         
         // Step 5b: Update Project contract with final RO-Crate hash
         console.log('📋 Updating Project contract with final RO-Crate hash...');
-        const Project = (await import('../../abis/Project.json')).default;
-        const projectContract = new ethers.Contract(project.contractAddress, Project.abi, signer);
+        const projectContract = new ethers.Contract(project.contractAddress, ALProject.abi, signer);
         
         // Use the new setFinalROCrateHash function
         const setFinalHashTx = await projectContract.setFinalROCrateHash(ipfsResults.hash);

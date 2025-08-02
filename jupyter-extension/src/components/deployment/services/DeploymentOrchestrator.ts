@@ -498,13 +498,13 @@ export class DeploymentOrchestrator {
   }
 
   /**
-   * Deploy AL smart contracts separately and link them to Project
+   * Deploy AL smart contracts using ALProjectDeployer (single transaction)
    */
   private async deployALSmartContracts(
     config: DVREProjectConfiguration, 
     userAddress: string,
     roCrateHash?: string
-  ): Promise<{ voting?: string; storage?: string; metadataUpdateSuccess?: boolean }> {
+  ): Promise<{ voting?: string; storage?: string; alProject?: string; metadataUpdateSuccess?: boolean }> {
     if (!config.contractAddress) {
       throw new Error('Contract address not available');
     }
@@ -515,124 +515,147 @@ export class DeploymentOrchestrator {
       throw new Error('DAL configuration not found for AL project');
     }
 
-    console.log('🚀 Deploying AL contracts separately and linking to Project...');
+    console.log('🚀 Deploying AL contracts using ALProjectDeployer (single transaction)...');
     
     try {
       // Get blockchain connection
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
       
-      // Step 1: Deploy ALProjectVoting contract
-      console.log('📊 Step 1: Deploying ALProjectVoting contract...');
+      // Get ALProjectDeployer address from FactoryRegistry
+      console.log('📋 Getting ALProjectDeployer address from FactoryRegistry...');
+      const { getFactoryAddressFromRegistry } = await import('../../../utils/registryClient');
+      const alProjectDeployerAddress = await getFactoryAddressFromRegistry('ALProjectDeployer');
       
-      const votingConsensus = dalConfig.votingConsensus || 'simple_majority';
-      const votingTimeout = dalConfig.votingTimeout || 3600;
+      if (!alProjectDeployerAddress) {
+        throw new Error('ALProjectDeployer not found in FactoryRegistry');
+      }
       
-      // Import AL contract ABIs (these should exist in the compiled artifacts)
-      const ALProjectVotingABI = (await import('../../../abis/ALProjectVoting.json')).default;
-      const ALProjectStorageABI = (await import('../../../abis/ALProjectStorage.json')).default;
+      console.log('✅ ALProjectDeployer found at:', alProjectDeployerAddress);
       
-      const votingContractFactory = new ethers.ContractFactory(
-        ALProjectVotingABI.abi,
-        ALProjectVotingABI.bytecode,
+      // Import ALProjectDeployer ABI
+      const ALProjectDeployerABI = (await import('../../../abis/ALProjectDeployer.json')).default;
+      
+      // Create ALProjectDeployer contract instance
+      const alProjectDeployerContract = new ethers.Contract(
+        alProjectDeployerAddress,
+        ALProjectDeployerABI.abi,
         signer
       );
       
-      const deployedVotingContract = await votingContractFactory.deploy(
-        config.contractAddress,  // _project
-        votingConsensus,         // _votingConsensus
-        votingTimeout           // _votingTimeoutSeconds
-      );
-      await deployedVotingContract.waitForDeployment();
+      // Prepare AL configuration struct
+      const alConfig = {
+        queryStrategy: dalConfig.queryStrategy || 'uncertainty_sampling',
+        alScenario: dalConfig.alScenario || 'pool_based',
+        maxIteration: dalConfig.maxIterations || 10,
+        queryBatchSize: dalConfig.queryBatchSize || 5,
+        labelSpace: dalConfig.labelSpace || []
+      };
       
-      const votingContractAddress = await deployedVotingContract.getAddress();
-      console.log('✅ ALProjectVoting deployed at:', votingContractAddress);
-
-      // Step 2: Deploy ALProjectStorage contract
-      console.log('🗄️ Step 2: Deploying ALProjectStorage contract...');
+      // Prepare voting configuration struct
+      const votingConfig = {
+        votingConsensus: dalConfig.votingConsensus || 'simple_majority',
+        votingTimeout: dalConfig.votingTimeout || 3600
+      };
       
-      const storageContractFactory = new ethers.ContractFactory(
-        ALProjectStorageABI.abi,
-        ALProjectStorageABI.bytecode,
-        signer
-      );
+      // Get project contributors for RO-Crate asset viewers
+      console.log('👥 Getting project contributors for RO-Crate asset viewers...');
+      let contributors: string[] = [];
+      try {
+        const { getAllParticipantsForProject } = await import('../../../hooks/useProjects');
+        const participantsData = await getAllParticipantsForProject(config.contractAddress);
+        
+        // Filter for contributors (exclude owner who will be asset owner)
+        contributors = participantsData.participantAddresses.filter((address, index) => {
+          const role = participantsData.roles[index];
+          const isNotOwner = address.toLowerCase() !== userAddress.toLowerCase();
+          const isContributor = role === 'contributor' || role === 'coordinator';
+          return isNotOwner && isContributor;
+        });
+        
+        console.log('👥 Found', contributors.length, 'contributors to add as viewers:', contributors);
+      } catch (error) {
+        console.warn('⚠️ Failed to get contributors, creating asset without viewers:', error);
+        contributors = [];
+      }
       
-      const deployedStorageContract = await storageContractFactory.deploy(config.contractAddress);
-      await deployedStorageContract.waitForDeployment();
+      // Generate nonce for CREATE2 deployment (use timestamp + random)
+      const nonce = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
       
-      const storageContractAddress = await deployedStorageContract.getAddress();
-      console.log('✅ ALProjectStorage deployed at:', storageContractAddress);
-
-      // Step 3: Use new setupALProject function to do everything in one transaction
-      console.log('🔗 Step 3: Setting up AL project (linking + metadata + RO-Crate hash)...');
-      
-      const projectContract = new ethers.Contract(config.contractAddress, Project.abi, signer);
-      
-      const queryStrategy = dalConfig.queryStrategy || 'uncertainty_sampling';
-      const alScenario = dalConfig.alScenario || 'pool_based';
-      const maxIterations = dalConfig.maxIterations || 10;
-      const queryBatchSize = dalConfig.queryBatchSize || 5;
-      const labelSpace = dalConfig.labelSpace || []; // Remove default ['positive', 'negative']
-      const rocrateHashToUse = roCrateHash || ''; // Use provided hash or empty string
-      
-      console.log('🔍 AL setup values:', {
-        votingContract: votingContractAddress,
-        storageContract: storageContractAddress,
-        queryStrategy,
-        alScenario,
-        maxIterations,
-        queryBatchSize,
-        labelSpace,
-        rocrateHash: rocrateHashToUse
+      console.log('🔍 AL deployment parameters:', {
+        baseProject: config.contractAddress,
+        alConfig,
+        votingConfig,
+        rocrateHash: roCrateHash || '',
+        contributors: contributors.length,
+        nonce
       });
       
-      console.log('📡 Calling setupALProject on contract:', config.contractAddress);
-      const setupTx = await projectContract.setupALProject(
-        votingContractAddress,
-        storageContractAddress,
-        queryStrategy,
-        alScenario,
-        maxIterations,
-        queryBatchSize,
-        labelSpace,
-        rocrateHashToUse
+      // Call ALProjectDeployer.deployAL() for single-transaction deployment
+      console.log('📡 Calling ALProjectDeployer.deployAL()...');
+      const deployTx = await alProjectDeployerContract.deployAL(
+        config.contractAddress,  // baseProject
+        alConfig,               // ALProjectConfig struct
+        votingConfig,           // VotingConfig struct
+        roCrateHash || '',      // rocrateHash
+        contributors,           // contributors array
+        nonce                   // nonce for CREATE2
       );
       
-      console.log('⏳ Waiting for setupALProject transaction:', setupTx.hash);
-      const receipt = await setupTx.wait();
-      console.log('✅ AL project setup completed successfully! Gas used:', receipt.gasUsed.toString());
+      console.log('⏳ Waiting for AL deployment transaction:', deployTx.hash);
+      const receipt = await deployTx.wait();
+      console.log('✅ AL deployment completed successfully! Gas used:', receipt.gasUsed.toString());
       
-      // Verify the setup was successful
+      // Parse deployment results from transaction receipt
+      const deployedEvent = receipt.logs.find((log: any) => {
+        try {
+          const parsed = alProjectDeployerContract.interface.parseLog(log);
+          return parsed?.name === 'ALProjectDeployed';
+        } catch {
+          return false;
+        }
+      });
+      
+      if (!deployedEvent) {
+        throw new Error('ALProjectDeployed event not found in transaction receipt');
+      }
+      
+      const parsedEvent = alProjectDeployerContract.interface.parseLog(deployedEvent);
+      if (!parsedEvent) {
+        throw new Error('Failed to parse ALProjectDeployed event');
+      }
+      
+      const [baseProject, alProject, votingContract, storageContract, roCrateAsset] = parsedEvent.args;
+      
+      console.log('🎉 AL smart contract deployment completed successfully!');
+      console.log('📊 ALProject:', alProject);
+      console.log('🗳️ Voting contract:', votingContract);
+      console.log('🗄️ Storage contract:', storageContract);
+      console.log('📦 RO-Crate asset:', roCrateAsset);
+      console.log('⚡ Reduced from 3+ transactions to 1 transaction using ALProjectDeployer!');
+      
+      // Verify the setup was successful by checking Project.getALExtension()
       try {
-        const verifyMetadata = await projectContract.getProjectMetadata();
-        console.log('🔍 Verification - AL project now configured:', {
-          queryStrategy: verifyMetadata._queryStrategy,
-          alScenario: verifyMetadata._alScenario,
-          maxIterations: verifyMetadata._maxIteration.toString(),
-          queryBatchSize: verifyMetadata._queryBatchSize.toString(),
-          labelSpace: verifyMetadata._labelSpace,
-          rocrateHash: verifyMetadata._rocrateHash
-        });
+        const ProjectABI = (await import('../../../abis/Project.json')).default;
+        const projectContract = new ethers.Contract(config.contractAddress, ProjectABI.abi, signer);
+        const linkedALExtension = await projectContract.getALExtension();
+        console.log('🔍 Verification - AL extension linked to Project:', linkedALExtension === alProject);
       } catch (verifyError) {
-        console.warn('⚠️ Could not verify AL setup was successful:', verifyError);
+        console.warn('⚠️ Could not verify AL extension linking:', verifyError);
       }
 
       const result = {
-        voting: votingContractAddress,
-        storage: storageContractAddress,
-        metadataUpdateSuccess: true // Combined setup succeeded
+        alProject: alProject,
+        voting: votingContract,
+        storage: storageContract,
+        metadataUpdateSuccess: true // All setup succeeded in single transaction
       };
-      
-      console.log('🎉 AL smart contract deployment completed successfully!');
-      console.log('📊 Voting contract:', votingContractAddress);
-      console.log('🗄️ Storage contract:', storageContractAddress);
-      console.log('⚡ Reduced from 5 to 3 transactions using setupALProject!');
       
       return result;
       
     } catch (error) {
       console.error('❌ AL smart contract deployment failed:', error);
-      console.log('💡 This approach deploys AL contracts separately and links them to Project');
+      console.log('💡 This approach uses ALProjectDeployer for single-transaction deployment');
       return {
         metadataUpdateSuccess: false
       };

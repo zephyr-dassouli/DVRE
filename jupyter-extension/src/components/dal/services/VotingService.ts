@@ -4,8 +4,9 @@
  */
 
 import { ethers } from 'ethers';
+import { EventEmitter } from 'events';
 import { RPC_URL } from '../../../config/contracts';
-import Project from '../../../abis/Project.json';
+import ALProject from '../../../abis/ALProject.json';
 import ALProjectVoting from '../../../abis/ALProjectVoting.json';
 import { UserContribution, VotingRecord } from '../types'; // Import from types.ts
 
@@ -32,7 +33,7 @@ export class VotingService {
     try {
       console.log(`📜 Fetching voting history using contract methods for project ${projectAddress}`);
       
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
@@ -161,7 +162,7 @@ export class VotingService {
     try {
       console.log(`👥 Fetching real user contributions using contract methods for project ${projectAddress}`);
       
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
@@ -295,7 +296,7 @@ export class VotingService {
       // Get signer for transaction
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, signer);
       
       // Use the actual signer address
       const signerAddress = await signer.getAddress();
@@ -353,7 +354,7 @@ export class VotingService {
     labelDistribution: { label: string; votes: number; weights: number }[];
   } | null> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       const votingContractAddress = await projectContract.votingContract();
       
       if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
@@ -408,7 +409,7 @@ export class VotingService {
     isCurrentUserRegistered: boolean;
   }> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       const votingContractAddress = await projectContract.votingContract();
       
       if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
@@ -451,7 +452,7 @@ export class VotingService {
     support: boolean;
   }>> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, Project.abi, this.provider);
+      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
       const votingContractAddress = await projectContract.votingContract();
       
       if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
