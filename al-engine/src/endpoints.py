@@ -58,7 +58,7 @@ class ALEngineEndpoints:
                 if not iteration:
                     return jsonify({'error': 'iteration number is required'}), 400
                 
-                logger.info(f"📨 Received start_iteration request for iteration {iteration}")
+                logger.info(f"Received start_iteration request for iteration {iteration}")
                 
                 # NOTE: Voting activity check should be performed on the frontend side
                 # before calling this endpoint, as AL-Engine doesn't have direct access
@@ -68,7 +68,7 @@ class ALEngineEndpoints:
                 result = self.server._execute_iteration_sync(iteration, data)
                 
                 if result.get('success'):
-                    logger.info(f"✅ Iteration {iteration} completed successfully")
+                    logger.info(f"Iteration {iteration} completed successfully")
                     return jsonify({
                         'success': True,
                         'iteration': iteration,
@@ -76,7 +76,7 @@ class ALEngineEndpoints:
                         'message': f'AL iteration {iteration} completed successfully'
                     })
                 else:
-                    logger.error(f"❌ Iteration {iteration} failed: {result.get('error')}")
+                    logger.error(f"Iteration {iteration} failed: {result.get('error')}")
                     return jsonify({
                         'success': False,
                         'iteration': iteration,
@@ -85,7 +85,7 @@ class ALEngineEndpoints:
                     }), 500
                     
             except Exception as e:
-                logger.error(f"❌ API error in start_iteration: {e}")
+                logger.error(f"API error in start_iteration: {e}")
                 return jsonify({
                     'success': False,
                     'error': str(e),
@@ -140,14 +140,14 @@ class ALEngineEndpoints:
                     with open(query_samples_file, 'r') as f:
                         query_samples_data = json.load(f)
                         results['query_samples'] = query_samples_data
-                        logger.info(f"✅ Loaded {len(query_samples_data)} query samples for iteration {iteration}")
+                        logger.info(f"Loaded {len(query_samples_data)} query samples for iteration {iteration}")
                 else:
-                    logger.warning(f"⚠️ Query samples file not found: {query_samples_file}")
+                    logger.warning(f"Query samples file not found: {query_samples_file}")
                 
                 return jsonify(results)
                 
             except Exception as e:
-                logger.error(f"❌ Error getting results for iteration {iteration}: {e}")
+                logger.error(f"Error getting results for iteration {iteration}: {e}")
                 return jsonify({'error': str(e)}), 500
 
         # Submit labels endpoint
@@ -172,13 +172,13 @@ class ALEngineEndpoints:
                 if not labeled_samples:
                     return jsonify({'error': 'No labeled samples provided'}), 400
                 
-                logger.info(f"📨 Received {len(labeled_samples)} labeled samples for iteration {iteration}")
+                logger.info(f"Received {len(labeled_samples)} labeled samples for iteration {iteration}")
                 
                 # Process and store the labeled samples
                 result = self.server._process_labeled_samples(iteration, labeled_samples, project_id)
                 
                 if result.get('success'):
-                    logger.info(f"✅ Successfully processed {len(labeled_samples)} labeled samples")
+                    logger.info(f"Successfully processed {len(labeled_samples)} labeled samples")
                     return jsonify({
                         'success': True,
                         'iteration': iteration,
@@ -187,7 +187,7 @@ class ALEngineEndpoints:
                         'next_iteration_ready': result.get('next_iteration_ready', False)
                     })
                 else:
-                    logger.error(f"❌ Failed to process labeled samples: {result.get('error')}")
+                    logger.error(f"Failed to process labeled samples: {result.get('error')}")
                     return jsonify({
                         'success': False,
                         'iteration': iteration,
@@ -196,7 +196,7 @@ class ALEngineEndpoints:
                     }), 500
                     
             except Exception as e:
-                logger.error(f"❌ API error in submit_labels: {e}")
+                logger.error(f"API error in submit_labels: {e}")
                 return jsonify({
                     'success': False,
                     'error': str(e),
@@ -222,7 +222,7 @@ class ALEngineEndpoints:
                 if not final_training:
                     return jsonify({'error': 'final_training flag must be set to True'}), 400
                 
-                logger.info(f"📨 Received final training request for iteration {iteration} (project: {project_id})")
+                logger.info(f"Received final training request for iteration {iteration} (project: {project_id})")
                 
                 # NOTE: Voting activity check should be performed on the frontend side
                 # before calling this endpoint, as AL-Engine doesn't have direct access
@@ -232,7 +232,7 @@ class ALEngineEndpoints:
                 result = self.server._execute_final_training_sync(iteration, project_id)
                 
                 if result.get('success'):
-                    logger.info(f"✅ Final training iteration {iteration} completed successfully")
+                    logger.info(f"Final training iteration {iteration} completed successfully")
                     return jsonify({
                         'success': True,
                         'iteration': iteration,
@@ -241,7 +241,7 @@ class ALEngineEndpoints:
                         'message': f'Final training iteration {iteration} completed successfully'
                     })
                 else:
-                    logger.error(f"❌ Final training iteration {iteration} failed: {result.get('error')}")
+                    logger.error(f"Final training iteration {iteration} failed: {result.get('error')}")
                     return jsonify({
                         'success': False,
                         'iteration': iteration,
@@ -250,7 +250,7 @@ class ALEngineEndpoints:
                     }), 500
                     
             except Exception as e:
-                logger.error(f"❌ API error in final_training: {e}")
+                logger.error(f"API error in final_training: {e}")
                 return jsonify({
                     'success': False,
                     'error': str(e),
@@ -273,7 +273,7 @@ class ALEngineEndpoints:
                 if performance_file.exists():
                     with open(performance_file, 'r') as f:
                         performance_data = json.load(f)
-                        logger.info(f"✅ Loaded real performance metrics for iteration {iteration}")
+                        logger.info(f"Loaded real performance metrics for iteration {iteration}")
                         return jsonify({
                             'iteration': iteration,
                             'project_id': project_id,
@@ -281,7 +281,7 @@ class ALEngineEndpoints:
                             'timestamp': time.time()
                         })
                 else:
-                    logger.warning(f"⚠️ Performance file not found: {performance_file}")
+                    logger.warning(f"Performance file not found: {performance_file}")
                     return jsonify({
                         'iteration': iteration,
                         'project_id': project_id,
@@ -290,7 +290,7 @@ class ALEngineEndpoints:
                     })
                 
             except Exception as e:
-                logger.error(f"❌ Error getting performance for iteration {iteration}: {e}")
+                logger.error(f"Error getting performance for iteration {iteration}: {e}")
                 return jsonify({'error': str(e)}), 500
 
         # Project RO-Crate collection endpoint - Get complete AL project results
@@ -298,7 +298,7 @@ class ALEngineEndpoints:
         def get_project_ro_crate(project_id):
             """Get complete RO-Crate folder structure with all AL iterations and results"""
             try:
-                logger.info(f"📋 Collecting complete RO-Crate folder for project: {project_id}")
+                logger.info(f"Collecting complete RO-Crate folder for project: {project_id}")
                 
                 # Define project paths
                 project_dir = Path(f"../ro-crates/{project_id}")
@@ -360,10 +360,10 @@ class ALEngineEndpoints:
                                     'is_binary': content_type == 'application/octet-stream'
                                 })
                                 
-                                logger.debug(f"📄 Collected: {relative_path} ({item.stat().st_size} bytes)")
+                                logger.debug(f"Collected: {relative_path} ({item.stat().st_size} bytes)")
                                 
                             except Exception as e:
-                                logger.warning(f"⚠️ Failed to read {item}: {e}")
+                                logger.warning(f"Failed to read {item}: {e}")
                                 
                         elif item.is_dir():
                             # Recursively process subdirectories
@@ -442,17 +442,17 @@ class ALEngineEndpoints:
                     "collection_iso_timestamp": time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
                 }
                 
-                logger.info(f"✅ Successfully collected RO-Crate folder for project {project_id}")
-                logger.info(f"📊 Summary: {len(bundle_files)} files, {len(iterations_summary)} iterations, {total_samples_queried} samples queried")
+                logger.info(f"Successfully collected RO-Crate folder for project {project_id}")
+                logger.info(f"Summary: {len(bundle_files)} files, {len(iterations_summary)} iterations, {total_samples_queried} samples queried")
                 
                 return jsonify(response_data)
                 
             except Exception as e:
-                logger.error(f"❌ Error collecting RO-Crate folder for project {project_id}: {e}")
+                logger.error(f"Error collecting RO-Crate folder for project {project_id}: {e}")
                 return jsonify({
                     'error': str(e),
                     'project_id': project_id,
                     'message': 'Failed to collect project RO-Crate folder'
                 }), 500
 
-        logger.info("📡 AL-Engine API endpoints registered") 
+        logger.info("AL-Engine API endpoints registered") 

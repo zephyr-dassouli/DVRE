@@ -21,7 +21,7 @@ def run_iteration_direct(project_id, config_path, iteration_number, final_traini
     """
     Run a single AL iteration using our fixed al_iteration.py directly
     """
-    logger.info(f"🚀 Running AL iteration {iteration_number} for project {project_id}")
+    logger.info(f"Running AL iteration {iteration_number} for project {project_id}")
     
     try:
         # Find the project directory structure
@@ -57,7 +57,7 @@ def run_iteration_direct(project_id, config_path, iteration_number, final_traini
         # Add final training flag if requested
         if final_training:
             cmd.append("--final_training")
-            logger.info(f"🎯 Final training mode enabled for iteration {iteration_number}")
+            logger.info(f"Final training mode enabled for iteration {iteration_number}")
         
         # Add model input for iterations > 1
         if iteration_number > 1:
@@ -65,7 +65,7 @@ def run_iteration_direct(project_id, config_path, iteration_number, final_traini
             if model_file.exists():
                 cmd.extend(["--model_in", str(model_file)])
         
-        logger.info(f"🔧 Executing: {' '.join(cmd)}")
+        logger.info(f"Executing: {' '.join(cmd)}")
         
         # Execute our fixed AL iteration script
         result = subprocess.run(
@@ -77,9 +77,9 @@ def run_iteration_direct(project_id, config_path, iteration_number, final_traini
         
         if result.returncode == 0:
             if final_training:
-                logger.info(f"✅ Final training iteration {iteration_number} completed successfully")
+                logger.info(f"Final training iteration {iteration_number} completed successfully")
             else:
-                logger.info(f"✅ AL iteration {iteration_number} completed successfully")
+                logger.info(f"AL iteration {iteration_number} completed successfully")
             
             # Check for expected outputs
             query_file = outputs_dir / f"query_samples_round_{iteration_number}.json"
@@ -103,9 +103,9 @@ def run_iteration_direct(project_id, config_path, iteration_number, final_traini
             }
         else:
             if final_training:
-                logger.error(f"❌ Final training iteration {iteration_number} failed")
+                logger.error(f"Final training iteration {iteration_number} failed")
             else:
-                logger.error(f"❌ AL iteration {iteration_number} failed")
+                logger.error(f"AL iteration {iteration_number} failed")
             logger.error(f"STDERR: {result.stderr}")
             return {
                 'success': False,
@@ -116,7 +116,7 @@ def run_iteration_direct(project_id, config_path, iteration_number, final_traini
             }
             
     except Exception as e:
-        logger.error(f"❌ Failed to run iteration {iteration_number}: {e}")
+        logger.error(f"Failed to run iteration {iteration_number}: {e}")
         return {
             'success': False,
             'iteration': iteration_number,
@@ -138,7 +138,7 @@ def run_full_workflow(project_id, config_path, max_iterations=None):
             logger.error(f"Failed to load config: {e}")
             max_iterations = 10
     
-    logger.info(f"🚀 Starting full AL workflow - {max_iterations} iterations")
+    logger.info(f"Starting full AL workflow - {max_iterations} iterations")
     
     results = []
     
@@ -181,7 +181,7 @@ def main():
     try:
         if args.server:
             # Run HTTP API server mode (uses our fixed system)
-            logger.info("🚀 Starting AL-Engine in HTTP API server mode...")
+            logger.info("Starting AL-Engine in HTTP API server mode...")
             server = ALEngineServer(port=args.port)
             server.start_server()
         else:
@@ -191,22 +191,22 @@ def main():
                 result = run_iteration_direct(args.project_id, args.config, args.iteration, args.final_training)
                 if result.get('success'):
                     if args.final_training:
-                        logger.info(f"✅ Final training iteration {args.iteration} completed successfully")
+                        logger.info(f"Final training iteration {args.iteration} completed successfully")
                     else:
-                        logger.info(f"✅ Iteration {args.iteration} completed successfully")
+                        logger.info(f"Iteration {args.iteration} completed successfully")
                     if 'outputs' in result:
-                        logger.info(f"📁 Outputs: {list(result['outputs'].keys())}")
+                        logger.info(f"Outputs: {list(result['outputs'].keys())}")
                 else:
                     if args.final_training:
-                        logger.error(f"❌ Final training iteration {args.iteration} failed: {result.get('error')}")
+                        logger.error(f"Final training iteration {args.iteration} failed: {result.get('error')}")
                     else:
-                        logger.error(f"❌ Iteration {args.iteration} failed: {result.get('error')}")
+                        logger.error(f"Iteration {args.iteration} failed: {result.get('error')}")
                     sys.exit(1)
             elif args.workflow:
                 # Run full workflow
                 results = run_full_workflow(args.project_id, args.config, args.max_iterations)
                 successful_iterations = sum(1 for r in results if r.get('success'))
-                logger.info(f"✅ Workflow completed: {successful_iterations}/{len(results)} iterations successful")
+                logger.info(f"Workflow completed: {successful_iterations}/{len(results)} iterations successful")
             else:
                 logger.error("Please specify --iteration, --workflow, or --server")
                 print("\nUsage examples:")

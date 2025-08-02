@@ -93,7 +93,7 @@ def evaluate_model_performance(learner, X_test, y_test, config):
             'iso_timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         }
         
-        print(f"📊 Model Performance Evaluation:")
+        print(f"   Model Performance Evaluation:")
         print(f"   Accuracy:  {accuracy:.3f}")
         print(f"   Precision: {precision:.3f}")
         print(f"   Recall:    {recall:.3f}")
@@ -103,7 +103,7 @@ def evaluate_model_performance(learner, X_test, y_test, config):
         return performance_metrics
         
     except Exception as e:
-        print(f"❌ Error during performance evaluation: {e}")
+        print(f" Error during performance evaluation: {e}")
         # Return basic metrics in case of error
         return {
             'accuracy': 0.0,
@@ -123,10 +123,10 @@ def parse_config(config_file):
 
 def accumulate_newly_labeled_samples(project_id, iteration_number, unlabeled_data_path):
     """
-    🔄 CRITICAL FIX: Accumulate newly labeled samples from voting results
+    CRITICAL FIX: Accumulate newly labeled samples from voting results
     This function reads voting results and updates the labeled dataset for cumulative learning
     """
-    print(f"\n🔄 Accumulating newly labeled samples for iteration {iteration_number}")
+    print(f"\n Accumulating newly labeled samples for iteration {iteration_number}")
     
     try:
         # Find the DVRE project root
@@ -144,13 +144,13 @@ def accumulate_newly_labeled_samples(project_id, iteration_number, unlabeled_dat
         labeled_data_path = project_dir / "inputs" / "datasets" / "labeled_samples.csv"
         unlabeled_df = pd.read_csv(unlabeled_data_path)
         
-        print(f"📁 Project directory: {project_dir}")
-        print(f"📊 Original labeled data: {labeled_data_path}")
+        print(f"Project directory: {project_dir}")
+        print(f"Original labeled data: {labeled_data_path}")
         
         # Load current labeled data
         labeled_df = pd.read_csv(labeled_data_path)
         original_count = len(labeled_df)
-        print(f"📈 Current labeled samples: {original_count}")
+        print(f"Current labeled samples: {original_count}")
         
         newly_labeled_samples = []
         
@@ -159,7 +159,7 @@ def accumulate_newly_labeled_samples(project_id, iteration_number, unlabeled_dat
             voting_results_path = project_dir / "outputs" / f"voting_results_round_{prev_iteration}.json"
             
             if voting_results_path.exists():
-                print(f"📋 Processing voting results from round {prev_iteration}")
+                print(f"Processing voting results from round {prev_iteration}")
                 
                 with open(voting_results_path, 'r') as f:
                     voting_data = json.load(f)
@@ -187,7 +187,7 @@ def accumulate_newly_labeled_samples(project_id, iteration_number, unlabeled_dat
         
         # Add newly labeled samples to the training data
         if newly_labeled_samples:
-            print(f"🔄 Processing {len(newly_labeled_samples)} newly labeled samples...")
+            print(f"Processing {len(newly_labeled_samples)} newly labeled samples...")
             
             # Load current labeled data to check for duplicates
             existing_samples = []
@@ -196,7 +196,7 @@ def accumulate_newly_labeled_samples(project_id, iteration_number, unlabeled_dat
                 for _, row in existing_df.iterrows():
                     existing_samples.append(row.to_dict())
             except Exception as e:
-                print(f"⚠️ Could not load existing labeled data: {e}")
+                print(f"Could not load existing labeled data: {e}")
             
             # Filter out duplicates by comparing feature values
             feature_columns = [col for col in newly_labeled_samples[0].keys() if col != 'label']
@@ -227,21 +227,21 @@ def accumulate_newly_labeled_samples(project_id, iteration_number, unlabeled_dat
                 labeled_df.to_csv(backup_path, index=False)
                 updated_labeled_df.to_csv(labeled_data_path, index=False)
                 
-                print(f"✅ Added {len(truly_new_samples)} new labeled samples")
-                print(f"📊 Updated labeled dataset: {original_count} → {len(updated_labeled_df)} samples")
-                print(f"💾 Backup saved to: {backup_path}")
+                print(f"Added {len(truly_new_samples)} new labeled samples")
+                print(f"Updated labeled dataset: {original_count} → {len(updated_labeled_df)} samples")
+                print(f"Backup saved to: {backup_path}")
                 
                 return len(truly_new_samples)
             else:
-                print("📝 No new unique samples to add")
+                print("No new unique samples to add")
                 return 0
         else:
-            print("📝 No newly labeled samples found from voting results")
+            print("No newly labeled samples found from voting results")
             return 0
             
     except Exception as e:
-        print(f"❌ Error accumulating newly labeled samples: {e}")
-        print("⚠️ Continuing with existing labeled data...")
+        print(f"Error accumulating newly labeled samples: {e}")
+        print("Continuing with existing labeled data...")
         return 0
 
 def main():
@@ -267,7 +267,7 @@ def main():
         if str(cwd).startswith('/tmp') or str(cwd).startswith('/private/tmp') or 'docker_tmp' in str(cwd):
             # Running from CWL - use current working directory (CWL will handle output collection)
             output_dir = Path(".")
-            print(f"📁 Using CWL working directory for outputs: {output_dir.resolve()}")
+            print(f"Using CWL working directory for outputs: {output_dir.resolve()}")
         else:
             # Running directly - use ro-crate structure
             # Find the DVRE project root (look for al-engine directory)
@@ -285,40 +285,40 @@ def main():
                 base_dir = script_path.parent.parent
             
             output_dir = base_dir / "al-engine" / "ro-crates" / args.project_id / "outputs"
-            print(f"📁 Using ro-crate outputs directory: {output_dir}")
+            print(f"Using ro-crate outputs directory: {output_dir}")
     else:
         # Fallback to local output directory
         output_dir = Path("output")
-        print(f"📁 Using local outputs directory: {output_dir}")
+        print(f"Using local outputs directory: {output_dir}")
     
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if args.final_training:
-        print(f"🎯 Starting Final Training Round {args.iteration} (No Sample Querying)")
+        print(f"Starting Final Training Round {args.iteration} (No Sample Querying)")
     else:
-        print(f"🚀 Starting AL Iteration {args.iteration} with Performance Evaluation")
+        print(f"Starting AL Iteration {args.iteration} with Performance Evaluation")
 
-    # 🔄 CRITICAL FIX: Accumulate newly labeled samples from voting results (for iterations > 1)
+    # CRITICAL FIX: Accumulate newly labeled samples from voting results (for iterations > 1)
     if args.iteration > 1 and args.project_id and not args.final_training:
         newly_added = accumulate_newly_labeled_samples(args.project_id, args.iteration, args.unlabeled_data)
         if newly_added > 0:
-            print(f"🎯 Accumulated {newly_added} newly labeled samples from previous iterations!")
+            print(f"Accumulated {newly_added} newly labeled samples from previous iterations!")
             # Reload labeled data since it was updated
-            print("🔄 Reloading updated labeled dataset...")
+            print("Reloading updated labeled dataset...")
 
     # 1. Load config
     # config = parse_config(args.config) # This line is now redundant as config is parsed above
-    print("✅ Configuration loaded.")
+    print("Configuration loaded.")
 
     # 2. Load all datasets
     X_labeled = load_data(args.labeled_data)
     y_labeled = load_data(args.labeled_labels, is_labels=True)
     X_unlabeled = load_data(args.unlabeled_data)
-    print(f"✅ Data loaded: {len(y_labeled)} labeled, {len(X_unlabeled)} unlabeled.")
+    print(f"Data loaded: {len(y_labeled)} labeled, {len(X_unlabeled)} unlabeled.")
 
-    # 🔄 ADDITIONAL FIX: Remove previously labeled samples from unlabeled pool (skip for final training)
+    # ADDITIONAL FIX: Remove previously labeled samples from unlabeled pool (skip for final training)
     if args.iteration > 1 and args.project_id and not args.final_training:
-        print("🧹 Removing previously queried samples from unlabeled pool...")
+        print("Removing previously queried samples from unlabeled pool...")
         
         try:
             # Find samples that were queried in previous iterations
@@ -346,24 +346,24 @@ def main():
                             queried_indices.add(sample['original_index'])
             
             if queried_indices:
-                print(f"📝 Found {len(queried_indices)} previously queried samples to remove")
+                print(f"Found {len(queried_indices)} previously queried samples to remove")
                 
                 # Create boolean mask to keep only unqueried samples
                 available_indices = [i for i in range(len(X_unlabeled)) if i not in queried_indices]
                 X_unlabeled = X_unlabeled[available_indices]
                 
-                print(f"🧹 Reduced unlabeled pool: {len(X_unlabeled)} samples remaining")
+                print(f"Reduced unlabeled pool: {len(X_unlabeled)} samples remaining")
                 
                 # Update the mapping for correct original indices
                 original_index_mapping = {new_idx: original_idx for new_idx, original_idx in enumerate(available_indices)}
-                print(f"🔗 Created index mapping for {len(available_indices)} available samples")
+                print(f"Created index mapping for {len(available_indices)} available samples")
             else:
-                print("📝 No previously queried samples found")
+                print("No previously queried samples found")
                 original_index_mapping = {i: i for i in range(len(X_unlabeled))}
                 
         except Exception as e:
-            print(f"⚠️ Error filtering unlabeled data: {e}")
-            print("⚠️ Continuing with full unlabeled dataset...")
+            print(f"Error filtering unlabeled data: {e}")
+            print("Continuing with full unlabeled dataset...")
             original_index_mapping = {i: i for i in range(len(X_unlabeled))}
     else:
         # First iteration or final training - no filtering needed
@@ -375,12 +375,12 @@ def main():
         X_train, X_test, y_train, y_test = train_test_split(
             X_labeled, y_labeled, test_size=0.2, random_state=42, stratify=y_labeled
         )
-        print(f"📊 Data split: {len(X_train)} training, {len(X_test)} testing")
+        print(f"Data split: {len(X_train)} training, {len(X_test)} testing")
     else:
         # For small datasets, use all data for training and testing (not ideal but necessary)
         X_train, X_test = X_labeled, X_labeled
         y_train, y_test = y_labeled, y_labeled
-        print(f"⚠️ Small dataset: using all {len(X_labeled)} samples for both training and testing")
+        print(f"Small dataset: using all {len(X_labeled)} samples for both training and testing")
 
     # 4. Initialize model
     model = get_model(config)
@@ -391,30 +391,30 @@ def main():
         X_training=X_train,
         y_training=y_train
     )
-    print("✅ ActiveLearner initialized.")
+    print("ActiveLearner initialized.")
 
     # 6. Load pre-existing model if available (for subsequent iterations)
     if args.model_in and Path(args.model_in).exists():
-        print(f"🔄 Loading model from {args.model_in}")
+        print(f"Loading model from {args.model_in}")
         learner.estimator = joblib.load(args.model_in)
         
         # Re-evaluate performance of loaded model
         print("🔍 Evaluating loaded model performance...")
     else:
         if args.final_training:
-            print("✨ Final training round: training on complete labeled dataset.")
+            print("Final training round: training on complete labeled dataset.")
         else:
-            print("✨ This is the first iteration, training on initial data.")
+            print("This is the first iteration, training on initial data.")
 
     # 7. **PERFORMANCE EVALUATION STEP**
-    print("\n📊 Evaluating model performance...")
+    print("\nEvaluating model performance...")
     performance_metrics = evaluate_model_performance(learner, X_test, y_test, config)
 
     # 8. Query for new samples to be labeled (SKIP for final training)
     if not args.final_training:
         n_queries = config.get('query_batch_size', 1)
         query_indices, _ = learner.query(X_unlabeled, n_instances=n_queries)
-        print(f"🎯 Queried {len(query_indices)} new instances to be labeled.")
+        print(f"Queried {len(query_indices)} new instances to be labeled.")
 
         # 9. Get the actual data for the queried samples
         query_samples = X_unlabeled[query_indices]
@@ -426,15 +426,15 @@ def main():
             feature_columns = unlabeled_df.columns[:-1] if unlabeled_df.shape[1] > len(query_samples[0]) else unlabeled_df.columns
             samples_df = pd.DataFrame(query_samples, columns=feature_columns[:len(query_samples[0])])
             
-            # 🔄 FIX: Use correct original indices from mapping
+            # FIX: Use correct original indices from mapping
             mapped_original_indices = [original_index_mapping[idx] for idx in query_indices]
             samples_df['original_index'] = mapped_original_indices
             output_data = samples_df.to_dict(orient='records')
             
-            print(f"🔗 Query indices in filtered space: {query_indices}")
-            print(f"🔗 Mapped to original indices: {mapped_original_indices}")
+            print(f"Query indices in filtered space: {query_indices}")
+            print(f"Mapped to original indices: {mapped_original_indices}")
         else: # .npy
-            # 🔄 FIX: Use correct original indices from mapping  
+            # FIX: Use correct original indices from mapping  
             mapped_original_indices = [original_index_mapping[idx] for idx in query_indices]
             output_data = [
                 {'features': sample.tolist(), 'original_index': int(mapped_idx)} 
@@ -445,9 +445,9 @@ def main():
         query_samples_file = output_dir / f"query_samples_round_{args.iteration}.json"
         with open(query_samples_file, 'w') as f:
             json.dump(output_data, f, indent=2)
-        print(f"✅ Saved query samples to {query_samples_file}")
+        print(f"Saved query samples to {query_samples_file}")
     else:
-        print("🎯 Final training round: Skipping sample querying step.")
+        print("Final training round: Skipping sample querying step.")
 
     # 12. **SAVE PERFORMANCE METRICS TO RO-CRATE OUTPUTS**
     # Add final training marker to performance metrics
@@ -456,29 +456,29 @@ def main():
     performance_file = output_dir / f"performance_round_{args.iteration}.json"
     with open(performance_file, 'w') as f:
         json.dump(performance_metrics, f, indent=2)
-    print(f"📊 Saved performance metrics to {performance_file}")
+    print(f"Saved performance metrics to {performance_file}")
     
     if args.final_training:
-        print(f"📋 Marked as final training round in performance metrics")
+        print(f"Marked as final training round in performance metrics")
     
     # 13. Save the current model state for the next iteration
     model_path = output_dir / f"model_round_{args.iteration}.pkl"
     joblib.dump(learner.estimator, model_path)
-    print(f"✅ Saved model for next round to {model_path}")
+    print(f"Saved model for next round to {model_path}")
 
-    # 14. 🔄 Final training completion message
+    # 14. Final training completion message
     if args.final_training:
-        print(f"\n🎉 Final Training Round {args.iteration} completed successfully!")
-        print(f"📊 Final Performance: Accuracy={performance_metrics['accuracy']:.3f}, F1={performance_metrics['f1_score']:.3f}")
-        print(f"📁 All outputs saved to: {output_dir}")
-        print(f"\n✅ MODEL TRAINING COMPLETE:")
+        print(f"\n Final Training Round {args.iteration} completed successfully!")
+        print(f" Final Performance: Accuracy={performance_metrics['accuracy']:.3f}, F1={performance_metrics['f1_score']:.3f}")
+        print(f" All outputs saved to: {output_dir}")
+        print(f"\n MODEL TRAINING COMPLETE:")
         print(f"   • Trained on ALL {len(X_labeled)} labeled samples")
         print(f"   • No new samples queried (final training)")
         print(f"   • Final model saved: {model_path}")
         print(f"   • Performance metrics: {performance_file}")
         print(f"   • Project ready for final results publication!")
     else:
-        # 14. 🔄 IMPORTANT: Document expected voting results format for frontend (regular iterations only)
+        # 14.  IMPORTANT: Document expected voting results format for frontend (regular iterations only)
         voting_format_doc = output_dir / f"VOTING_RESULTS_FORMAT_round_{args.iteration}.md"
         with open(voting_format_doc, 'w') as f:
             f.write(f"""# Voting Results Format for Round {args.iteration}
@@ -510,12 +510,12 @@ Expected JSON structure:
 
 The frontend voting service should save results in this format after each voting session.
 """)
-        print(f"📋 Saved voting results format documentation to {voting_format_doc}")
+        print(f" Saved voting results format documentation to {voting_format_doc}")
 
-        print(f"\n🎉 AL Iteration {args.iteration} completed successfully!")
-        print(f"📊 Performance: Accuracy={performance_metrics['accuracy']:.3f}, F1={performance_metrics['f1_score']:.3f}")
-        print(f"📁 All outputs saved to: {output_dir}")
-        print(f"\n💡 NEXT STEPS:")
+        print(f"\n AL Iteration {args.iteration} completed successfully!")
+        print(f" Performance: Accuracy={performance_metrics['accuracy']:.3f}, F1={performance_metrics['f1_score']:.3f}")
+        print(f" All outputs saved to: {output_dir}")
+        print(f"\n NEXT STEPS:")
         print(f"   1. Users should vote on the queried samples")
         print(f"   2. Frontend should save voting results to: {output_dir.parent}/voting_results_round_{args.iteration}.json")
         print(f"   3. Run iteration {args.iteration + 1} to see the improved model with accumulated training data!")

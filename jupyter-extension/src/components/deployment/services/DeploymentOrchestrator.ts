@@ -137,7 +137,7 @@ export class DeploymentOrchestrator {
       console.log(' Validation passed, proceeding with deployment');
 
       // Step 1: IPFS Upload (generate RO-Crate hash first)
-      console.log('📦 Step 1: Publishing to IPFS...');
+      console.log('Step 1: Publishing to IPFS...');
       const ipfsResult = await projectConfigurationService.publishToIPFS(projectId, userAddress);
       
       if (!ipfsResult || !ipfsResult.roCrateHash) {
@@ -234,7 +234,7 @@ export class DeploymentOrchestrator {
 
       // Step 3: Local RO-Crate Save (for local computation mode)
       if (computationMode === 'local') {
-        console.log('💾 Step 3: Saving RO-Crate locally for AL-Engine...');
+        console.log('Step 3: Saving RO-Crate locally for AL-Engine...');
         try {
           const { localROCrateService } = await import('./LocalROCrateService');
           const { roCrateService } = await import('./ROCrateService');
@@ -401,7 +401,7 @@ export class DeploymentOrchestrator {
       const nonce = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
       
       // STEP 1: Pre-approve ALProjectDeployer as delegate
-      console.log('🔑 Step 1: Approving ALProjectDeployer as delegate...');
+      console.log('Step 1: Approving ALProjectDeployer as delegate...');
       try {
         const ProjectABI = (await import('../../../abis/Project.json')).default;
         const baseProjectContract = new ethers.Contract(config.contractAddress!, ProjectABI.abi, signer);

@@ -79,7 +79,7 @@ class ALEngineServer:
 
     def _execute_iteration_sync(self, iteration_number, request_data):
         """Execute AL iteration synchronously for API calls (local only)"""
-        logger.info(f"🤖 Executing AL iteration {iteration_number} locally via API")
+        logger.info(f"Executing AL iteration {iteration_number} locally via API")
         
         try:
             # Check if we need to initialize project from request data
@@ -98,11 +98,11 @@ class ALEngineServer:
             # Execute the iteration locally, passing iteration number
             result = self._run_local_iteration(iteration_number, original_config_file)
             
-            logger.info(f"✅ AL iteration {iteration_number} completed successfully")
+            logger.info(f"AL iteration {iteration_number} completed successfully")
             return result
             
         except Exception as e:
-            logger.error(f"❌ AL iteration {iteration_number} failed: {e}")
+            logger.error(f"AL iteration {iteration_number} failed: {e}")
             return {
                 'success': False,
                 'error': str(e),
@@ -111,7 +111,7 @@ class ALEngineServer:
 
     def _execute_final_training_sync(self, iteration_number, project_id):
         """Execute final training synchronously for API calls (no sample querying)"""
-        logger.info(f"🤖 Executing final training iteration {iteration_number} locally via API")
+        logger.info(f"Executing final training iteration {iteration_number} locally via API")
         
         try:
             # Initialize project if needed
@@ -128,11 +128,11 @@ class ALEngineServer:
             # Execute final training locally (no sample querying)
             result = self._run_final_training_iteration(iteration_number, original_config_file)
             
-            logger.info(f"✅ Final training iteration {iteration_number} completed successfully")
+            logger.info(f"Final training iteration {iteration_number} completed successfully")
             return result
             
         except Exception as e:
-            logger.error(f"❌ Final training iteration {iteration_number} failed: {e}")
+            logger.error(f"Final training iteration {iteration_number} failed: {e}")
             return {
                 'success': False,
                 'error': str(e),
@@ -181,7 +181,7 @@ class ALEngineServer:
                 temp_job_path
             ]
             
-            logger.info(f"🔧 Executing CWL workflow: {' '.join(cmd)}")
+            logger.info(f"Executing CWL workflow: {' '.join(cmd)}")
             
             result = subprocess.run(
                 cmd,
@@ -197,7 +197,7 @@ class ALEngineServer:
                 pass
             
             if result.returncode == 0:
-                logger.info("✅ CWL workflow completed successfully")
+                logger.info("CWL workflow completed successfully")
                 logger.info(f"CWL stdout: {result.stdout}")
                 
                 # Parse CWL outputs
@@ -211,7 +211,7 @@ class ALEngineServer:
                     'execution_method': 'cwltool'
                 }
             else:
-                logger.error(f"❌ CWL workflow failed with return code {result.returncode}")
+                logger.error(f"CWL workflow failed with return code {result.returncode}")
                 logger.error(f"CWL stderr: {result.stderr}")
                 
                 return {
@@ -222,17 +222,17 @@ class ALEngineServer:
                 }
                 
         except FileNotFoundError as e:
-            logger.error(f"❌ CWL workflow files not found: {e}")
+            logger.error(f"CWL workflow files not found: {e}")
             
             # Fallback to WorkflowRunner if CWL files are missing
-            logger.info("🔄 Falling back to WorkflowRunner execution")
+            logger.info("Falling back to WorkflowRunner execution")
             return self._run_fallback_iteration(iteration_number, config_file)
             
         except Exception as e:
-            logger.error(f"❌ Error executing CWL workflow: {e}")
+            logger.error(f"Error executing CWL workflow: {e}")
             
             # Fallback to WorkflowRunner
-            logger.info("🔄 Falling back to WorkflowRunner execution")
+            logger.info("Falling back to WorkflowRunner execution")
             return self._run_fallback_iteration(iteration_number, config_file)
 
     def _parse_cwl_outputs(self, stdout, outputs_dir):
@@ -250,10 +250,10 @@ class ALEngineServer:
             if model_files:
                 outputs['model_out'] = str(model_files[0])
                 
-            logger.info(f"📊 CWL outputs found: {list(outputs.keys())}")
+            logger.info(f"CWL outputs found: {list(outputs.keys())}")
             
         except Exception as e:
-            logger.warning(f"⚠️ Error parsing CWL outputs: {e}")
+            logger.warning(f"Error parsing CWL outputs: {e}")
             
         return outputs
 
@@ -286,7 +286,7 @@ class ALEngineServer:
                 if model_file.exists():
                     cmd.extend(["--model_in", str(model_file)])
             
-            logger.info(f"🔧 Fallback executing: {' '.join(cmd)}")
+            logger.info(f"Fallback executing: {' '.join(cmd)}")
             
             # Execute our fixed AL iteration script
             result = subprocess.run(
@@ -297,7 +297,7 @@ class ALEngineServer:
             )
             
             if result.returncode == 0:
-                logger.info(f"✅ Fallback iteration {iteration_number} completed successfully")
+                logger.info(f"Fallback iteration {iteration_number} completed successfully")
                 
                 # Check for expected outputs
                 query_file = outputs_dir / f"query_samples_round_{iteration_number}.json"
@@ -319,7 +319,7 @@ class ALEngineServer:
                     'execution_method': 'direct_python'
                 }
             else:
-                logger.error(f"❌ Fallback iteration {iteration_number} failed")
+                logger.error(f"Fallback iteration {iteration_number} failed")
                 logger.error(f"STDERR: {result.stderr}")
                 return {
                     'success': False,
@@ -329,7 +329,7 @@ class ALEngineServer:
                 }
                 
         except Exception as e:
-            logger.error(f"❌ Fallback execution failed: {e}")
+            logger.error(f"Fallback execution failed: {e}")
             return {
                 'success': False,
                 'error': str(e),
@@ -366,7 +366,7 @@ class ALEngineServer:
                 if model_file.exists():
                     cmd.extend(["--model_in", str(model_file)])
             
-            logger.info(f"🔧 Final training executing: {' '.join(cmd)}")
+            logger.info(f"Final training executing: {' '.join(cmd)}")
             
             # Execute AL iteration script with final training flag
             result = subprocess.run(
@@ -377,7 +377,7 @@ class ALEngineServer:
             )
             
             if result.returncode == 0:
-                logger.info(f"✅ Final training iteration {iteration_number} completed successfully")
+                logger.info(f"Final training iteration {iteration_number} completed successfully")
                 
                 # Check for expected outputs (no query samples for final training)
                 model_file = outputs_dir / f"model_round_{iteration_number}.pkl"
@@ -395,9 +395,9 @@ class ALEngineServer:
                     try:
                         with open(perf_file, 'r') as f:
                             performance = json.load(f)
-                        logger.info(f"📊 Final training performance: Accuracy={performance.get('accuracy', 'N/A'):.3f}")
+                        logger.info(f"Final training performance: Accuracy={performance.get('accuracy', 'N/A'):.3f}")
                     except Exception as e:
-                        logger.warning(f"⚠️ Could not load performance metrics: {e}")
+                        logger.warning(f"Could not load performance metrics: {e}")
                 
                 return {
                     'success': True,
@@ -408,7 +408,7 @@ class ALEngineServer:
                     'final_training': True
                 }
             else:
-                logger.error(f"❌ Final training iteration {iteration_number} failed")
+                logger.error(f"Final training iteration {iteration_number} failed")
                 logger.error(f"STDERR: {result.stderr}")
                 return {
                     'success': False,
@@ -418,7 +418,7 @@ class ALEngineServer:
                 }
                 
         except Exception as e:
-            logger.error(f"❌ Final training execution failed: {e}")
+            logger.error(f"Final training execution failed: {e}")
             return {
                 'success': False,
                 'error': str(e),
@@ -427,7 +427,7 @@ class ALEngineServer:
 
     def _process_labeled_samples(self, iteration_number, labeled_samples, project_id):
         """Process and store labeled samples for the next training iteration"""
-        logger.info(f"🔄 Processing {len(labeled_samples)} labeled samples for iteration {iteration_number}")
+        logger.info(f"Processing {len(labeled_samples)} labeled samples for iteration {iteration_number}")
         
         try:
             # Create directory for iteration data
@@ -448,7 +448,7 @@ class ALEngineServer:
                     original_index = sample.get('original_index', -1)
                     
                     if not sample_data or not label:
-                        logger.warn(f"⚠️ Skipping incomplete sample: {sample}")
+                        logger.warn(f"Skipping incomplete sample: {sample}")
                         continue
                     
                     # Extract features (handle different data formats)
@@ -475,7 +475,7 @@ class ALEngineServer:
                     })
                     
                 except Exception as sample_error:
-                    logger.error(f"❌ Error processing sample: {sample_error}")
+                    logger.error(f"Error processing sample: {sample_error}")
                     continue
             
             if not processed_samples:
@@ -499,10 +499,10 @@ class ALEngineServer:
             np.save(features_file, features_array)
             np.save(labels_file, labels_array)
             
-            logger.info(f"✅ Saved {len(processed_samples)} samples for next iteration")
-            logger.info(f"📁 Features: {features_file}")
-            logger.info(f"📁 Labels: {labels_file}")
-            logger.info(f"📁 JSON: {samples_file}")
+            logger.info(f"Saved {len(processed_samples)} samples for next iteration")
+            logger.info(f"Features: {features_file}")
+            logger.info(f"Labels: {labels_file}")
+            logger.info(f"JSON: {samples_file}")
             
             # Check if we have enough samples for next iteration
             next_iteration_ready = len(processed_samples) > 0
@@ -517,7 +517,7 @@ class ALEngineServer:
             }
             
         except Exception as e:
-            logger.error(f"❌ Failed to process labeled samples: {e}")
+            logger.error(f"Failed to process labeled samples: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -525,8 +525,8 @@ class ALEngineServer:
 
     def start_server(self):
         """Start the Flask API server"""
-        logger.info(f"🚀 Starting AL-Engine API server on port {self.port}")
-        logger.info(f"📡 API endpoints available:")
+        logger.info(f"   Starting AL-Engine API server on port {self.port}")
+        logger.info(f"   API endpoints available:")
         logger.info(f"   GET  http://localhost:{self.port}/health")
         logger.info(f"   POST http://localhost:{self.port}/start_iteration")
         logger.info(f"   POST http://localhost:{self.port}/final_training")
@@ -544,5 +544,5 @@ class ALEngineServer:
                 threaded=True
             )
         except Exception as e:
-            logger.error(f"❌ Failed to start API server: {e}")
+            logger.error(f"Failed to start API server: {e}")
             raise 
