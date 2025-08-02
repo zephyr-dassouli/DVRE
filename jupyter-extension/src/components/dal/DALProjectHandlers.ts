@@ -156,8 +156,29 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       // AL-Engine expects the base Project address for its directory structure
       const { getBaseProjectAddress } = await import('./utils/AddressResolver');
       const provider = new ethers.JsonRpcProvider(RPC_URL);
-      const baseProjectAddress = await getBaseProjectAddress(project.contractAddress, provider);
-      console.log(`🔄 Using base Project address for AL-Engine: ${baseProjectAddress} (original: ${project.contractAddress})`);
+      
+      let baseProjectAddress: string;
+      try {
+        // First, try to check if project.contractAddress is already a base Project address
+        // by attempting to call a Project-specific method
+        const Project = (await import('../../abis/Project.json')).default;
+        const testProjectContract = new ethers.Contract(project.contractAddress, Project.abi, provider);
+        await testProjectContract.creator(); // This should work if it's a base Project
+        
+        // If we get here, project.contractAddress is already a base Project address
+        baseProjectAddress = project.contractAddress;
+        console.log(`✅ Project address ${project.contractAddress} is already a base Project address`);
+      } catch {
+        // If that failed, it might be an ALProject address, so resolve the base Project address
+        try {
+          baseProjectAddress = await getBaseProjectAddress(project.contractAddress, provider);
+          console.log(`🔄 Resolved base Project address: ${baseProjectAddress} (from ALProject: ${project.contractAddress})`);
+        } catch (resolveError) {
+          // If both fail, assume it's a base Project address and use it directly
+          console.warn('Could not resolve address type, assuming base Project address:', resolveError);
+          baseProjectAddress = project.contractAddress;
+        }
+      }
       
       // Step 1: Get the complete RO-Crate folder from AL-Engine
       console.log('📋 Step 1: Collecting complete RO-Crate folder from AL-Engine...');
