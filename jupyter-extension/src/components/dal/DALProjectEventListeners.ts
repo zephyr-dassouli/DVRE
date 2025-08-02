@@ -3,8 +3,8 @@
  * Handles setting up event listeners for Active Learning project events
  */
 
-import { DALProjectSession, SessionState, createDALProjectSession } from './services/DALProjectSession';
 import { DALProject } from './types';
+import { DALProjectSession, type SessionState } from './services/DALProjectSession';
 
 export interface EventListenerDependencies {
   project: DALProject;
@@ -13,10 +13,10 @@ export interface EventListenerDependencies {
   setBatchProgress: (progress: any) => void;
   setIterationCompleted: (completed: boolean) => void;
   setIterationMessage: (message: string) => void;
-  setDalSession: (session: DALProjectSession | null) => void;
-  setSessionState: (state: SessionState | null) => void;
-  setError: (error: string) => void;
-  setProjectEndStatus: (status: { shouldEnd: boolean; reason: string; currentRound: number; maxIterations: number; }) => void;
+  setDalSession: (session: any) => void;
+  setSessionState: (state: any) => void;
+  setError: (error: string | null) => void;
+  setProjectEndStatus: (status: any) => void;
 }
 
 export interface EventListenerCleanup {
@@ -38,96 +38,73 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
     setProjectEndStatus
   } = deps;
 
-  // Set up event listeners for batch voting progress
   const setupBatchEventListeners = () => {
     // Listen for sample completion events
     const handleSampleCompleted = (event: CustomEvent) => {
-      const { sampleId, finalLabel } = event.detail;
-      console.log(`Sample ${sampleId} completed:`, finalLabel);
-      
-      // FIXED: Don't update batch progress here - let DALProjectSession handle it
-      // The DALProjectSession already correctly increments completedSamples and currentSampleIndex
-      // Updating here was causing double increments and wrong calculations
-      
-      // FIXED: Force refresh project data when sample completes to update activeVoting state
-      console.log(' Sample completed, triggering project data refresh to clear activeVoting');
+      console.log('Sample completed event:', event.detail);
       triggerRefresh();
     };
 
-    // Listen for iteration completion events
-    const handleIterationCompleted = (event: CustomEvent) => {
-      const { round, labeledSamples, message } = event.detail;
-      console.log(`Iteration ${round} completed with ${labeledSamples} samples`);
-      
+    const handleBatchCompleted = (event: CustomEvent) => {
+      console.log('Batch completed event:', event.detail);
       setIterationCompleted(true);
-      setIterationMessage(message);
-      setBatchProgress(null);
-      
-      // Reload project data to reflect updates
-      triggerRefresh(); // Trigger data refresh
+      setIterationMessage(`Batch completed! ${event.detail.samplesCount} samples processed.`);
+      triggerRefresh();
     };
 
-    // FIXED: Store handler references for proper cleanup
-    window.addEventListener('dal-sample-completed', handleSampleCompleted as EventListener);
-    window.addEventListener('dal-iteration-completed', handleIterationCompleted as EventListener);
-    
-    // Return cleanup function that removes the ACTUAL handlers
+    // Listen for smart contract events
+    window.addEventListener('sampleCompleted', handleSampleCompleted as EventListener);
+    window.addEventListener('batchCompleted', handleBatchCompleted as EventListener);
+
     return () => {
-      window.removeEventListener('dal-sample-completed', handleSampleCompleted as EventListener);
-      window.removeEventListener('dal-iteration-completed', handleIterationCompleted as EventListener);
+      window.removeEventListener('sampleCompleted', handleSampleCompleted as EventListener);
+      window.removeEventListener('batchCompleted', handleBatchCompleted as EventListener);
     };
   };
 
   // Set up DAL Session event listeners
   const setupSessionEventListeners = () => {
-    if (!currentUser) {
-      return () => {}; // No cleanup needed if no user
+    // Only coordinators need AL-Engine integration
+    if (!project.userRole || project.userRole !== 'coordinator') {
+      console.log('Skipping AL-Engine session setup for contributor role');
+      return () => {}; // Return empty cleanup function
     }
 
-    console.log(' Creating DAL Project Session for:', currentUser);
-    const session = createDALProjectSession(project.contractAddress, currentUser);
+    console.log('Setting up DAL Session for coordinator');
+    
+    // Create DAL session for coordinators
+    const session = new DALProjectSession(project.contractAddress, currentUser);
     setDalSession(session);
 
-    // Store session globally for LabelingPanel access (temporary)
-    (window as any).currentDALSession = session;
-
-    // Set up session event listeners
     const handleStateChange = (newState: SessionState) => {
-      console.log(' Session state changed:', newState);
+      console.log('DAL Session state changed:', newState);
       setSessionState(newState);
-      
-      if (newState.batchProgress) {
-        setBatchProgress({
-          round: newState.batchProgress.round, // FIXED: Use synchronized round from session
-          isActive: newState.isActive,
-          totalSamples: newState.batchProgress.totalSamples,
-          completedSamples: newState.batchProgress.completedSamples,
-          sampleIds: newState.batchProgress.sampleIds,
-          currentSampleIndex: newState.batchProgress.currentSampleIndex
-        });
-      } else {
-        setBatchProgress(null);
-      }
     };
 
-    const handleIterationComplete = (iteration: number, samplesLabeled: number) => {
-      console.log(` Iteration ${iteration} completed with ${samplesLabeled} samples`);
+    const handleIterationComplete = (details: { iteration: number; samplesProcessed: number; }) => {
+      console.log('Iteration completed:', details);
+      setBatchProgress(null);
       setIterationCompleted(true);
-      setIterationMessage(`AL Iteration ${iteration} completed successfully! ${samplesLabeled} samples were labeled.`);
+      setIterationMessage(`Iteration ${details.iteration} completed! ${details.samplesProcessed} samples processed.`);
       
-      // Trigger data refresh after a delay
-      setTimeout(() => {
-        triggerRefresh();
-      }, 1000);
+      // Trigger data refresh to update voting history and model updates
+      triggerRefresh();
+
     };
 
     const handleSessionError = (errorMessage: string) => {
-      console.error(' DAL Session error:', errorMessage);
-      setError(`Session Error: ${errorMessage}`);
+      console.error('DAL Session error:', errorMessage);
+      // For coordinators, show AL-Engine errors as warnings, not blocking errors
+      if (errorMessage.includes('AL-Engine')) {
+        console.warn('AL-Engine warning for coordinator:', errorMessage);
+        // Don't set a blocking error, just log it
+      } else {
+        setError(`Session Error: ${errorMessage}`);
+      }
     };
 
     const handleProjectShouldEnd = (details: { trigger: string; reason: string; currentRound: number; timestamp: number; }) => {
-      console.log(' Project should end:', details);
+      console.log('Project should end:', details);
       setProjectEndStatus({
         shouldEnd: true,
         reason: details.reason,
@@ -141,15 +118,16 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
     session.on('error', handleSessionError);
     session.on('project-should-end', handleProjectShouldEnd);
 
-    // Check AL-Engine health
+    // Check AL-Engine health for coordinators only
     session.checkALEngineHealth().catch((err: any) => {
-      console.warn(' AL-Engine health check failed:', err);
-      setError('AL-Engine is not responsive. Please ensure it is running on localhost:5050');
+      console.warn('AL-Engine health check failed for coordinator:', err);
+      // Don't block the page - just log the warning
+      // The coordinator can still use the interface, they'll just see AL-Engine is unavailable
     });
 
     // Return cleanup function
     return () => {
-      console.log(' Cleaning up DAL Session');
+      console.log('Cleaning up DAL Session');
       session.removeAllListeners();
       session.endSession().catch(console.error);
       setDalSession(null);

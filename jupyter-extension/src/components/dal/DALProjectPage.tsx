@@ -71,6 +71,9 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
   const [dalSession, setDalSession] = useState<DALProjectSession | null>(null);
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
 
+  // AL-Engine status for coordinators
+  const [alEngineStatus, setAlEngineStatus] = useState<'checking' | 'connected' | 'disconnected' | 'unknown'>('unknown');
+
   // Use the auth hook to get current user
   const { account } = useAuth();
 
@@ -150,7 +153,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         const endStatus = await alContractService.getProjectEndStatus(project.contractAddress);
         
         if (endStatus.shouldEnd && !projectEndStatus.shouldEnd) {
-          console.log(' Project should end based on smart contract conditions:', endStatus);
+          console.log('Project should end based on smart contract conditions:', endStatus);
           setProjectEndStatus(endStatus);
         }
       } catch (error) {
@@ -166,6 +169,40 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
 
     return () => clearInterval(interval);
   }, [project.contractAddress, projectEndStatus.shouldEnd]);
+
+  // Check AL-Engine status for coordinators
+  useEffect(() => {
+    if (!isCoordinator) {
+      setAlEngineStatus('unknown'); // Contributors don't need AL-Engine
+      return;
+    }
+
+    const checkALEngineStatus = async () => {
+      try {
+        setAlEngineStatus('checking');
+        const response = await fetch('http://localhost:5050/health', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+          setAlEngineStatus('connected');
+        } else {
+          setAlEngineStatus('disconnected');
+        }
+      } catch (error) {
+        setAlEngineStatus('disconnected');
+      }
+    };
+
+    // Check immediately
+    checkALEngineStatus();
+
+    // Check every 30 seconds for coordinators
+    const interval = setInterval(checkALEngineStatus, 30000);
+
+    return () => clearInterval(interval);
+  }, [isCoordinator]);
 
   // Check if wallet is connected AFTER all hooks are called
   if (!account) {
@@ -311,6 +348,30 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           )}
         </div>
       </div>
+
+      {/* AL-Engine Status Notification for Coordinators */}
+      {isCoordinator && alEngineStatus === 'disconnected' && (
+        <div style={{
+          backgroundColor: '#fef3c7',
+          border: '1px solid #f59e0b',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span style={{ color: '#92400e', fontSize: '16px', fontWeight: 'bold' }}>!</span>
+          <div>
+            <strong style={{ color: '#92400e' }}>AL-Engine Not Connected</strong>
+            <p style={{ margin: '4px 0 0 0', color: '#92400e', fontSize: '14px' }}>
+              The computation mode is set to local, which requires the AL-Engine server to be running on your device. 
+              The AL-Engine server is not responsive. This prevents the ability to start new iterations. 
+              Please ensure AL-Engine is running on localhost:5050 for full functionality.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Project Info Panel */}
       <div className="project-info-panel" style={{

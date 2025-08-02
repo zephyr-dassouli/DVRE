@@ -23,7 +23,7 @@ export const DALComponent: React.FC<DALComponentProps> = ({
   const [enrichmentLoading, setEnrichmentLoading] = useState(false);
 
   // Use useProjects to get all user projects
-  const { userProjects, loading, error } = useProjects();
+  const { userProjects, loading, error, reloadUserProjects } = useProjects();
   const { account } = useAuth();
 
   // Enrich project with AL-specific data (borrowed from useDALProject)
@@ -236,6 +236,12 @@ export const DALComponent: React.FC<DALComponentProps> = ({
     }
   }, [userProjects, enrichProjectWithALData]);
 
+  // Handle refresh button click
+  const handleRefresh = async () => {
+    await reloadUserProjects();
+    await enrichAllProjects();
+  };
+
   // Enrich projects when userProjects change
   useEffect(() => {
     enrichAllProjects();
@@ -363,8 +369,29 @@ export const DALComponent: React.FC<DALComponentProps> = ({
   return (
     <div className="dal-container">
       <div className="dal-header">
-        <h3>{title}</h3>
-        <p>Collaborative machine learning with active learning strategies</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+          <div>
+            <h3>{title}</h3>
+            <p>Collaborative machine learning with active learning strategies</p>
+          </div>
+          <button 
+            className="refresh-button"
+            onClick={handleRefresh}
+            disabled={loading || enrichmentLoading}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#f3f4f6',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              cursor: loading || enrichmentLoading ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              color: '#374151',
+              opacity: loading || enrichmentLoading ? 0.6 : 1
+            }}
+          >
+            {loading || enrichmentLoading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
         
         {/* Project Summary */}
         <div className="project-summary">
