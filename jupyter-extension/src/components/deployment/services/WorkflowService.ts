@@ -297,7 +297,7 @@ export class WorkflowService {
     workflowConfig: WorkflowExecutionConfig
   ): Promise<WorkflowSubmissionResult> {
     try {
-      console.log(`🚀 Submitting ${workflowConfig.workflowType} workflow to orchestrator...`);
+      console.log(` Submitting ${workflowConfig.workflowType} workflow to orchestrator...`);
       
       // Get the user's wallet address for headers
       const userWallet = await this.getUserWalletAddress();
@@ -368,7 +368,7 @@ export class WorkflowService {
         }
 
         const result = await response.json();
-        console.log('✅ Workflow submitted successfully:', result);
+        console.log(' Workflow submitted successfully:', result);
         
         return {
           success: true,
@@ -380,7 +380,7 @@ export class WorkflowService {
       }
       
     } catch (error) {
-      console.error('❌ Workflow submission failed:', error);
+      console.error(' Workflow submission failed:', error);
       
       return {
         success: false,

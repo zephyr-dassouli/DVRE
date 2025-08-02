@@ -31,12 +31,12 @@ export const VotingHistoryPanel: React.FC<VotingHistoryPanelProps> = ({
     setError(null);
     
     try {
-      console.log('🔍 Fetching voting history from blockchain for project:', projectAddress);
+      console.log(' Fetching voting history from blockchain for project:', projectAddress);
       const history = await votingService.getVotingHistory(projectAddress);
       setVotingHistory(history);
-      console.log(`✅ Loaded ${history.length} voting records from blockchain`);
+      console.log(` Loaded ${history.length} voting records from blockchain`);
     } catch (error) {
-      console.error('❌ Failed to fetch voting history:', error);
+      console.error(' Failed to fetch voting history:', error);
       setError('Failed to load voting history from blockchain');
     } finally {
       setLoading(false);
@@ -81,7 +81,7 @@ export const VotingHistoryPanel: React.FC<VotingHistoryPanelProps> = ({
           </div>
         ) : error ? (
           <div style={{ padding: '40px', textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}></div>
             <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
               Error: {error}
             </div>
@@ -196,7 +196,7 @@ export const VotingHistoryPanel: React.FC<VotingHistoryPanelProps> = ({
           ))
         ) : (
           <div style={{ padding: '40px', textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📜</div>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}></div>
             <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
               No Voting History Yet
             </div>

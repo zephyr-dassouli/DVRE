@@ -43,31 +43,31 @@ export const CollaborationComponent: React.FC<CollaborationComponentProps> = ({
         const roles = await getProjectRoles(project.address);
         
         // Debug: Log project data and roles
-        console.log('🔍 Project data:', project.projectData);
-        console.log('🔍 Project type (camelCase):', project.projectData?.projectType);
-        console.log('🔍 Project type (underscore):', project.projectData?.project_type);
-        console.log('🔍 Original roles:', roles);
+        console.log(' Project data:', project.projectData);
+        console.log(' Project type (camelCase):', project.projectData?.projectType);
+        console.log(' Project type (underscore):', project.projectData?.project_type);
+        console.log(' Original roles:', roles);
         
         // Filter out 'coordinator' role for active learning projects
         let filteredRoles = roles;
         const isActivelearning = project.projectData?.projectType === 'active_learning' || 
                                 project.projectData?.project_type === 'active_learning';
         
-        console.log('🔍 Project type (camelCase):', project.projectData?.projectType);
-        console.log('🔍 Project type (underscore):', project.projectData?.project_type);
-        console.log('🔍 Is active learning project:', isActivelearning);
+        console.log(' Project type (camelCase):', project.projectData?.projectType);
+        console.log(' Project type (underscore):', project.projectData?.project_type);
+        console.log(' Is active learning project:', isActivelearning);
         
         if (isActivelearning) {
           filteredRoles = roles.filter(role => 
             role.toLowerCase() !== 'coordinator'
           );
           
-          console.log('🔍 Filtered roles (removed coordinator):', filteredRoles);
+          console.log(' Filtered roles (removed coordinator):', filteredRoles);
           
           // If no roles remain after filtering, provide 'contributor' as default
           if (filteredRoles.length === 0) {
             filteredRoles = ['contributor'];
-            console.log('🔍 No roles left, using default: contributor');
+            console.log(' No roles left, using default: contributor');
           }
         }
         

@@ -128,14 +128,14 @@ export class OffChainContractService {
       
       // If currentBatchSampleIds is empty, check if there's an active batch in the voting contract
       if (currentBatchSampleIds.length === 0) {
-        console.log('📝 currentBatchSampleIds is empty, checking voting contract for active batch...');
+        console.log(' currentBatchSampleIds is empty, checking voting contract for active batch...');
         
         // Check if there's still an active batch in ALProjectVoting contract
         const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
         const batchStatus = await votingContract.getBatchStatus(currentRound);
         
         if (batchStatus.isActive && batchStatus.totalSamples > 0) {
-          console.log(`📊 Found active batch in voting contract: ${batchStatus.totalSamples} samples`);
+          console.log(` Found active batch in voting contract: ${batchStatus.totalSamples} samples`);
           
           // Get the sample IDs from the voting contract instead
           const batchSampleIds = await votingContract.getBatchSamples(currentRound);
@@ -159,7 +159,7 @@ export class OffChainContractService {
             );
             
             if (activeBatch.activeSampleIds && activeBatch.activeSampleIds.length > 0) {
-              console.log(`✅ Recovered ${activeBatch.activeSampleIds.length} active samples from voting contract`);
+              console.log(` Recovered ${activeBatch.activeSampleIds.length} active samples from voting contract`);
               return {
                 activeSampleIds: activeBatch.activeSampleIds,
                 sampleData: activeBatch.sampleData,
@@ -171,7 +171,7 @@ export class OffChainContractService {
           }
         }
         
-        console.log('📝 No active batch found in either contract');
+        console.log(' No active batch found in either contract');
         return null;
       }
       

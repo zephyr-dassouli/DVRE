@@ -108,13 +108,13 @@ export class DALProjectSession extends EventEmitter {
    */
   private async initializeSessionState(): Promise<void> {
     try {
-      console.log('🔄 Initializing DAL session state...');
+      console.log(' Initializing DAL session state...');
       
       // Check if there's an active batch voting session
       const activeBatch = await this.getActiveBatch();
       
       if (activeBatch) {
-        console.log('✅ Found active voting session, restoring state:', activeBatch);
+        console.log(' Found active voting session, restoring state:', activeBatch);
         
         // Update state to indicate voting is active
         this.updateState({
@@ -132,7 +132,7 @@ export class DALProjectSession extends EventEmitter {
         console.log('ℹ️ No active voting session found');
       }
     } catch (error) {
-      console.error('❌ Failed to initialize session state:', error);
+      console.error(' Failed to initialize session state:', error);
       // Don't throw - let the session work normally even if initialization fails
     }
   }
@@ -146,7 +146,7 @@ export class DALProjectSession extends EventEmitter {
    */
   async startIteration(): Promise<void> {
     try {
-      console.log('🚀 Starting AL iteration workflow');
+      console.log(' Starting AL iteration workflow');
 
       this.updateState({
         phase: 'generating_samples',
@@ -169,7 +169,7 @@ export class DALProjectSession extends EventEmitter {
       
       // Step 4: Get the updated batch progress from contracts after voting started
       const enhancedStatus = await alContractService.getEnhancedProjectStatus(this.state.projectId);
-      console.log(`🔄 Contract state after batch voting:`, enhancedStatus.currentBatch);
+      console.log(` Contract state after batch voting:`, enhancedStatus.currentBatch);
       
       // Step 5: Update session state with contract state
       this.updateState({
@@ -188,11 +188,11 @@ export class DALProjectSession extends EventEmitter {
 
       this.emit('samples-generated', samples);
 
-      console.log(`✅ AL iteration ${nextIteration} workflow started (Contract round ${enhancedStatus.currentBatch.round})`);
+      console.log(` AL iteration ${nextIteration} workflow started (Contract round ${enhancedStatus.currentBatch.round})`);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to start iteration';
-      console.error('❌ Failed to start AL iteration:', error);
+      console.error(' Failed to start AL iteration:', error);
       
       this.updateState({
         phase: 'error',
@@ -212,7 +212,7 @@ export class DALProjectSession extends EventEmitter {
   async submitBatchVote(sampleIds: string[], labels: string[]): Promise<void> {
     try {
       const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
-      console.log(`🗳️ Submitting ${batchType} vote for ${sampleIds.length} samples:`, sampleIds.map((id, i) => `${id}: ${labels[i]}`));
+      console.log(` Submitting ${batchType} vote for ${sampleIds.length} samples:`, sampleIds.map((id, i) => `${id}: ${labels[i]}`));
       
       // Validate inputs
       if (sampleIds.length !== labels.length) {
@@ -226,11 +226,11 @@ export class DALProjectSession extends EventEmitter {
       // Submit batch vote to smart contract
       await alContractService.submitBatchVote(this.state.projectId, sampleIds, labels, this.userAddress);
       
-      console.log(`✅ ${batchType} vote submitted successfully for ${sampleIds.length} samples`);
+      console.log(` ${batchType} vote submitted successfully for ${sampleIds.length} samples`);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to submit batch vote';
-      console.error('❌ Failed to submit batch vote:', error);
+      console.error(' Failed to submit batch vote:', error);
       this.emit('error', errorMessage);
       throw error;
     }
@@ -250,7 +250,7 @@ export class DALProjectSession extends EventEmitter {
     try {
       return await alContractService.getActiveBatch(this.state.projectId);
     } catch (error) {
-      console.error('❌ Failed to get active batch:', error);
+      console.error(' Failed to get active batch:', error);
       return null;
     }
   }
@@ -260,7 +260,7 @@ export class DALProjectSession extends EventEmitter {
    */
   async endSession(): Promise<void> {
     try {
-      console.log('🏁 Ending DAL project session');
+      console.log(' Ending DAL project session');
       
       this.cleanupContractListeners();
       
@@ -272,7 +272,7 @@ export class DALProjectSession extends EventEmitter {
       this.emit('session-ended');
       
     } catch (error) {
-      console.error('❌ Failed to end session:', error);
+      console.error(' Failed to end session:', error);
       throw error;
     }
   }
@@ -301,7 +301,7 @@ export class DALProjectSession extends EventEmitter {
       return status;
       
     } catch (error) {
-      console.error('❌ AL-Engine health check failed:', error);
+      console.error(' AL-Engine health check failed:', error);
       throw error;
     }
   }
@@ -342,24 +342,24 @@ export class DALProjectSession extends EventEmitter {
       }
 
       const samples = await this.loadQuerySamplesFile(querySamplesPath);
-      console.log(`✅ Generated ${samples.length} query samples`);
+      console.log(` Generated ${samples.length} query samples`);
       
       return samples;
       
     } catch (error) {
-      console.error('❌ Failed to start AL iteration:', error);
+      console.error(' Failed to start AL iteration:', error);
       throw error;
     }
   }
 
   private async loadQuerySamplesFile(filePath: string): Promise<QuerySample[]> {
     try {
-      console.log('📁 Loading query samples directly from file:', filePath);
+      console.log(' Loading query samples directly from file:', filePath);
       
       // Extract the relative path from the full path returned by AL-Engine
       // filePath looks like: "../ro-crates/0xProject.../outputs/query_samples_round_1.json"
       const relativePath = filePath.replace('../', 'al-engine/');
-      console.log('🔍 Reading file via read-file endpoint:', relativePath);
+      console.log(' Reading file via read-file endpoint:', relativePath);
       
       try {
         // Read the file content via local file server
@@ -369,8 +369,8 @@ export class DALProjectSession extends EventEmitter {
           const responseData = await fileResponse.json();
           if (responseData.success && responseData.content) {
             const samplesData = JSON.parse(responseData.content);
-            console.log(`✅ Successfully read ${samplesData.length} samples from file`);
-            console.log('🌸 First sample from file:', samplesData[0]);
+            console.log(` Successfully read ${samplesData.length} samples from file`);
+            console.log(' First sample from file:', samplesData[0]);
             
             // Convert AL-Engine iris format to QuerySample format
             const querySamples: QuerySample[] = samplesData.map((sample: any) => ({
@@ -381,22 +381,22 @@ export class DALProjectSession extends EventEmitter {
               original_index: sample.original_index
             }));
             
-            console.log('🔄 Converted to QuerySample format:', querySamples[0]);
+            console.log(' Converted to QuerySample format:', querySamples[0]);
             return querySamples;
           }
         } else {
-          console.warn('⚠️ Failed to read file via read-file endpoint:', fileResponse.statusText);
+          console.warn(' Failed to read file via read-file endpoint:', fileResponse.statusText);
         }
       } catch (fileError) {
-        console.warn('⚠️ Local file server not available:', fileError);
+        console.warn(' Local file server not available:', fileError);
       }
       
       // Fallback: Try to get samples from ALContractService if they were stored
-      console.log('📊 Fallback: trying to get stored samples from ALContractService...');
+      console.log(' Fallback: trying to get stored samples from ALContractService...');
       const storedSamples = alContractService.getStoredALSamples(this.state.projectId);
       
       if (storedSamples && storedSamples.length > 0) {
-        console.log(`✅ Found ${storedSamples.length} stored samples from ALContractService`);
+        console.log(` Found ${storedSamples.length} stored samples from ALContractService`);
         
         // Convert AL-Engine iris format to QuerySample format
         const querySamples: QuerySample[] = storedSamples.map((sample: any) => ({
@@ -410,7 +410,7 @@ export class DALProjectSession extends EventEmitter {
         return querySamples;
       }
       
-      console.warn('⚠️ No samples found via file or stored samples, using mock data');
+      console.warn(' No samples found via file or stored samples, using mock data');
       
       // Last fallback to mock data
       const mockSamples: QuerySample[] = [
@@ -433,7 +433,7 @@ export class DALProjectSession extends EventEmitter {
       return mockSamples;
       
     } catch (error) {
-      console.error('❌ Failed to load query samples:', error);
+      console.error(' Failed to load query samples:', error);
       throw error;
     }
   }
@@ -448,7 +448,7 @@ export class DALProjectSession extends EventEmitter {
       // Get current iteration from smart contract
       const currentIteration = await this.getCurrentIterationFromContract();
       
-      console.log(`📤 Submitting ${labeledSamples.length} labeled samples to AL-Engine`);
+      console.log(` Submitting ${labeledSamples.length} labeled samples to AL-Engine`);
       
       const response = await fetch(`${this.alEngineBaseUrl}/submit_labels`, {
         method: 'POST',
@@ -477,10 +477,10 @@ export class DALProjectSession extends EventEmitter {
         throw new Error(result.error || 'Failed to submit labeled samples');
       }
 
-      console.log(`✅ Successfully submitted labeled samples to AL-Engine`);
+      console.log(` Successfully submitted labeled samples to AL-Engine`);
       
     } catch (error) {
-      console.error('❌ Failed to submit labeled samples:', error);
+      console.error(' Failed to submit labeled samples:', error);
       throw error;
     }
   }
@@ -491,15 +491,15 @@ export class DALProjectSession extends EventEmitter {
 
   private async startBatchVoting(samples: QuerySample[]): Promise<void> {
     try {
-      console.log(`🗳️ Starting batch voting for ${samples.length} samples`);
+      console.log(` Starting batch voting for ${samples.length} samples`);
       
       // Start batch voting using ALContractService
       await alContractService.startNextIteration(this.state.projectId, this.userAddress);
       
-      console.log(`✅ Batch voting started successfully`);
+      console.log(` Batch voting started successfully`);
       
     } catch (error) {
-      console.error('❌ Failed to start batch voting:', error);
+      console.error(' Failed to start batch voting:', error);
       throw error;
     }
   }
@@ -507,10 +507,10 @@ export class DALProjectSession extends EventEmitter {
   private async getCurrentIterationFromContract(): Promise<number> {
     try {
       const projectStatus = await alContractService.getProjectStatus(this.state.projectId);
-      console.log(`🔄 Current AL iteration from contract: ${projectStatus.currentIteration}`);
+      console.log(` Current AL iteration from contract: ${projectStatus.currentIteration}`);
       return projectStatus.currentIteration;
     } catch (error) {
-      console.error('❌ Failed to get current iteration from contract:', error);
+      console.error(' Failed to get current iteration from contract:', error);
       throw error;
     }
   }
@@ -521,7 +521,7 @@ export class DALProjectSession extends EventEmitter {
     // Listen for voting session started events - FIXED: Use correct event names
     const onVotingStarted = (event: any) => {
       const { round, sampleId } = event.detail || event;
-      console.log('📢 Voting session started:', { round, sampleId });
+      console.log(' Voting session started:', { round, sampleId });
       
       if (this.state.batchProgress && this.state.querySamples) {
         const currentSample = this.state.querySamples[this.state.batchProgress.currentSampleIndex];
@@ -533,7 +533,7 @@ export class DALProjectSession extends EventEmitter {
     // Listen for vote submitted events
     const onVoteSubmitted = (event: any) => {
       const { sampleId, voter, label } = event.detail || event;
-      console.log('📢 Vote submitted:', { sampleId, voter, label });
+      console.log(' Vote submitted:', { sampleId, voter, label });
       
       this.emit('vote-submitted', sampleId, voter, label);
     };
@@ -541,14 +541,14 @@ export class DALProjectSession extends EventEmitter {
     // Listen for voting session ended events (sample completed) - FIXED: Use correct event name
     const onVotingEnded = async (event: any) => {
       const { round, sampleId, finalLabel } = event.detail || event;
-      console.log('📢 Voting session ended:', { round, sampleId, finalLabel });
+      console.log(' Voting session ended:', { round, sampleId, finalLabel });
       
       this.emit('sample-completed', sampleId, finalLabel);
       
       // Sync with contract state instead of manually tracking
       try {
         const enhancedStatus = await alContractService.getEnhancedProjectStatus(this.state.projectId);
-        console.log('🔄 Syncing with contract state after vote completion:', enhancedStatus.currentBatch);
+        console.log(' Syncing with contract state after vote completion:', enhancedStatus.currentBatch);
         
         if (enhancedStatus.currentBatch.batchActive) {
           // Update batch progress with contract state
@@ -562,22 +562,22 @@ export class DALProjectSession extends EventEmitter {
             round: enhancedStatus.currentBatch.round
           };
 
-          console.log(`📊 Updated batch progress from contract: completed ${updatedProgress.completedSamples}/${updatedProgress.totalSamples}`);
+          console.log(` Updated batch progress from contract: completed ${updatedProgress.completedSamples}/${updatedProgress.totalSamples}`);
           
           this.updateState({
             batchProgress: updatedProgress
           });
 
           // Check if batch is complete based on contract state
-          // 🔧 FIX: Don't end batch just because contract says batchActive: false
+          //  FIX: Don't end batch just because contract says batchActive: false
           // Verify that completion is legitimate (all eligible voters participated)
           if (updatedProgress.completedSamples >= updatedProgress.totalSamples) {
             // All samples show as completed - this should be legitimate
-            console.log('🎉 All samples completed, triggering handleBatchCompleted');
+            console.log(' All samples completed, triggering handleBatchCompleted');
             await this.handleBatchCompleted();
           } else if (!enhancedStatus.currentBatch.batchActive && updatedProgress.completedSamples < updatedProgress.totalSamples) {
             // Batch inactive but not all samples completed - likely a premature finalization bug
-            console.warn('🚨 DETECTED PREMATURE BATCH FINALIZATION');
+            console.warn(' DETECTED PREMATURE BATCH FINALIZATION');
             console.warn(`   Batch inactive but only ${updatedProgress.completedSamples}/${updatedProgress.totalSamples} samples completed`);
             console.warn('   Keeping session active to allow more voters to participate');
             
@@ -595,15 +595,15 @@ export class DALProjectSession extends EventEmitter {
               }
             });
             
-            console.log('✅ Session kept active for additional voter participation');
+            console.log(' Session kept active for additional voter participation');
           }
         } else {
-          console.log('📝 Batch no longer active according to contract');
+          console.log(' Batch no longer active according to contract');
           await this.handleBatchCompleted();
         }
         
       } catch (error) {
-        console.error('❌ Failed to sync with contract state:', error);
+        console.error(' Failed to sync with contract state:', error);
         // Fallback to manual state management if contract sync fails
         if (this.state.batchProgress) {
           const newCompletedSamples = this.state.batchProgress.completedSamples + 1;
@@ -633,7 +633,7 @@ export class DALProjectSession extends EventEmitter {
     // Listen for iteration completed events - NEW: Handle AL batch completion
     const onIterationCompleted = async (event: any) => {
       const { round, projectAddress, labeledSamples, message } = event.detail || event;
-      console.log('📢 AL iteration completed:', { round, projectAddress, labeledSamples, message });
+      console.log(' AL iteration completed:', { round, projectAddress, labeledSamples, message });
       
       // Ensure batch completion is handled if not already done
       if (this.state.phase === 'voting' || this.state.phase === 'aggregating') {
@@ -644,7 +644,7 @@ export class DALProjectSession extends EventEmitter {
     // Listen for project end events - NEW: Handle project end conditions
     const onProjectEndTriggered = async (event: any) => {
       const { trigger, reason, currentRound, timestamp } = event.detail || event;
-      console.log('🚨 Project end triggered:', { trigger, reason, currentRound, timestamp });
+      console.log(' Project end triggered:', { trigger, reason, currentRound, timestamp });
       
       // Update session state to indicate project should end
       this.updateState({
@@ -687,7 +687,7 @@ export class DALProjectSession extends EventEmitter {
 
   private async handleBatchCompleted(): Promise<void> {
     try {
-      console.log('🎉 Batch voting completed, finalizing iteration');
+      console.log(' Batch voting completed, finalizing iteration');
       
       this.updateState({
         phase: 'aggregating'
@@ -708,15 +708,15 @@ export class DALProjectSession extends EventEmitter {
         batchProgress: undefined // FIXED: Explicitly clear batchProgress to prevent carryover
       });
 
-      console.log('✅ Batch progress cleared, session state updated to completed');
+      console.log(' Batch progress cleared, session state updated to completed');
 
       this.emit('iteration-completed', currentIteration, labeledSamples.length);
       
-      console.log(`✅ AL iteration ${currentIteration} completed successfully`);
+      console.log(` AL iteration ${currentIteration} completed successfully`);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to complete iteration';
-      console.error('❌ Failed to complete iteration:', error);
+      console.error(' Failed to complete iteration:', error);
       
       this.updateState({
         phase: 'error',
@@ -735,17 +735,17 @@ export class DALProjectSession extends EventEmitter {
     originalIndex: number;
   }>> {
     try {
-      console.log('📊 Collecting labeled samples from completed voting sessions');
+      console.log(' Collecting labeled samples from completed voting sessions');
       
       // Get finalized labels from smart contracts
       const labeledSamples = [];
       
       if (this.state.batchProgress && this.state.querySamples) {
-        console.log(`🔍 Processing ${this.state.batchProgress.totalSamples} samples from batch`);
+        console.log(` Processing ${this.state.batchProgress.totalSamples} samples from batch`);
         
         // Get voting history to extract final labels
         const votingHistory = await alContractService.getVotingHistory(this.state.projectId);
-        console.log(`📚 Found ${votingHistory.length} voting records in history`);
+        console.log(` Found ${votingHistory.length} voting records in history`);
         
         for (let i = 0; i < this.state.batchProgress.totalSamples; i++) {
           const sampleId = this.state.batchProgress.sampleIds[i];
@@ -756,7 +756,7 @@ export class DALProjectSession extends EventEmitter {
           
           if (votingRecord && votingRecord.finalLabel) {
             const finalLabel = votingRecord.finalLabel;
-            console.log(`✅ Sample ${i + 1}/${this.state.batchProgress.totalSamples}: ${sampleId} → ${finalLabel}`);
+            console.log(` Sample ${i + 1}/${this.state.batchProgress.totalSamples}: ${sampleId} → ${finalLabel}`);
             
             labeledSamples.push({
               sampleId,
@@ -765,7 +765,7 @@ export class DALProjectSession extends EventEmitter {
               originalIndex: sampleData.original_index || i
             });
           } else {
-            console.warn(`⚠️ No final label found for sample ${sampleId}, using fallback`);
+            console.warn(` No final label found for sample ${sampleId}, using fallback`);
             
             // Fallback: Try to get from ALContractService or use 'unknown'
             const fallbackLabel = 'unknown';
@@ -780,11 +780,11 @@ export class DALProjectSession extends EventEmitter {
         }
       }
       
-      console.log(`📋 Collected ${labeledSamples.length} labeled samples for AL-Engine submission`);
+      console.log(` Collected ${labeledSamples.length} labeled samples for AL-Engine submission`);
       return labeledSamples;
       
     } catch (error) {
-      console.error('❌ Failed to collect labeled samples:', error);
+      console.error(' Failed to collect labeled samples:', error);
       throw error;
     }
   }
@@ -797,7 +797,7 @@ export class DALProjectSession extends EventEmitter {
       const endStatus = await alContractService.getProjectEndStatus(this.state.projectId);
       
       if (endStatus.shouldEnd && !this.state.shouldEnd) {
-        console.log('🚨 Project should end:', endStatus);
+        console.log(' Project should end:', endStatus);
         
         // Update state to indicate project should end
         this.updateState({
@@ -835,17 +835,17 @@ export class DALProjectSession extends EventEmitter {
    */
   async handleUnlabeledSamplesExhausted(): Promise<void> {
     try {
-      console.log('🚨 AL-Engine reports no more unlabeled samples available');
+      console.log(' AL-Engine reports no more unlabeled samples available');
       
       // Notify the smart contract
       const success = await alContractService.notifyUnlabeledSamplesExhausted(this.state.projectId);
       
       if (success) {
         // The contract will emit ProjectEndTriggered event, which we'll catch
-        console.log('✅ Successfully notified contract about sample exhaustion');
+        console.log(' Successfully notified contract about sample exhaustion');
       } else {
         // Fallback: manually trigger project end logic
-        console.log('⚠️ Failed to notify contract, handling locally');
+        console.log(' Failed to notify contract, handling locally');
         this.updateState({
           phase: 'ending',
           shouldEnd: true,
@@ -892,7 +892,7 @@ export class DALProjectSession extends EventEmitter {
       lastUpdate: new Date()
     };
     
-    console.log('📊 Session state updated:', this.state);
+    console.log(' Session state updated:', this.state);
     this.emit('state-changed', this.getState());
   }
 }

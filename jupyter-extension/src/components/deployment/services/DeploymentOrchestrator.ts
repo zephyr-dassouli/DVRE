@@ -53,8 +53,8 @@ export class DeploymentOrchestrator {
     userAddress: string,
     computationMode: 'local' | 'remote' = 'local'
   ): Promise<DeploymentResults> {
-    console.log('🚀 Starting centralized project deployment:', projectId);
-    console.log('💻 Computation mode:', computationMode);
+    console.log(' Starting centralized project deployment:', projectId);
+    console.log(' Computation mode:', computationMode);
     
     const result: DeploymentResults = {
       steps: {
@@ -82,7 +82,7 @@ export class DeploymentOrchestrator {
 
       // Check if project is Active Learning
       const isALProject = this.isActivelearningProject(config);
-      console.log('🔍 Project type detection:', {
+      console.log(' Project type detection:', {
         isALProject,
         projectType: config.projectData?.type,
         projectTypeAlt: config.projectData?.project_type,
@@ -93,8 +93,8 @@ export class DeploymentOrchestrator {
         fullExtensions: config.extensions
       });
 
-      // 🔍 VALIDATION: Check for required fields before deployment
-      console.log('🔍 DEPLOYMENT VALIDATION STARTING...');
+      //  VALIDATION: Check for required fields before deployment
+      console.log(' DEPLOYMENT VALIDATION STARTING...');
       const validationErrors: string[] = [];
       
       // Check for datasets
@@ -134,7 +134,7 @@ export class DeploymentOrchestrator {
         throw new Error(errorMessage);
       }
       
-      console.log('✅ Validation passed, proceeding with deployment');
+      console.log(' Validation passed, proceeding with deployment');
 
       // Step 1: IPFS Upload (generate RO-Crate hash first)
       console.log('📦 Step 1: Publishing to IPFS...');
@@ -146,12 +146,12 @@ export class DeploymentOrchestrator {
 
       result.roCrateHash = ipfsResult.roCrateHash;
       result.steps.ipfsUpload = 'success';
-      console.log('✅ IPFS upload successful, RO-Crate hash:', result.roCrateHash);
+      console.log(' IPFS upload successful, RO-Crate hash:', result.roCrateHash);
 
       // Step 2: Deploy AL Smart Contracts using ALProjectDeployer (if AL project)
       if (isALProject) {
-        console.log('📋 Step 2: Deploying AL contracts using ALProjectDeployer...');
-        console.log('💡 ALProjectDeployer will handle: AL contracts + RO-Crate asset + linking + metadata');
+        console.log(' Step 2: Deploying AL contracts using ALProjectDeployer...');
+        console.log(' ALProjectDeployer will handle: AL contracts + RO-Crate asset + linking + metadata');
         try {
           const alContractResult = await this.deployALContractsWithDeployer(config, userAddress, result.roCrateHash);
           
@@ -163,18 +163,18 @@ export class DeploymentOrchestrator {
             };
             result.steps.smartContractUpdate = 'success';
             result.steps.assetContractStorage = 'success'; // ALProjectDeployer creates the asset
-            console.log('✅ AL contracts deployed successfully:', result.alContractAddresses);
-            console.log('✅ RO-Crate asset and linking handled by ALProjectDeployer');
+            console.log(' AL contracts deployed successfully:', result.alContractAddresses);
+            console.log(' RO-Crate asset and linking handled by ALProjectDeployer');
           } else {
             throw new Error(alContractResult.error || 'AL contract deployment failed');
           }
         } catch (error) {
-          console.error('❌ AL contract deployment failed:', error);
+          console.error(' AL contract deployment failed:', error);
           throw new Error(`AL contract deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       } else {
         // Step 2.1: For non-AL projects, update RO-Crate hash and create asset manually
-        console.log('📋 Step 2.1: Updating RO-Crate hash on Project contract...');
+        console.log(' Step 2.1: Updating RO-Crate hash on Project contract...');
         try {
           const provider = new ethers.BrowserProvider((window as any).ethereum);
           const signer = await provider.getSigner();
@@ -184,14 +184,14 @@ export class DeploymentOrchestrator {
           await updateHashTx.wait();
           
           result.steps.smartContractUpdate = 'success';
-          console.log('✅ RO-Crate hash updated on Project contract');
+          console.log(' RO-Crate hash updated on Project contract');
         } catch (error) {
-          console.warn('⚠️ Failed to update RO-Crate hash on Project contract:', error);
+          console.warn(' Failed to update RO-Crate hash on Project contract:', error);
           result.steps.smartContractUpdate = 'failed';
         }
 
         // Step 2.2: Create RO-Crate asset for non-AL projects
-        console.log('📋 Step 2.2: Creating RO-Crate as blockchain asset...');
+        console.log(' Step 2.2: Creating RO-Crate as blockchain asset...');
         try {
           const AssetService = (await import('../../../utils/AssetService')).AssetService;
           const assetService = new AssetService();
@@ -210,7 +210,7 @@ export class DeploymentOrchestrator {
                 return isNotOwner && isContributor;
               });
             } catch (error) {
-              console.warn('⚠️ Failed to get contributors:', error);
+              console.warn(' Failed to get contributors:', error);
             }
           }
           
@@ -224,9 +224,9 @@ export class DeploymentOrchestrator {
           
           result.assetContractAddress = assetContractAddress;
           result.steps.assetContractStorage = 'success';
-          console.log('✅ RO-Crate asset created:', assetContractAddress);
+          console.log(' RO-Crate asset created:', assetContractAddress);
         } catch (error) {
-          console.error('❌ Asset contract storage failed:', error);
+          console.error(' Asset contract storage failed:', error);
           result.steps.assetContractStorage = 'failed';
           // Continue - asset storage is not critical
         }
@@ -249,14 +249,14 @@ export class DeploymentOrchestrator {
           if (localSaveResult.success) {
             result.steps.localROCrateSave = 'success';
             result.localROCratePath = localSaveResult.projectPath;
-            console.log('✅ RO-Crate saved locally:', localSaveResult.projectPath);
+            console.log(' RO-Crate saved locally:', localSaveResult.projectPath);
           } else {
             result.steps.localROCrateSave = 'failed';
-            console.warn('⚠️ Local RO-Crate save failed:', localSaveResult.error);
+            console.warn(' Local RO-Crate save failed:', localSaveResult.error);
           }
         } catch (error) {
           result.steps.localROCrateSave = 'failed';
-          console.warn('⚠️ Local RO-Crate save failed:', error);
+          console.warn(' Local RO-Crate save failed:', error);
         }
       } else {
         result.steps.localROCrateSave = 'skipped';
@@ -264,7 +264,7 @@ export class DeploymentOrchestrator {
 
       // Step 4: Orchestration Deployment (for remote mode)
       if (computationMode === 'remote') {
-        console.log('🚀 Step 4: Deploying to orchestration server...');
+        console.log(' Step 4: Deploying to orchestration server...');
         try {
           const { workflowService } = await import('./WorkflowService');
           
@@ -285,24 +285,24 @@ export class DeploymentOrchestrator {
           if (workflowResult.success) {
             result.steps.orchestrationDeploy = 'success';
             result.orchestrationWorkflowId = workflowResult.workflowId;
-            console.log('✅ Orchestration deployment successful');
+            console.log(' Orchestration deployment successful');
           } else {
             result.steps.orchestrationDeploy = 'failed';
-            console.error('❌ Orchestration deployment failed:', workflowResult.error);
+            console.error(' Orchestration deployment failed:', workflowResult.error);
           }
         } catch (error) {
           result.steps.orchestrationDeploy = 'failed';
-          console.error('❌ Orchestration deployment failed:', error);
+          console.error(' Orchestration deployment failed:', error);
         }
       } else {
         result.steps.orchestrationDeploy = 'skipped';
       }
 
-      console.log('✅ Deployment completed successfully:', result);
+      console.log(' Deployment completed successfully:', result);
       return result;
 
     } catch (error) {
-      console.error('❌ Deployment failed:', error);
+      console.error(' Deployment failed:', error);
       result.error = error instanceof Error ? error.message : 'Unknown error';
       return result;
     }
@@ -325,7 +325,7 @@ export class DeploymentOrchestrator {
     userAddress: string,
     roCrateHash: string
   ): Promise<{ success: boolean; votingContract?: string; storageContract?: string; alProject?: string; error?: string }> {
-    console.log('🚀 Starting AL deployment with ALProjectDeployer');
+    console.log(' Starting AL deployment with ALProjectDeployer');
 
     try {
       // Get blockchain connection
@@ -340,7 +340,7 @@ export class DeploymentOrchestrator {
         throw new Error('ALProjectDeployer not found in FactoryRegistry - ensure infrastructure is deployed');
       }
       
-      console.log('✅ ALProjectDeployer found at:', alProjectDeployerAddress);
+      console.log(' ALProjectDeployer found at:', alProjectDeployerAddress);
       
       // Import ALProjectDeployer ABI
       const ALProjectDeployerABI = (await import('../../../abis/ALProjectDeployer.json')).default;
@@ -391,9 +391,9 @@ export class DeploymentOrchestrator {
             return isNotOwner && isContributor;
           });
           
-          console.log('👥 Found', contributors.length, 'contributors for asset viewers');
+          console.log(' Found', contributors.length, 'contributors for asset viewers');
         } catch (error) {
-          console.warn('⚠️ Failed to get contributors:', error);
+          console.warn(' Failed to get contributors:', error);
         }
       }
       
@@ -410,22 +410,22 @@ export class DeploymentOrchestrator {
         const isAlreadyApproved = await baseProjectContract.isApprovedDelegate(alProjectDeployerAddress);
         
         if (!isAlreadyApproved) {
-          console.log('📋 Approving ALProjectDeployer as delegate:', alProjectDeployerAddress);
+          console.log(' Approving ALProjectDeployer as delegate:', alProjectDeployerAddress);
           const approveTx = await baseProjectContract.approveDelegate(alProjectDeployerAddress);
           await approveTx.wait();
-          console.log('✅ ALProjectDeployer approved as delegate');
+          console.log(' ALProjectDeployer approved as delegate');
         } else {
-          console.log('✅ ALProjectDeployer already approved as delegate');
+          console.log(' ALProjectDeployer already approved as delegate');
         }
       } catch (error) {
-        console.error('❌ Failed to approve ALProjectDeployer as delegate:', error);
+        console.error(' Failed to approve ALProjectDeployer as delegate:', error);
         throw new Error(`Failed to approve delegate: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
       
       // STEP 3: Call ALProjectDeployer.deployAL() for AL contracts deployment
-      console.log('🚀 Step 3: Calling ALProjectDeployer.deployAL()...');
+      console.log(' Step 3: Calling ALProjectDeployer.deployAL()...');
       
-      console.log('🔍 Calling ALProjectDeployer.deployAL() with:', {
+      console.log(' Calling ALProjectDeployer.deployAL() with:', {
         originalCaller: userAddress,
         baseProject: config.contractAddress,
         alConfig,
@@ -446,18 +446,18 @@ export class DeploymentOrchestrator {
         nonce                   // nonce for CREATE2
       );
       
-      console.log('⏳ Waiting for AL deployment transaction:', deployTx.hash);
+      console.log(' Waiting for AL deployment transaction:', deployTx.hash);
       const receipt = await deployTx.wait();
-      console.log('✅ AL deployment transaction completed! Gas used:', receipt.gasUsed.toString());
+      console.log(' AL deployment transaction completed! Gas used:', receipt.gasUsed.toString());
       
       // Parse and log all debugging events from the transaction
-      console.log('🔍 Parsing deployment events for debugging...');
+      console.log(' Parsing deployment events for debugging...');
       for (const log of receipt.logs) {
         try {
           // Try parsing as ALProjectDeployer event
           const deployerParsed = alProjectDeployerContract.interface.parseLog(log);
           if (deployerParsed) {
-            console.log(`📋 ALProjectDeployer Event: ${deployerParsed.name}`, deployerParsed.args);
+            console.log(` ALProjectDeployer Event: ${deployerParsed.name}`, deployerParsed.args);
             continue;
           }
         } catch {
@@ -468,7 +468,7 @@ export class DeploymentOrchestrator {
           // Try parsing as ALProjectLinker event
           const linkerParsed = alProjectLinkerInterface.parseLog(log);
           if (linkerParsed) {
-            console.log(`🔗 ALProjectLinker Event: ${linkerParsed.name}`, linkerParsed.args);
+            console.log(` ALProjectLinker Event: ${linkerParsed.name}`, linkerParsed.args);
             continue;
           }
         } catch {
@@ -477,7 +477,7 @@ export class DeploymentOrchestrator {
         
         // For other contracts, just log the basic info
         if (log.topics.length > 0) {
-          console.log(`📝 Other Event: ${log.address} - Topic: ${log.topics[0]}`);
+          console.log(` Other Event: ${log.address} - Topic: ${log.topics[0]}`);
         }
       }
       
@@ -502,9 +502,9 @@ export class DeploymentOrchestrator {
       
       const [, alProject, votingContract, storageContract, roCrateAsset] = parsedEvent.args;
       
-      console.log('🎉 AL smart contracts deployed successfully:');
-      console.log('📊 ALProject:', alProject);
-      console.log('🗳️ Voting contract:', votingContract);
+      console.log(' AL smart contracts deployed successfully:');
+      console.log(' ALProject:', alProject);
+      console.log(' Voting contract:', votingContract);
       console.log('🗄️ Storage contract:', storageContract);
       console.log('📦 RO-Crate asset:', roCrateAsset, '(owned by user)');
       
@@ -513,9 +513,9 @@ export class DeploymentOrchestrator {
         const ProjectABI = (await import('../../../abis/Project.json')).default;
         const projectContract = new ethers.Contract(config.contractAddress!, ProjectABI.abi, signer);
         const linkedALExtension = await projectContract.getALExtension();
-        console.log('🔍 Verification - AL extension linked:', linkedALExtension === alProject);
+        console.log(' Verification - AL extension linked:', linkedALExtension === alProject);
       } catch (verifyError) {
-        console.warn('⚠️ Could not verify AL extension linking:', verifyError);
+        console.warn(' Could not verify AL extension linking:', verifyError);
       }
 
       return {
@@ -526,11 +526,11 @@ export class DeploymentOrchestrator {
       };
       
     } catch (error) {
-      console.error('❌ AL contract deployment failed:', error);
+      console.error(' AL contract deployment failed:', error);
       
       // If it's a transaction revert, try to get more details
       if (error instanceof Error) {
-        console.error('📋 Error details:', {
+        console.error(' Error details:', {
           message: error.message,
           name: error.name,
           stack: error.stack?.substring(0, 500) + '...' // Truncate stack trace
@@ -538,12 +538,12 @@ export class DeploymentOrchestrator {
         
         // Check if this is a MetaMask/RPC error with more context
         if ('data' in error && error.data) {
-          console.error('📋 Transaction error data:', error.data);
+          console.error(' Transaction error data:', error.data);
         }
         
         // Check if this is a contract revert
         if (error.message.includes('revert') || error.message.includes('execution reverted')) {
-          console.error('🚨 Contract execution reverted - check the events above for the exact failure point');
+          console.error(' Contract execution reverted - check the events above for the exact failure point');
         }
       }
       

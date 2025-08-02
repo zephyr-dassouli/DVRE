@@ -40,15 +40,15 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
 
     try {
       setError(null);
-      console.log('🚀 Starting next AL iteration via DAL Session bridge');
+      console.log(' Starting next AL iteration via DAL Session bridge');
       
       // Use the DAL Session bridge to orchestrate the complete workflow
       await dalSession.startIteration();
       
-      console.log('✅ AL iteration workflow started successfully via DAL Session');
+      console.log(' AL iteration workflow started successfully via DAL Session');
       
     } catch (error) {
-      console.error('❌ Failed to start next AL iteration:', error);
+      console.error(' Failed to start next AL iteration:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to start iteration';
       setError(errorMessage);
     }
@@ -62,7 +62,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
 
     try {
       setError(null);
-      console.log('🏁 Ending project from UI');
+      console.log(' Ending project from UI');
       
       // Use ALContractService directly instead of hook (which can't be called in async functions)
       const { alContractService } = await import('./services/ALContractService');
@@ -76,10 +76,10 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       // Trigger data refresh to show updated state
       triggerRefresh();
       
-      console.log('✅ Project ended successfully');
+      console.log(' Project ended successfully');
       
     } catch (error) {
-      console.error('❌ Failed to end project:', error);
+      console.error(' Failed to end project:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to end project';
       setError(errorMessage);
     }
@@ -94,15 +94,15 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
     try {
       setError(null);
       const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
-      console.log(`🗳️ Submitting ${batchType} vote via DAL Session bridge`);
+      console.log(` Submitting ${batchType} vote via DAL Session bridge`);
       
       // Use the DAL Session bridge for batch vote submission (works for any batch size)
       await dalSession.submitBatchVote(sampleIds, labels);
       
-      console.log(`✅ ${batchType} vote submitted successfully via DAL Session`);
+      console.log(` ${batchType} vote submitted successfully via DAL Session`);
       
     } catch (error) {
-      console.error('❌ Failed to submit batch vote:', error);
+      console.error(' Failed to submit batch vote:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to submit batch vote';
       setError(errorMessage);
     }
@@ -120,7 +120,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
     // Trigger data refresh - loading and error states handled by parent component
     triggerRefresh();
     
-    console.log('✅ Project data refresh triggered');
+    console.log(' Project data refresh triggered');
   };
 
   const handlePublishFinalResults = async () => {
@@ -146,7 +146,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
             return;
           }
         } else {
-          console.log(`✅ Project should end: ${endStatus.reason}`);
+          console.log(` Project should end: ${endStatus.reason}`);
         }
       } catch (statusError) {
         console.warn('Could not get project end status, proceeding with publication...', statusError);
@@ -167,12 +167,12 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
         
         // If we get here, project.contractAddress is already a base Project address
         baseProjectAddress = project.contractAddress;
-        console.log(`✅ Project address ${project.contractAddress} is already a base Project address`);
+        console.log(` Project address ${project.contractAddress} is already a base Project address`);
       } catch {
         // If that failed, it might be an ALProject address, so resolve the base Project address
         try {
           baseProjectAddress = await getBaseProjectAddress(project.contractAddress, provider);
-          console.log(`🔄 Resolved base Project address: ${baseProjectAddress} (from ALProject: ${project.contractAddress})`);
+          console.log(` Resolved base Project address: ${baseProjectAddress} (from ALProject: ${project.contractAddress})`);
         } catch (resolveError) {
           // If both fail, assume it's a base Project address and use it directly
           console.warn('Could not resolve address type, assuming base Project address:', resolveError);
@@ -181,7 +181,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       }
       
       // Step 1: Get the complete RO-Crate folder from AL-Engine
-      console.log('📋 Step 1: Collecting complete RO-Crate folder from AL-Engine...');
+      console.log(' Step 1: Collecting complete RO-Crate folder from AL-Engine...');
       const alEngineUrl = 'http://localhost:5050'; // AL-Engine API base URL
       
       // Use base Project address for AL-Engine API call
@@ -192,7 +192,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       }
       
       const folderData = await roCrateFolderResponse.json();
-      console.log('✅ Collected RO-Crate folder from AL-Engine:', {
+      console.log(' Collected RO-Crate folder from AL-Engine:', {
         totalFiles: folderData.folder_structure?.total_files || 0,
         totalSize: folderData.folder_structure?.total_size || 0,
         totalIterations: folderData.al_summary?.total_iterations || 0,
@@ -224,18 +224,18 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
         };
       });
       
-      console.log(`📂 Prepared ${bundleFiles.length} files for IPFS upload`);
+      console.log(` Prepared ${bundleFiles.length} files for IPFS upload`);
       
       // Step 3: Upload complete RO-Crate folder to IPFS
-      console.log('🚀 Step 3: Uploading complete RO-Crate folder to IPFS...');
+      console.log(' Step 3: Uploading complete RO-Crate folder to IPFS...');
       const folderName = `dvre-al-project-${project.contractAddress}`;
       
       const ipfsResults = await IPFSService.getInstance().uploadDirectory(bundleFiles, folderName);
       
-      console.log('✅ Uploaded complete RO-Crate folder to IPFS:', ipfsResults.hash);
+      console.log(' Uploaded complete RO-Crate folder to IPFS:', ipfsResults.hash);
       
       // Step 4: Update project configuration
-      console.log('📋 Step 4: Updating project configuration...');
+      console.log(' Step 4: Updating project configuration...');
       const { projectConfigurationService } = await import('../deployment/services/ProjectConfigurationService');
       
       if (!currentUser) {
@@ -264,15 +264,15 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
           }
         };
         
-        console.log('✅ Project configuration updated with final results');
+        console.log(' Project configuration updated with final results');
       }
       
-      console.log('🔗 Step 5: Creating blockchain asset and updating smart contract...');
+      console.log(' Step 5: Creating blockchain asset and updating smart contract...');
       let contributors: string[] = []; // Declare contributors in broader scope
       
       try {
         // Step 5a: Create blockchain asset for final RO-Crate
-        console.log('📋 Creating blockchain asset for final results...');
+        console.log(' Creating blockchain asset for final results...');
         const { AssetService } = await import('../../utils/AssetService');
         const { ethers } = await import('ethers');
         
@@ -280,7 +280,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
         const provider = new ethers.BrowserProvider((window as any).ethereum);
         const signer = await provider.getSigner();
         const signerAddress = await signer.getAddress();
-        console.log('✅ Wallet connection established:', signerAddress);
+        console.log(' Wallet connection established:', signerAddress);
         
         // Create AssetService instance
         const assetService = new AssetService();
@@ -292,16 +292,16 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
         const assetName = `ro-crate-${project.contractAddress}-final`;
         const assetType = 'ro-crate';
         
-        console.log(`🔗 Creating final results asset: "${assetName}" with IPFS hash: ${ipfsResults.hash}`);
+        console.log(` Creating final results asset: "${assetName}" with IPFS hash: ${ipfsResults.hash}`);
         
         // Get project contributors to add as viewers
         try {
-          console.log('👥 Getting project contributors for final results asset viewers...');
+          console.log(' Getting project contributors for final results asset viewers...');
           const { getAllParticipantsForProject } = await import('../../hooks/useProjects');
           
           // Get all project participants
           const participantsData = await getAllParticipantsForProject(project.contractAddress);
-          console.log('📋 Retrieved participants:', participantsData.participantAddresses.length, 'participants');
+          console.log(' Retrieved participants:', participantsData.participantAddresses.length, 'participants');
           
           // Filter for contributors (exclude current user who is the asset owner)
           contributors = participantsData.participantAddresses.filter((address, index) => {
@@ -311,20 +311,20 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
             return isNotCurrentUser && isContributor;
           });
           
-          console.log('👥 Found', contributors.length, 'contributors to add as viewers');
-          console.log('📋 Contributors:', contributors);
+          console.log(' Found', contributors.length, 'contributors to add as viewers');
+          console.log(' Contributors:', contributors);
         } catch (error) {
-          console.warn('⚠️ Failed to get contributors, creating asset without viewers:', error);
+          console.warn(' Failed to get contributors, creating asset without viewers:', error);
           contributors = [];
         }
         
         // Create the asset with contributors as viewers
         const assetContractAddress = await assetService.createAsset(assetName, assetType, ipfsResults.hash, contributors);
-        console.log('✅ Final results asset created with viewers at:', assetContractAddress);
-        console.log(`👥 Added ${contributors.length} contributors as viewers to final results asset`);
+        console.log(' Final results asset created with viewers at:', assetContractAddress);
+        console.log(` Added ${contributors.length} contributors as viewers to final results asset`);
         
         // Step 5b: Update Project contract with final RO-Crate hash
-        console.log('📋 Updating Project contract with final RO-Crate hash...');
+        console.log(' Updating Project contract with final RO-Crate hash...');
         
         // Get the base Project contract (setFinalROCrateHash is on base Project, not ALProject)
         const Project = (await import('../../abis/Project.json')).default;
@@ -333,28 +333,28 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
         // Use the setFinalROCrateHash function on base Project contract
         const setFinalHashTx = await projectContract.setFinalROCrateHash(ipfsResults.hash);
         await setFinalHashTx.wait();
-        console.log('✅ Project contract updated with final RO-Crate hash');
+        console.log(' Project contract updated with final RO-Crate hash');
         
       } catch (contractError) {
-        console.warn('⚠️ Failed to create asset or update smart contract (continuing anyway):', contractError);
+        console.warn(' Failed to create asset or update smart contract (continuing anyway):', contractError);
       }
       
       // Step 6: Show success message
       const successMessage = 
-        '🎉 Final Results Published Successfully!\n\n' +
-        `📊 Project Summary:\n` +
+        ' Final Results Published Successfully!\n\n' +
+        ` Project Summary:\n` +
         `• Total AL Iterations: ${folderData.al_summary?.total_iterations || 0}\n` +
         `• Total Samples Queried: ${folderData.al_summary?.total_samples_queried || 0}\n` +
         `• Total Files: ${folderData.folder_structure?.total_files || 0}\n` +
         `• Latest Accuracy: ${folderData.al_summary?.latest_performance?.accuracy || 'N/A'}\n` +
         `• Latest F1-Score: ${folderData.al_summary?.latest_performance?.f1_score || 'N/A'}\n\n` +
-        `🔗 IPFS Hash: ${ipfsResults.hash}\n` +
-        `📁 IPFS URL: ${ipfsResults.url}\n\n` +
-        `⛓️ Blockchain Asset: ro-crate-${project.contractAddress}-final\n` +
-        `👥 Contributors with Access: ${contributors.length} project contributors added as viewers\n` +
-        `📋 Project Contract Updated: Final RO-Crate hash stored on blockchain\n\n` +
-        `✅ Your complete Active Learning project folder is now publicly available!\n` +
-        `🔗 All project contributors can now access the final results from their Storage tab.\n` +
+        ` IPFS Hash: ${ipfsResults.hash}\n` +
+        ` IPFS URL: ${ipfsResults.url}\n\n` +
+        ` Blockchain Asset: ro-crate-${project.contractAddress}-final\n` +
+        ` Contributors with Access: ${contributors.length} project contributors added as viewers\n` +
+        ` Project Contract Updated: Final RO-Crate hash stored on blockchain\n\n` +
+        ` Your complete Active Learning project folder is now publicly available!\n` +
+        ` All project contributors can now access the final results from their Storage tab.\n` +
         `You can download the final RO-Crate folder from the Storage tab.`;
       
       alert(successMessage);
@@ -362,10 +362,10 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       // Trigger data refresh to show updated state
       triggerRefresh();
       
-      console.log('✅ Final results publish process completed successfully');
+      console.log(' Final results publish process completed successfully');
       
     } catch (error) {
-      console.error('❌ Failed to publish final results:', error);
+      console.error(' Failed to publish final results:', error);
       
       let errorMessage = 'Failed to publish final results: ';
       if (error instanceof Error) {
@@ -375,7 +375,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       }
       
       // Show detailed error to user
-      alert(`❌ Publish Failed\n\n${errorMessage}\n\nPlease check:\n• AL-Engine is running (localhost:5050)\n• Project has completed iterations\n• Project folder exists in al-engine/ro-crates/\n• Wallet is connected\n• Network connectivity`);
+      alert(` Publish Failed\n\n${errorMessage}\n\nPlease check:\n• AL-Engine is running (localhost:5050)\n• Project has completed iterations\n• Project folder exists in al-engine/ro-crates/\n• Wallet is connected\n• Network connectivity`);
       
       throw error;
     }

@@ -20,10 +20,10 @@ export class TemplateService {
    * Check if a project should use DAL template
    */
   isDALProject(projectData: any): boolean {
-    console.log('🔍 isDALProject called with:', projectData);
+    console.log(' isDALProject called with:', projectData);
     
     if (!projectData) {
-      console.log('❌ isDALProject: No project data provided');
+      console.log(' isDALProject: No project data provided');
       return false;
     }
     
@@ -31,7 +31,7 @@ export class TemplateService {
     if (projectData.templateType === 'active_learning' || 
         projectData.project_type === 'active_learning' || 
         projectData.type === 'active_learning') {
-      console.log('✅ isDALProject: Detected as AL by explicit markers:', {
+      console.log(' isDALProject: Detected as AL by explicit markers:', {
         templateType: projectData.templateType,
         project_type: projectData.project_type,
         type: projectData.type
@@ -54,7 +54,7 @@ export class TemplateService {
     
     const textMatch = indicators.some(indicator => projectText.includes(indicator));
     
-    console.log('🔍 isDALProject: Text analysis result:', {
+    console.log(' isDALProject: Text analysis result:', {
       projectText,
       indicators,
       textMatch,

@@ -81,7 +81,7 @@ export class ProjectDeploymentService {
     votingContractAddress?: string
   ): Promise<boolean> {
     try {
-      console.log('🚀 Deploying project to orchestration server:', projectId);
+      console.log(' Deploying project to orchestration server:', projectId);
       
       // Prepare orchestration request
       const orchestrationRequest: OrchestrationRequest = {
@@ -120,11 +120,11 @@ export class ProjectDeploymentService {
         lastUpdated: new Date().toISOString()
       });
 
-      console.log(`✅ Successfully deployed project ${projectId} (workflow: ${response.workflow_id})`);
+      console.log(` Successfully deployed project ${projectId} (workflow: ${response.workflow_id})`);
       return true;
 
     } catch (error) {
-      console.error(`❌ Deployment failed for project ${projectId}:`, error);
+      console.error(` Deployment failed for project ${projectId}:`, error);
       
       // Update deployment status with failure
       this.updateDeploymentStatus(projectId, {
@@ -162,7 +162,7 @@ export class ProjectDeploymentService {
     const storageKey = `${this.storagePrefix}-${projectId}`;
     localStorage.setItem(storageKey, JSON.stringify(updated));
     
-    console.log(`📊 Deployment status updated for ${projectId}:`, updated);
+    console.log(` Deployment status updated for ${projectId}:`, updated);
   }
 
   /**
@@ -224,7 +224,7 @@ export class ProjectDeploymentService {
     const endpoint = `${this.config.orchestrationServerUrl}/api/projects/deploy`;
     
     console.log(`📡 Submitting to orchestration server: ${endpoint}`);
-    console.log('📄 Request payload:', {
+    console.log(' Request payload:', {
       project_id: request.project_id,
       workflow_type: request.workflow_type,
       configuration: request.configuration
@@ -252,7 +252,7 @@ export class ProjectDeploymentService {
       }
 
       const result = await response.json();
-      console.log('✅ Orchestration deployment successful:', result);
+      console.log(' Orchestration deployment successful:', result);
       return result;
 
     } catch (error) {

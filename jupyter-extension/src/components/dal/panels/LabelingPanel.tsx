@@ -85,10 +85,10 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
       try {
         const dalSession = (window as any).currentDALSession;
         if (dalSession && sessionState?.phase === 'voting') {
-          console.log('🔍 Loading active batch for labeling...');
+          console.log(' Loading active batch for labeling...');
           const batch = await dalSession.getActiveBatch();
           if (batch) {
-            console.log('✅ Found active batch:', batch);
+            console.log(' Found active batch:', batch);
             setActiveBatch(batch);
             setBatchVotes({});
             
@@ -109,7 +109,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
           }
         }
       } catch (error) {
-        console.error('❌ Failed to load active batch:', error);
+        console.error(' Failed to load active batch:', error);
         setActiveBatch(null);
       }
     };
@@ -135,7 +135,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     
     // If we don't have an active batch initially, poll for it
     if (!activeBatch) {
-      console.log('🔍 Starting polling for active voting sessions...');
+      console.log(' Starting polling for active voting sessions...');
       
       pollInterval = setInterval(async () => {
         try {
@@ -143,7 +143,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
           if (dalSession) {
             const batch = await dalSession.getActiveBatch();
             if (batch) {
-              console.log('✅ Found active batch during polling:', batch);
+              console.log(' Found active batch during polling:', batch);
               setActiveBatch(batch);
               setBatchVotes({});
               
@@ -167,7 +167,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
       
       // Stop polling after 30 seconds to avoid infinite polling
       const stopPollingTimeout = setTimeout(() => {
-        console.log('⏰ Stopping active batch polling after timeout');
+        console.log(' Stopping active batch polling after timeout');
         clearInterval(pollInterval);
       }, 30000);
       
@@ -184,16 +184,16 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     
     // Only poll if user has voted but not all voters have voted yet
     if (votingStatus.userHasVoted && !votingStatus.allVoted && !votingStatus.isCheckingStatus) {
-      console.log('🔄 Starting voting status polling...');
+      console.log(' Starting voting status polling...');
       
       pollInterval = setInterval(() => {
-        console.log('📊 Polling for voting status updates...');
+        console.log(' Polling for voting status updates...');
         checkCurrentVotingStatus();
       }, 5000); // Poll every 5 seconds
       
       // Stop polling after 5 minutes to prevent infinite polling
       const stopPollingTimeout = setTimeout(() => {
-        console.log('⏰ Stopping voting status polling after timeout');
+        console.log(' Stopping voting status polling after timeout');
         clearInterval(pollInterval);
       }, 300000); // 5 minutes
       
@@ -210,17 +210,17 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     
     // Poll for new iterations when all voters have voted
     if (votingStatus.allVoted && !iterationCompleted) {
-      console.log('🔄 All voters have voted - starting polling for new iteration...');
+      console.log(' All voters have voted - starting polling for new iteration...');
       
       pollInterval = setInterval(async () => {
-        console.log('📊 Polling for new iteration...');
+        console.log(' Polling for new iteration...');
         try {
           const dalSession = (window as any).currentDALSession;
           if (dalSession) {
             // Check if a new batch has started
             const newBatch = await dalSession.getActiveBatch();
             if (newBatch && (!activeBatch || newBatch.round > activeBatch.round)) {
-              console.log('🎉 New iteration detected! Loading new batch:', newBatch);
+              console.log(' New iteration detected! Loading new batch:', newBatch);
               setActiveBatch(newBatch);
               setBatchVotes({});
               
@@ -244,7 +244,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
       
       // Stop polling after 10 minutes to prevent infinite polling
       const stopPollingTimeout = setTimeout(() => {
-        console.log('⏰ Stopping new iteration polling after timeout');
+        console.log(' Stopping new iteration polling after timeout');
         clearInterval(pollInterval);
       }, 600000); // 10 minutes
       
@@ -262,13 +262,13 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
 
     // Event handler for when new iterations start
     const handleIterationStarted = (iteration: number) => {
-      console.log(`🚀 DAL Session: Iteration ${iteration} started - refreshing labeling panel`);
+      console.log(` DAL Session: Iteration ${iteration} started - refreshing labeling panel`);
       // Small delay to let the session state update
       setTimeout(async () => {
         try {
           const newBatch = await dalSession.getActiveBatch();
           if (newBatch) {
-            console.log('✅ New batch found after iteration started:', newBatch);
+            console.log(' New batch found after iteration started:', newBatch);
             setActiveBatch(newBatch);
             setBatchVotes({});
             
@@ -291,13 +291,13 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
 
     // Event handler for when samples are generated
     const handleSamplesGenerated = (samples: any[]) => {
-      console.log(`🌸 DAL Session: ${samples.length} samples generated - refreshing labeling panel`);
+      console.log(` DAL Session: ${samples.length} samples generated - refreshing labeling panel`);
       // Small delay to let the voting session start
       setTimeout(async () => {
         try {
           const newBatch = await dalSession.getActiveBatch();
           if (newBatch) {
-            console.log('✅ New batch found after samples generated:', newBatch);
+            console.log(' New batch found after samples generated:', newBatch);
             setActiveBatch(newBatch);
             setBatchVotes({});
             
@@ -320,16 +320,16 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
 
     // Event handler for session state changes
     const handleSessionStateChanged = (newState: any) => {
-      console.log('🔄 DAL Session state changed:', newState.phase);
+      console.log(' DAL Session state changed:', newState.phase);
       
       // If session goes from completed/aggregating back to voting, load new batch
       if (newState.phase === 'voting' && sessionState?.phase !== 'voting') {
-        console.log('📋 Session phase changed to voting - loading new batch');
+        console.log(' Session phase changed to voting - loading new batch');
         setTimeout(async () => {
           try {
             const newBatch = await dalSession.getActiveBatch();
             if (newBatch) {
-              console.log('✅ New batch found after state change to voting:', newBatch);
+              console.log(' New batch found after state change to voting:', newBatch);
               setActiveBatch(newBatch);
               setBatchVotes({});
               
@@ -397,10 +397,10 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
           isCheckingStatus: false
         });
         
-        console.log(`📊 Voting status: ${sessionStatus.votedCount}/${sessionStatus.totalVoters} voted, user voted: ${userHasVoted}, all voted: ${allVoted}`);
+        console.log(` Voting status: ${sessionStatus.votedCount}/${sessionStatus.totalVoters} voted, user voted: ${userHasVoted}, all voted: ${allVoted}`);
       }
     } catch (error) {
-      console.error('❌ Failed to check voting status:', error);
+      console.error(' Failed to check voting status:', error);
       setVotingStatus(prev => ({ ...prev, isCheckingStatus: false }));
     }
   };
@@ -432,7 +432,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
       setBatchVotes({});
       
       // NEW: After successful vote submission, check voting status
-      console.log('✅ Vote submitted successfully, checking voting status...');
+      console.log(' Vote submitted successfully, checking voting status...');
       setTimeout(() => {
         checkCurrentVotingStatus();
       }, 1000); // Small delay to allow blockchain to update
@@ -577,7 +577,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
       {iterationCompleted && (
         <div className="iteration-completed">
           <div className="completion-message">
-            <h4>✅ {iterationMessage}</h4>
+            <h4> {iterationMessage}</h4>
             {isCoordinator ? (
               <p>You may start the next iteration or end the project in the Control Panel.</p>
             ) : (
@@ -613,12 +613,12 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
         }}>
           {votingStatus.isCheckingStatus ? (
             <div>
-              <h4>🔄 Checking voting status...</h4>
+              <h4> Checking voting status...</h4>
               <p>Please wait while we verify the current voting progress.</p>
             </div>
           ) : votingStatus.allVoted ? (
             <div>
-              <h4>⏳ Waiting for next iteration</h4>
+              <h4> Waiting for next iteration</h4>
               <p>All participants have submitted their votes ({votingStatus.votedCount}/{votingStatus.totalVoters}).</p>
               <p>The system is processing the results and preparing the next round.</p>
               {isCoordinator && (
@@ -627,7 +627,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
             </div>
           ) : (
             <div>
-              <h4>⏳ Waiting for other participants</h4>
+              <h4> Waiting for other participants</h4>
               <p>You have successfully submitted your votes. Thank you!</p>
               <p>Waiting for other participants to submit their votes...</p>
               <p>Progress: {votingStatus.votedCount}/{votingStatus.totalVoters} participants have voted</p>
@@ -687,7 +687,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
               <h4 style={{ marginBottom: '16px' }}>Sample {index + 1}: {sampleId}</h4>
               {renderSampleData(activeBatch.sampleData[index])}
               <div className="voting-interface" style={{ marginTop: '20px' }}>
-                <h4 style={{ marginBottom: '16px' }}>🏷️ Select Classification</h4>
+                <h4 style={{ marginBottom: '16px' }}> Select Classification</h4>
                 {renderLabelButtons(activeBatch.labelOptions, sampleId)}
               </div>
               <div className="live-voting" style={{ 
@@ -696,7 +696,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
                 padding: '16px',
                 backgroundColor: '#f8fafc'
               }}>
-                <h4 style={{ marginBottom: '12px' }}>📊 Live Voting Distribution</h4>
+                <h4 style={{ marginBottom: '12px' }}> Live Voting Distribution</h4>
                 <div className="vote-distribution" style={{ 
                   display: 'flex', 
                   gap: '16px', 
@@ -715,7 +715,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
                   ))}
                 </div>
                 <div className="time-remaining" style={{ fontSize: '14px', color: '#666' }}>
-                  ⏱️ Time remaining: {formatTimeRemaining(timeRemaining)}
+                   Time remaining: {formatTimeRemaining(timeRemaining)}
                 </div>
               </div>
             </div>
@@ -764,7 +764,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
           {!project?.isActive ? (
             // Project has ended - show ended content
             <>
-              <div style={{ fontSize: '64px', marginBottom: '20px' }}>🏁</div>
+              <div style={{ fontSize: '64px', marginBottom: '20px' }}></div>
               <h3 style={{ color: '#374151', marginBottom: '16px' }}>
                 Project Has Ended
               </h3>
@@ -804,7 +804,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
           ) : (
             // Project is active but no voting session
             <>
-              <div style={{ fontSize: '64px', marginBottom: '24px' }}>⏳</div>
+              <div style={{ fontSize: '64px', marginBottom: '24px' }}></div>
               <h4 style={{ marginBottom: '16px' }}>No Active Voting</h4>
               <p style={{ color: '#666', marginBottom: '20px' }}>
                 Waiting for the next AL iteration to begin...

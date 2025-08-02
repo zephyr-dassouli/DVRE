@@ -56,14 +56,14 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
         if (rocrateHashFinal && rocrateHashFinal.length > 0) {
           setIsPublished(true);
           setFinalRoCrateHash(rocrateHashFinal);
-          console.log('✅ Project has been published with final RO-Crate hash:', rocrateHashFinal);
+          console.log(' Project has been published with final RO-Crate hash:', rocrateHashFinal);
         } else {
           setIsPublished(false);
           setFinalRoCrateHash('');
-          console.log('📝 Project has not been published yet');
+          console.log(' Project has not been published yet');
         }
       } catch (error) {
-        console.error('❌ Failed to check publish status:', error);
+        console.error(' Failed to check publish status:', error);
         // Assume not published if we can't check
         setIsPublished(false);
         setFinalRoCrateHash('');
@@ -137,7 +137,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
       }, 2000);
       
     } catch (error) {
-      console.error('❌ Failed to publish final results:', error);
+      console.error(' Failed to publish final results:', error);
       onError(error instanceof Error ? error.message : 'Failed to publish final results');
     } finally {
       setIsPublishing(false);
@@ -157,7 +157,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
           backgroundColor: '#f9fafb',
           borderRadius: '8px'
         }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}></div>
           <h4>Coordinator Access Required</h4>
           <p style={{ color: '#666' }}>
             Only project coordinators can publish final results.
@@ -187,7 +187,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
             backgroundColor: '#f9fafb',
             borderRadius: '8px'
           }}>
-            <div style={{ fontSize: '32px', marginBottom: '16px' }}>⏳</div>
+            <div style={{ fontSize: '32px', marginBottom: '16px' }}></div>
             <h4>Checking Publication Status...</h4>
             <p style={{ color: '#666' }}>Please wait while we verify if this project has been published.</p>
           </div>
@@ -211,7 +211,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
               gap: '8px',
               fontSize: '20px'
             }}>
-              <span style={{ fontSize: '24px' }}>✅</span>
+              <span style={{ fontSize: '24px' }}></span>
               Final Results Published
             </h4>
             <p style={{ margin: '0 0 16px 0', color: '#166534', fontSize: '16px', fontWeight: 'bold' }}>
@@ -219,10 +219,10 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
             </p>
             <div style={{ margin: '16px 0', padding: '16px', backgroundColor: '#f0fdf4', borderRadius: '6px', border: '1px solid #22c55e' }}>
               <p style={{ margin: '0 0 8px 0', color: '#166534', fontSize: '14px', fontWeight: 'bold' }}>
-                📋 IPFS Hash: <code style={{ backgroundColor: '#e5e7eb', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{finalRoCrateHash}</code>
+                 IPFS Hash: <code style={{ backgroundColor: '#e5e7eb', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{finalRoCrateHash}</code>
               </p>
               <p style={{ margin: '0 0 12px 0', color: '#166534', fontSize: '14px' }}>
-                🔗 Public IPFS URL: <a href={`https://ipfs.io/ipfs/${finalRoCrateHash}`} target="_blank" rel="noopener noreferrer" style={{ color: '#059669', textDecoration: 'underline' }}>View on IPFS</a>
+                 Public IPFS URL: <a href={`https://ipfs.io/ipfs/${finalRoCrateHash}`} target="_blank" rel="noopener noreferrer" style={{ color: '#059669', textDecoration: 'underline' }}>View on IPFS</a>
               </p>
             </div>
             
@@ -235,7 +235,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
               marginTop: '16px'
             }}>
               <h5 style={{ margin: '0 0 12px 0', color: '#1e40af', fontSize: '16px' }}>
-                📁 Access Your Final Results
+                 Access Your Final Results
               </h5>
               <p style={{ margin: '0 0 12px 0', color: '#1e40af', fontSize: '14px' }}>
                 To download and explore your complete AL project results:
@@ -246,7 +246,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
                 <li>Click on the asset to view details and download the complete RO-Crate folder</li>
               </ol>
               <p style={{ margin: 0, color: '#1e40af', fontSize: '14px', fontStyle: 'italic' }}>
-                💡 All project contributors can access the final results from their Storage tab.
+                 All project contributors can access the final results from their Storage tab.
               </p>
             </div>
           </div>
@@ -272,7 +272,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
                   alignItems: 'center',
                   gap: '8px'
                 }}>
-                  <span style={{ fontSize: '20px' }}>⚠️</span>
+                  <span style={{ fontSize: '20px' }}></span>
                   Project Still Active
                 </h4>
                 <p style={{ margin: '0 0 12px 0', color: '#92400e', fontSize: '16px', fontWeight: 'bold' }}>
@@ -300,7 +300,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
                 alignItems: 'center',
                 gap: '8px'
               }}>
-                <span style={{ fontSize: '18px' }}>📋</span>
+                <span style={{ fontSize: '18px' }}></span>
                 What happens when you publish?
               </h4>
               <ul style={{ margin: 0, paddingLeft: '20px', color: '#374151' }}>
@@ -335,7 +335,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
                 alignItems: 'center',
                 gap: '8px'
               }}>
-                <span style={{ fontSize: '18px' }}>⚠️</span>
+                <span style={{ fontSize: '18px' }}></span>
                 Important Note
               </h4>
               <p style={{ margin: 0, color: '#991b1b', fontSize: '16px', fontWeight: 'bold' }}>
@@ -376,7 +376,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
                 }}
               >
                 <span style={{ fontSize: '18px' }}>
-                  {isPublishing ? '⏳' : !canPublish ? '🔒' : '🚀'}
+                  {isPublishing ? '' : !canPublish ? '' : ''}
                 </span>
                 {isPublishing ? 'Publishing Final Results...' : 
                  !canPublish ? 'Project Must Be Ended First' : 

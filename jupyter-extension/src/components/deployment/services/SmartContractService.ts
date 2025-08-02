@@ -38,7 +38,7 @@ export class SmartContractService {
       }
 
       // For AL projects, try to get data from smart contract
-      console.log('🔍 Fetching AL configuration from smart contract...');
+      console.log(' Fetching AL configuration from smart contract...');
       
       // Use JsonRpcProvider for read-only operations
       const provider = new ethers.JsonRpcProvider(RPC_URL);
@@ -86,14 +86,14 @@ export class SmartContractService {
               votingContract: await projectContract.votingContract?.() || null,
               storageContract: await projectContract.storageContract?.() || null
             };
-            console.log('✅ Retrieved AL metadata from smart contract using ALProject.getALConfiguration()');
-            console.log('📋 Real AL config:', smartContractData);
+            console.log(' Retrieved AL metadata from smart contract using ALProject.getALConfiguration()');
+            console.log(' Real AL config:', smartContractData);
           } else {
-            console.log('📝 AL contracts not yet deployed, using stored configuration');
+            console.log(' AL contracts not yet deployed, using stored configuration');
             throw new Error('AL contracts not deployed yet');
           }
         } catch (contractError) {
-          console.warn('⚠️ Could not retrieve AL metadata from contract, using configuration data');
+          console.warn(' Could not retrieve AL metadata from contract, using configuration data');
           // Fallback to stored configuration - using correct field names
           smartContractData = {
             queryStrategy: config.extensions.dal.queryStrategy || 'uncertainty_sampling',
@@ -104,7 +104,7 @@ export class SmartContractService {
           };
         }
       } else {
-        console.warn('⚠️ Could not connect to smart contract, using stored configuration');
+        console.warn(' Could not connect to smart contract, using stored configuration');
         smartContractData = {
           queryStrategy: config.extensions.dal.queryStrategy || 'uncertainty_sampling',
           alScenario: config.extensions.dal.alScenario || 'pool_based',
@@ -221,7 +221,7 @@ export class SmartContractService {
 
       // Fetch the latest configuration from the smart contract
       const latestConfig = await projectContract.getProjectConfiguration();
-      console.log('✅ Refreshed project configuration from smart contract:', latestConfig);
+      console.log(' Refreshed project configuration from smart contract:', latestConfig);
 
       // Update the local configuration with fresh smart contract data
       const updatedConfig = { ...config, projectData: latestConfig };

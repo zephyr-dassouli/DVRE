@@ -52,7 +52,7 @@ export class LocalFileDownloadService {
         localPath
       );
 
-      console.log(`✅ Successfully downloaded ${downloadedFiles.length} files to ${localPath}`);
+      console.log(` Successfully downloaded ${downloadedFiles.length} files to ${localPath}`);
       
       return {
         success: true,
@@ -61,7 +61,7 @@ export class LocalFileDownloadService {
       };
 
     } catch (error) {
-      console.error('❌ Failed to download project files for local computation:', error);
+      console.error(' Failed to download project files for local computation:', error);
       return {
         success: false,
         downloadedFiles: [],
@@ -142,7 +142,7 @@ export class LocalFileDownloadService {
     const datasetFiles: Record<string, Blob> = {};
     
     console.log('📥 Downloading project datasets from IPFS...');
-    console.log('📊 Available datasets in project:', Object.keys(project.roCrate.datasets));
+    console.log(' Available datasets in project:', Object.keys(project.roCrate.datasets));
     
     // Get datasets from project configuration
     const datasets = Object.values(project.roCrate.datasets);
@@ -150,7 +150,7 @@ export class LocalFileDownloadService {
     for (const dataset of datasets) {
       if (dataset.ipfsHash) {
         try {
-          console.log(`🔗 Downloading dataset "${dataset.name}" from IPFS: ${dataset.ipfsHash}`);
+          console.log(` Downloading dataset "${dataset.name}" from IPFS: ${dataset.ipfsHash}`);
           
           const ipfsUrl = `${config.ipfs.publicUrl}/ipfs/${dataset.ipfsHash}`;
           const response = await fetch(ipfsUrl);
@@ -173,19 +173,19 @@ export class LocalFileDownloadService {
             }
             
             datasetFiles[filename] = blob;
-            console.log(`✅ Successfully downloaded dataset: ${filename} (${(blob.size / 1024).toFixed(1)} KB)`);
+            console.log(` Successfully downloaded dataset: ${filename} (${(blob.size / 1024).toFixed(1)} KB)`);
           } else {
-            console.warn(`❌ Failed to download dataset ${dataset.name}: HTTP ${response.status}`);
+            console.warn(` Failed to download dataset ${dataset.name}: HTTP ${response.status}`);
           }
         } catch (error) {
-          console.warn(`❌ Failed to download dataset ${dataset.name}:`, error);
+          console.warn(` Failed to download dataset ${dataset.name}:`, error);
         }
       } else {
-        console.warn(`⚠️ Dataset "${dataset.name}" has no IPFS hash - skipping download`);
+        console.warn(` Dataset "${dataset.name}" has no IPFS hash - skipping download`);
       }
     }
 
-    console.log(`📊 Downloaded ${Object.keys(datasetFiles).length} dataset files`);
+    console.log(` Downloaded ${Object.keys(datasetFiles).length} dataset files`);
     return datasetFiles;
   }
 
@@ -221,8 +221,8 @@ export class LocalFileDownloadService {
       downloadedFiles.push(filename);
     });
 
-    console.log(`📁 Created local project structure at: ${localPath}`);
-    console.log(`📋 Downloaded files:`, downloadedFiles);
+    console.log(` Created local project structure at: ${localPath}`);
+    console.log(` Downloaded files:`, downloadedFiles);
 
     return downloadedFiles;
   }

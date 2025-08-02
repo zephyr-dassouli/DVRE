@@ -76,14 +76,14 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
       // For each user project, ensure it has a RO-Crate configuration
       for (const project of currentUserProjects) {
         try {
-          // ✅ SECURITY: Only allow project owners to see projects in deployment UI
+          //  SECURITY: Only allow project owners to see projects in deployment UI
           const isOwner = project.creator?.toLowerCase() === account.toLowerCase();
           if (!isOwner) {
-            console.log(`🔒 Skipping project ${project.address} - user is not the owner`);
+            console.log(` Skipping project ${project.address} - user is not the owner`);
             continue; // Skip projects where user is not the creator/owner
           }
           
-          console.log(`🔍 Processing project ${project.address}:`, {
+          console.log(` Processing project ${project.address}:`, {
             projectId: project.projectId,
             projectData: project.projectData,
             hasTypeField: !!project.projectData?.type,
@@ -109,18 +109,18 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
               projectDataType: config.projectData?.type
             });
             
-            // 🔧 TEMP FIX: Force-recreate RO-Crate if project has AL type but no DAL extension
+            //  TEMP FIX: Force-recreate RO-Crate if project has AL type but no DAL extension
             const shouldBeAL = project.projectData?.type === 'active_learning';
             const hasDALExtension = !!config.extensions?.dal;
             
             if (shouldBeAL && !hasDALExtension) {
-              console.log(`🔧 Force-recreating RO-Crate for AL project without DAL extension: ${project.address}`);
+              console.log(` Force-recreating RO-Crate for AL project without DAL extension: ${project.address}`);
               config = await projectConfigurationService.autoCreateProjectConfiguration(
                 project.address,
                 project.projectData,
                 account
               );
-              console.log(`✅ Recreated RO-Crate with DAL extension for project ${project.address}`);
+              console.log(` Recreated RO-Crate with DAL extension for project ${project.address}`);
             }
           }
           
@@ -188,7 +188,7 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
         timestamp: new Date().toISOString()
       };
       
-      console.log('🔍 DVRE Debug Data Updated:', {
+      console.log(' DVRE Debug Data Updated:', {
         account,
         userProjectsCount: userProjects?.length || 0,
         configuredProjectsCount: projects.length,
@@ -252,7 +252,7 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
     setError(null);
 
     try {
-      console.log('🚀 Deploying project:', selectedProject.projectId);
+      console.log(' Deploying project:', selectedProject.projectId);
       
       // Use the centralized deployment orchestrator
       const { deploymentOrchestrator } = await import('./services/DeploymentOrchestrator');
@@ -272,33 +272,33 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
       
       // Add step-by-step results
       if (result.steps.alSmartContracts === 'success') {
-        deploymentMessage += `✅ AL Smart Contracts: Deployed\n`;
+        deploymentMessage += ` AL Smart Contracts: Deployed\n`;
         // Show AL contract addresses if they were actually deployed
         if (result.alContractAddresses) {
           deploymentMessage += `  📍 ALProjectVoting: ${result.alContractAddresses.voting}\n`;
           deploymentMessage += `  📍 ALProjectStorage: ${result.alContractAddresses.storage}\n`;
         }
       } else if (result.steps.alSmartContracts === 'failed') {
-        deploymentMessage += `❌ AL Smart Contracts: Failed\n`;
-        deploymentMessage += `  ⚠️ ALProjectVoting and ALProjectStorage deployment failed\n`;
-        deploymentMessage += `  💡 Check console for error details\n`;
+        deploymentMessage += ` AL Smart Contracts: Failed\n`;
+        deploymentMessage += `   ALProjectVoting and ALProjectStorage deployment failed\n`;
+        deploymentMessage += `   Check console for error details\n`;
       } else if (result.steps.alSmartContracts === 'skipped') {
         deploymentMessage += `⏭️ AL Smart Contracts: Skipped (Non-AL Project)\n`;
         deploymentMessage += `  ℹ️ This project doesn't require AL contracts\n`;
       }
       
       if (result.steps.ipfsUpload === 'success') {
-        deploymentMessage += `✅ IPFS Upload: Success\n`;
-        deploymentMessage += `🔗 RO-Crate Hash: ${result.roCrateHash}\n`;
+        deploymentMessage += ` IPFS Upload: Success\n`;
+        deploymentMessage += ` RO-Crate Hash: ${result.roCrateHash}\n`;
       } else {
-        deploymentMessage += `❌ IPFS Upload: Failed\n`;
+        deploymentMessage += ` IPFS Upload: Failed\n`;
       }
 
       if (result.steps.localROCrateSave === 'success') {
-        deploymentMessage += `✅ Local RO-Crate Save: Success\n`;
-        deploymentMessage += `📂 Local Path: ${result.localROCratePath}\n`;
+        deploymentMessage += ` Local RO-Crate Save: Success\n`;
+        deploymentMessage += ` Local Path: ${result.localROCratePath}\n`;
       } else if (result.steps.localROCrateSave === 'failed') {
-        deploymentMessage += `⚠️ Local RO-Crate Save: Failed\n`;
+        deploymentMessage += ` Local RO-Crate Save: Failed\n`;
       } else {
         if (computationMode === 'remote') {
           deploymentMessage += `⏭️ Local RO-Crate Save: Skipped (Remote/Infra Sharing mode)\n`;
@@ -309,42 +309,42 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
 
       // Local file download results
       if (result.steps.localFileDownload === 'success') {
-        deploymentMessage += `✅ Local Files: Downloaded (${result.downloadedFiles?.length || 0} files)\n`;
-        deploymentMessage += `📁 Local Path: ${result.localDownloadPath}\n`;
+        deploymentMessage += ` Local Files: Downloaded (${result.downloadedFiles?.length || 0} files)\n`;
+        deploymentMessage += ` Local Path: ${result.localDownloadPath}\n`;
       } else if (result.steps.localFileDownload === 'failed') {
-        deploymentMessage += `❌ Local Files: Download Failed\n`;
+        deploymentMessage += ` Local Files: Download Failed\n`;
       } else if (result.steps.localFileDownload === 'skipped') {
         deploymentMessage += `⏭️ Local Files: Skipped (RO-Crate format used instead)\n`;
       }
       
       if (result.steps.orchestrationDeploy === 'success') {
-        deploymentMessage += `✅ Orchestration: Deployed\n`;
+        deploymentMessage += ` Orchestration: Deployed\n`;
         if (result.orchestrationWorkflowId) {
           deploymentMessage += `🆔 Workflow ID: ${result.orchestrationWorkflowId}\n`;
-          deploymentMessage += `🔗 Monitor at: http://145.100.135.97:5004\n`;
+          deploymentMessage += ` Monitor at: http://145.100.135.97:5004\n`;
         }
       } else if (result.steps.orchestrationDeploy === 'failed') {
-        deploymentMessage += `⚠️ Orchestration: Failed\n`;
+        deploymentMessage += ` Orchestration: Failed\n`;
       } else if (result.steps.orchestrationDeploy === 'skipped') {
         deploymentMessage += `⏭️ Orchestration: Skipped (Local mode)\n`;
       }
       
       if (result.steps.smartContractUpdate === 'success') {
-        deploymentMessage += `✅ Smart Contract: Updated\n`;
+        deploymentMessage += ` Smart Contract: Updated\n`;
       } else if (result.steps.smartContractUpdate === 'failed') {
-        deploymentMessage += `⚠️ Smart Contract: Update Failed\n`;
+        deploymentMessage += ` Smart Contract: Update Failed\n`;
       }
 
       // Overall status - determine success based on critical steps
       const overallSuccess = result.steps.ipfsUpload === 'success';
       if (overallSuccess) {
-        deploymentMessage += `\n🎉 Overall Status: SUCCESS`;
+        deploymentMessage += `\n Overall Status: SUCCESS`;
       } else {
-        deploymentMessage += `\n⚠️ Overall Status: PARTIAL (check individual steps)`;
+        deploymentMessage += `\n Overall Status: PARTIAL (check individual steps)`;
       }
 
       if (result.error) {
-        deploymentMessage += `\n❌ Error: ${result.error}`;
+        deploymentMessage += `\n Error: ${result.error}`;
       }
       
       alert(deploymentMessage);

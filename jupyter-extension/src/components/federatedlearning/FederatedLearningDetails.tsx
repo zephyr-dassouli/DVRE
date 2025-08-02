@@ -444,7 +444,7 @@ const FederatedLearningDetails: React.FC<FederatedLearningDetailsProps> = ({
                   textAlign: 'center'
                 }}>
                   <div style={{ fontSize: '20px', marginBottom: '4px' }}>
-                    {project.policies?.access?.dataSharing ? '✅' : '❌'}
+                    {project.policies?.access?.dataSharing ? '' : ''}
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--jp-ui-font-color2)' }}>
                     Data Sharing
@@ -458,7 +458,7 @@ const FederatedLearningDetails: React.FC<FederatedLearningDetailsProps> = ({
                   textAlign: 'center'
                 }}>
                   <div style={{ fontSize: '20px', marginBottom: '4px' }}>
-                    {project.policies?.access?.modelSharing ? '✅' : '❌'}
+                    {project.policies?.access?.modelSharing ? '' : ''}
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--jp-ui-font-color2)' }}>
                     Model Sharing
@@ -472,7 +472,7 @@ const FederatedLearningDetails: React.FC<FederatedLearningDetailsProps> = ({
                   textAlign: 'center'
                 }}>
                   <div style={{ fontSize: '20px', marginBottom: '4px' }}>
-                    {project.policies?.access?.resultsSharing ? '✅' : '❌'}
+                    {project.policies?.access?.resultsSharing ? '' : ''}
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--jp-ui-font-color2)' }}>
                     Results Sharing

@@ -166,7 +166,7 @@ export class ALContractService {
         const baseProjectContract = new ethers.Contract(baseProjectAddress, Project.abi, this.provider);
         isActive = await baseProjectContract.isActive();
       } catch (activeError) {
-        console.log('📝 isActive method not available, assuming project is active');
+        console.log(' isActive method not available, assuming project is active');
       }
 
       return {
@@ -188,7 +188,7 @@ export class ALContractService {
 
   async startNextIteration(projectAddress: string, userAddress: string): Promise<boolean> {
     try {
-      console.log(`🚀 Starting next AL iteration for project ${projectAddress}`);
+      console.log(` Starting next AL iteration for project ${projectAddress}`);
       
       // Resolve ALProject address and get project contract
       const alProjectAddress = await resolveALProjectAddress(projectAddress);
@@ -206,14 +206,14 @@ export class ALContractService {
       );
 
       if (!alResult.success) {
-        console.error('❌ AL-Engine execution failed:', alResult.error);
+        console.error(' AL-Engine execution failed:', alResult.error);
         return false;
       }
 
-      console.log('✅ AL iteration started successfully');
+      console.log(' AL iteration started successfully');
       return true;
     } catch (error) {
-      console.error('❌ Failed to start next iteration:', error);
+      console.error(' Failed to start next iteration:', error);
       return false;
     }
   }
@@ -225,20 +225,20 @@ export class ALContractService {
   ): Promise<{success: boolean, sampleIds?: string[], queriedSamples?: any[], error?: string}> {
     try {
       // Get real AL configuration from the ALProject contract
-      console.log('🔍 Getting real AL configuration from ALProject contract...');
+      console.log(' Getting real AL configuration from ALProject contract...');
       const realALConfig = await this.getALConfiguration(projectAddress);
       
       if (!realALConfig) {
-        console.error('❌ Could not get AL configuration from contract');
+        console.error(' Could not get AL configuration from contract');
         return { success: false, error: 'Could not get AL configuration from contract' };
       }
       
-      console.log('✅ Real AL configuration from contract:', realALConfig);
+      console.log(' Real AL configuration from contract:', realALConfig);
       
       // IMPORTANT: Get the base Project address for AL-Engine operations
       // AL-Engine expects the base Project address for its directory structure
       const baseProjectAddress = await projectContract.baseProject();
-      console.log(`🔄 Using base Project address for AL-Engine: ${baseProjectAddress} (ALProject: ${projectAddress})`);
+      console.log(` Using base Project address for AL-Engine: ${baseProjectAddress} (ALProject: ${projectAddress})`);
       
       // Trigger Python AL-Engine with real configuration
       const alConfig = {
@@ -247,17 +247,17 @@ export class ALContractService {
         labelSpace: realALConfig.labelSpace || []
       };
       
-      console.log('📋 AL-Engine config being sent:', alConfig);
+      console.log(' AL-Engine config being sent:', alConfig);
 
       // Use baseProjectAddress for AL-Engine operations (not ALProject address)
       const pythonResult = await this.triggerPythonALEngine(baseProjectAddress, iterationNumber, alConfig);
       
       if (!pythonResult.success) {
-        console.error('❌ Python AL-Engine failed:', pythonResult.error);
+        console.error(' Python AL-Engine failed:', pythonResult.error);
         return { success: false, error: pythonResult.error };
       }
 
-      console.log('✅ Python AL-Engine completed successfully');
+      console.log(' Python AL-Engine completed successfully');
 
       // Read actual samples from generated file using base Project address
       const realSamples = await this.alEngineService.readQuerySamplesFromFile(baseProjectAddress, iterationNumber);
@@ -272,10 +272,10 @@ export class ALContractService {
         `sample_${iterationNumber}_${index + 1}_${timestamp}`
       );
 
-      console.log(`📊 Generated ${sampleIds.length} samples for iteration ${iterationNumber}`);
+      console.log(` Generated ${sampleIds.length} samples for iteration ${iterationNumber}`);
 
       // NEW: Upload each sample individually to IPFS
-      console.log('📤 Uploading individual samples to IPFS...');
+      console.log(' Uploading individual samples to IPFS...');
       const sampleDataHashes: string[] = [];
       
       try {
@@ -287,7 +287,7 @@ export class ALContractService {
           const sampleId = sampleIds[i];
           const sampleData = realSamples[i];
           
-          console.log(`📤 Uploading sample ${i + 1}/${realSamples.length}: ${sampleId}`);
+          console.log(` Uploading sample ${i + 1}/${realSamples.length}: ${sampleId}`);
           
           // Create individual sample JSON
           const sampleContent = JSON.stringify({
@@ -307,14 +307,14 @@ export class ALContractService {
           });
           
           sampleDataHashes.push(ipfsResult.hash);
-          console.log(`✅ Sample ${sampleId} uploaded to IPFS: ${ipfsResult.hash}`);
+          console.log(` Sample ${sampleId} uploaded to IPFS: ${ipfsResult.hash}`);
         }
         
-        console.log(`✅ All ${sampleDataHashes.length} samples uploaded to IPFS individually`);
+        console.log(` All ${sampleDataHashes.length} samples uploaded to IPFS individually`);
         
       } catch (ipfsError) {
-        console.warn('⚠️ Failed to upload samples to IPFS:', ipfsError);
-        console.log('🔄 Continuing with local storage fallback...');
+        console.warn(' Failed to upload samples to IPFS:', ipfsError);
+        console.log(' Continuing with local storage fallback...');
         // Fill with empty hashes as fallback
         for (let i = 0; i < realSamples.length; i++) {
           sampleDataHashes.push('');
@@ -333,12 +333,12 @@ export class ALContractService {
       const signer = await provider.getSigner();
       const signerProjectContract = new ethers.Contract(projectAddress, ALProject.abi, signer);
       
-      console.log(`🗳️ Starting batch voting with ${sampleDataHashes.length} individual IPFS hashes`);
-      console.log('📋 Sample hashes:', sampleDataHashes);
+      console.log(` Starting batch voting with ${sampleDataHashes.length} individual IPFS hashes`);
+      console.log(' Sample hashes:', sampleDataHashes);
       const tx = await signerProjectContract.startBatchVoting(sampleIds, sampleDataHashes);
       await tx.wait();
 
-      console.log('✅ Batch voting started on blockchain with individual sample IPFS data');
+      console.log(' Batch voting started on blockchain with individual sample IPFS data');
 
       return { 
         success: true, 
@@ -346,7 +346,7 @@ export class ALContractService {
         queriedSamples: realSamples 
       };
     } catch (error) {
-      console.error('❌ Error in AL-Engine sample generation:', error);
+      console.error(' Error in AL-Engine sample generation:', error);
       return { success: false, error: String(error) };
     }
   }
@@ -358,12 +358,12 @@ export class ALContractService {
       const votingSessionEndedFilter = projectContract.filters.VotingSessionEnded();
       const batchCompletedFilter = projectContract.filters.ALBatchCompleted();
 
-      console.log(`🎧 Setting up event listeners for project ${projectAddress}, round ${round}`);
+      console.log(` Setting up event listeners for project ${projectAddress}, round ${round}`);
 
       // Listen for individual voting session completions
       projectContract.on(votingSessionEndedFilter, (sampleId, finalLabel, currentRound, timestamp) => {
         if (Number(currentRound) === round) {
-          console.log(`✅ Project: Voting session ended for sample ${sampleId} with label ${finalLabel}`);
+          console.log(` Project: Voting session ended for sample ${sampleId} with label ${finalLabel}`);
           
           // Trigger custom event for UI updates
           const event = new CustomEvent('dal-sample-completed', {
@@ -376,7 +376,7 @@ export class ALContractService {
       // Listen for complete batch completion
       projectContract.on(batchCompletedFilter, (completedRound, completedSamples, timestamp) => {
         if (Number(completedRound) === round) {
-          console.log(`🎉 Project: Batch ${completedRound} completed with ${completedSamples} samples`);
+          console.log(` Project: Batch ${completedRound} completed with ${completedSamples} samples`);
           
           // Trigger custom event for UI updates
           const event = new CustomEvent('dal-iteration-completed', {
@@ -390,8 +390,8 @@ export class ALContractService {
       try {
         const projectEndTriggeredFilter = projectContract.filters.ProjectEndTriggered();
         projectContract.on(projectEndTriggeredFilter, (trigger, reason, currentRound, timestamp, event) => {
-          console.log(`🚨 Project end triggered by ${trigger}: ${reason} (Round ${currentRound})`);
-          console.log('🔍 Event details:', { trigger, reason, currentRound: Number(currentRound), timestamp: Number(timestamp) });
+          console.log(` Project end triggered by ${trigger}: ${reason} (Round ${currentRound})`);
+          console.log(' Event details:', { trigger, reason, currentRound: Number(currentRound), timestamp: Number(timestamp) });
           
           // Trigger custom event for UI updates
           const customEvent = new CustomEvent('dal-project-end-triggered', {
@@ -405,19 +405,19 @@ export class ALContractService {
           });
           window.dispatchEvent(customEvent);
         });
-        console.log('✅ ProjectEndTriggered event listener set up successfully');
+        console.log(' ProjectEndTriggered event listener set up successfully');
       } catch (projectEndError) {
-        console.warn('⚠️ ProjectEndTriggered event not available in contract ABI, skipping listener setup:', projectEndError);
+        console.warn(' ProjectEndTriggered event not available in contract ABI, skipping listener setup:', projectEndError);
       }
 
     } catch (error) {
-      console.error('❌ Error setting up event listeners:', error);
+      console.error(' Error setting up event listeners:', error);
     }
   }
 
   async endProject(projectAddress: string, userAddress: string): Promise<boolean> {
     try {
-      console.log(`🏁 Ending project ${projectAddress}`);
+      console.log(` Ending project ${projectAddress}`);
       
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
@@ -434,11 +434,11 @@ export class ALContractService {
       const tx = await baseProjectContract.deactivateProject();
       await tx.wait();
       
-      console.log('✅ Project ended successfully');
+      console.log(' Project ended successfully');
       await this.notifyProjectEnd(projectAddress);
       return true;
     } catch (error) {
-      console.error('❌ Failed to end project:', error);
+      console.error(' Failed to end project:', error);
       return false;
     }
   }
@@ -471,12 +471,12 @@ export class ALContractService {
       const activeBatch = await offChainContractService.getActiveBatch(projectAddress);
       
       if (!activeBatch || activeBatch.activeSampleIds.length === 0) {
-        console.log('📝 No active batch found');
+        console.log(' No active batch found');
         return null;
       }
 
-      console.log(`📊 Active batch found with ${activeBatch.activeSampleIds.length} samples`);
-      console.log('📋 Raw sample data from contract:', activeBatch.sampleData);
+      console.log(` Active batch found with ${activeBatch.activeSampleIds.length} samples`);
+      console.log(' Raw sample data from contract:', activeBatch.sampleData);
 
       // Process sample data from the smart contract
       const sampleData: any[] = [];
@@ -502,21 +502,21 @@ export class ALContractService {
               // Extract the actual sample data from the IPFS structure
               if (ipfsData.data) {
                 sampleData.push(ipfsData.data);
-                console.log(`✅ Loaded sample data from IPFS for ${sampleId}`);
+                console.log(` Loaded sample data from IPFS for ${sampleId}`);
               } else {
                 sampleData.push({ sampleId, data: 'Sample failed to load from IPFS' });
               }
             } else {
-              console.warn(`⚠️ Failed to fetch sample ${sampleId} from IPFS: ${response.status}`);
+              console.warn(` Failed to fetch sample ${sampleId} from IPFS: ${response.status}`);
               sampleData.push({ sampleId, data: 'Sample failed to load from IPFS' });
             }
           } catch (ipfsError) {
-            console.warn(`⚠️ Failed to fetch sample ${sampleId} from IPFS:`, ipfsError);
+            console.warn(` Failed to fetch sample ${sampleId} from IPFS:`, ipfsError);
             sampleData.push({ sampleId, data: 'Sample failed to load from IPFS' });
           }
         } else {
           // This is placeholder text from the contract
-          console.log(`📝 Using placeholder data for ${sampleId}: ${ipfsHashOrData}`);
+          console.log(` Using placeholder data for ${sampleId}: ${ipfsHashOrData}`);
           sampleData.push({ sampleId, data: ipfsHashOrData });
         }
       }
@@ -584,7 +584,7 @@ export class ALContractService {
       // Check if project has AL contracts first
       const hasALContracts = await projectContract.hasALContracts();
       if (!hasALContracts) {
-        console.log('📝 Project does not have AL contracts deployed yet');
+        console.log(' Project does not have AL contracts deployed yet');
         throw new Error('AL contracts not deployed yet');
       }
       
@@ -632,7 +632,7 @@ export class ALContractService {
           };
         }
       } catch (error) {
-        console.log('📝 Could not get current batch progress');
+        console.log(' Could not get current batch progress');
         currentBatch = {
           round: Number(currentRound),
           totalSamples: 0,
@@ -660,7 +660,7 @@ export class ALContractService {
           };
         }
       } catch (error) {
-        console.log('📝 No active voting session');
+        console.log(' No active voting session');
       }
 
       return { 
@@ -727,7 +727,7 @@ export class ALContractService {
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
       if (!hasALContracts) {
-        console.log('📝 Project has no AL contracts deployed');
+        console.log(' Project has no AL contracts deployed');
         return null;
       }
       
@@ -742,7 +742,7 @@ export class ALContractService {
         labelSpace
       ] = await projectContract.getALConfiguration();
       
-      console.log('📋 Raw AL config from contract:', {
+      console.log(' Raw AL config from contract:', {
         queryStrategy,
         alScenario,
         maxIteration: maxIteration.toString(),
@@ -767,7 +767,7 @@ export class ALContractService {
       };
       
     } catch (error) {
-      console.error('❌ Failed to fetch AL configuration from contract:', error);
+      console.error(' Failed to fetch AL configuration from contract:', error);
       return null;
     }
   }
@@ -856,7 +856,7 @@ export class ALContractService {
    */
   async notifyUnlabeledSamplesExhausted(projectAddress: string): Promise<boolean> {
     try {
-      console.log('🚨 Notifying contract that unlabeled samples are exhausted');
+      console.log(' Notifying contract that unlabeled samples are exhausted');
       
       const provider = new ethers.BrowserProvider((window as any).ethereum);
       const signer = await provider.getSigner();
@@ -865,10 +865,10 @@ export class ALContractService {
       const tx = await projectContract.notifyUnlabeledSamplesExhausted();
       await tx.wait();
       
-      console.log('✅ Successfully notified contract about sample exhaustion');
+      console.log(' Successfully notified contract about sample exhaustion');
       return true;
     } catch (error) {
-      console.error('❌ Failed to notify unlabeled samples exhausted:', error);
+      console.error(' Failed to notify unlabeled samples exhausted:', error);
       return false;
     }
   }

@@ -31,12 +31,12 @@ export const UserDashboardPanel: React.FC<UserDashboardPanelProps> = ({
     setError(null);
     
     try {
-      console.log('🔍 Fetching user contributions from blockchain for project:', project.contractAddress);
+      console.log(' Fetching user contributions from blockchain for project:', project.contractAddress);
       const contributions = await votingService.getUserContributions(project.contractAddress);
       setUserContributions(contributions);
-      console.log(`✅ Loaded ${contributions.length} user contributions from blockchain`);
+      console.log(` Loaded ${contributions.length} user contributions from blockchain`);
     } catch (error) {
-      console.error('❌ Failed to fetch user contributions:', error);
+      console.error(' Failed to fetch user contributions:', error);
       setError('Failed to load user contributions from blockchain');
     } finally {
       setLoading(false);
@@ -108,7 +108,7 @@ export const UserDashboardPanel: React.FC<UserDashboardPanelProps> = ({
           </div>
         ) : error ? (
           <div style={{ padding: '40px', textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}></div>
             <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
               Error: {error}
             </div>
@@ -191,7 +191,7 @@ export const UserDashboardPanel: React.FC<UserDashboardPanelProps> = ({
           </>
         ) : (
           <div style={{ padding: '40px', textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}></div>
             <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
               No User Activity Yet
             </div>

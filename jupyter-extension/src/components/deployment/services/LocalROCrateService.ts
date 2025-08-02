@@ -40,7 +40,7 @@ export class LocalROCrateService {
     config: DVREProjectConfiguration
   ): Promise<LocalROCrateSaveResult> {
     try {
-      console.log(`📁 Saving RO-Crate locally for project ${projectId}...`);
+      console.log(` Saving RO-Crate locally for project ${projectId}...`);
       
       // Create project-specific directory path
       const projectPath = `${this.LOCAL_ROCRATE_ROOT}/${projectId}`;
@@ -58,9 +58,9 @@ export class LocalROCrateService {
       // Create project manifest
       await this.createProjectManifest(projectPath, projectId, config, savedFiles);
       
-      console.log(`✅ Successfully saved RO-Crate locally for project ${projectId}`);
-      console.log(`📂 Location: ${projectPath}`);
-      console.log(`📄 Files saved: ${savedFiles.length}`);
+      console.log(` Successfully saved RO-Crate locally for project ${projectId}`);
+      console.log(` Location: ${projectPath}`);
+      console.log(` Files saved: ${savedFiles.length}`);
       
       return {
         success: true,
@@ -69,7 +69,7 @@ export class LocalROCrateService {
       };
       
     } catch (error) {
-      console.error(`❌ Failed to save RO-Crate locally for project ${projectId}:`, error);
+      console.error(` Failed to save RO-Crate locally for project ${projectId}:`, error);
       return {
         success: false,
         projectPath: '',
@@ -144,7 +144,7 @@ export class LocalROCrateService {
       const hasLabelingDataset = datasets.some((ds: any) => ds.type === 'labeling');
       
       if (hasTrainingDataset || hasLabelingDataset) {
-        console.log('📊 Adding real dataset references to RO-Crate bundle');
+        console.log(' Adding real dataset references to RO-Crate bundle');
         
         // Create dataset reference file with IPFS URLs
         const datasetReferences: any = {};
@@ -426,7 +426,7 @@ config:
    * Transform comprehensive configuration to AL-Engine format
    */
   private transformToALEngineFormat(comprehensiveConfig: any): any {
-    console.log('🔍 Transforming config:', JSON.stringify(comprehensiveConfig, null, 2));
+    console.log(' Transforming config:', JSON.stringify(comprehensiveConfig, null, 2));
     
     const al = comprehensiveConfig.active_learning || {};
     
@@ -444,7 +444,7 @@ config:
       iteration: 0
     };
 
-    console.log('🔄 Transformed result:', JSON.stringify(result, null, 2));
+    console.log(' Transformed result:', JSON.stringify(result, null, 2));
     return result;
   }
 
@@ -454,8 +454,8 @@ config:
   private async downloadActualDatasets(config: DVREProjectConfiguration): Promise<IPFSFile[]> {
     const datasetFiles: IPFSFile[] = [];
     
-    console.log('📊 Downloading actual dataset CSV files from IPFS...');
-    console.log('📋 Available datasets in project:', Object.keys(config.roCrate.datasets));
+    console.log(' Downloading actual dataset CSV files from IPFS...');
+    console.log(' Available datasets in project:', Object.keys(config.roCrate.datasets));
     
     // Get datasets from project configuration
     const datasets = Object.values(config.roCrate.datasets);
@@ -463,7 +463,7 @@ config:
     for (const dataset of datasets) {
       if (dataset.ipfsHash) {
         try {
-          console.log(`🔗 Downloading dataset "${dataset.name}" from IPFS: ${dataset.ipfsHash}`);
+          console.log(` Downloading dataset "${dataset.name}" from IPFS: ${dataset.ipfsHash}`);
           
           const ipfsUrl = `${ipfsConfig.ipfs.publicUrl}/ipfs/${dataset.ipfsHash}`;
           const response = await fetch(ipfsUrl);
@@ -492,19 +492,19 @@ config:
               type: 'text/csv'
             });
             
-            console.log(`✅ Successfully downloaded dataset: ${filename} (${(content.length / 1024).toFixed(1)} KB)`);
+            console.log(` Successfully downloaded dataset: ${filename} (${(content.length / 1024).toFixed(1)} KB)`);
           } else {
-            console.warn(`❌ Failed to download dataset ${dataset.name}: HTTP ${response.status}`);
+            console.warn(` Failed to download dataset ${dataset.name}: HTTP ${response.status}`);
           }
         } catch (error) {
-          console.warn(`❌ Failed to download dataset ${dataset.name}:`, error);
+          console.warn(` Failed to download dataset ${dataset.name}:`, error);
         }
       } else {
-        console.warn(`⚠️ Dataset "${dataset.name}" has no IPFS hash - skipping download`);
+        console.warn(` Dataset "${dataset.name}" has no IPFS hash - skipping download`);
       }
     }
 
-    console.log(`📊 Downloaded ${datasetFiles.length} actual dataset CSV files`);
+    console.log(` Downloaded ${datasetFiles.length} actual dataset CSV files`);
     return datasetFiles;
   }
 
@@ -513,7 +513,7 @@ config:
    */
   private async saveFilesToLocal(projectPath: string, bundleFiles: IPFSFile[]): Promise<string[]> {
     try {
-      console.log(`📁 Saving ${bundleFiles.length} files to: ${projectPath}`);
+      console.log(` Saving ${bundleFiles.length} files to: ${projectPath}`);
       
       // Extract project ID from path
       const projectId = projectPath.split('/').pop() || 'unknown';
@@ -550,14 +550,14 @@ config:
       const result = await response.json();
       
       if (result.success) {
-        console.log(`✅ Successfully saved ${result.totalFiles} files to backend`);
+        console.log(` Successfully saved ${result.totalFiles} files to backend`);
         return result.savedFiles;
       } else {
         throw new Error(result.error || 'Backend service reported failure');
       }
       
     } catch (error) {
-      console.warn('⚠️ Backend service not available, falling back to browser downloads');
+      console.warn(' Backend service not available, falling back to browser downloads');
       console.error('Backend error:', error);
       
       // Fallback: Use browser downloads and create setup script
@@ -572,7 +572,7 @@ config:
     const savedFiles: string[] = [];
     const projectId = projectPath.split('/').pop() || 'unknown';
     
-    console.log(`📁 Creating downloads for directory: ${projectPath}`);
+    console.log(` Creating downloads for directory: ${projectPath}`);
     
     // For each file, create downloadable content
     for (const file of bundleFiles) {
@@ -581,7 +581,7 @@ config:
       // Create directory structure info
       const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
       if (dirPath !== projectPath) {
-        console.log(`📁 Would create subdirectory: ${dirPath}`);
+        console.log(` Would create subdirectory: ${dirPath}`);
       }
       
       // Handle both string and ArrayBuffer content types
@@ -599,7 +599,7 @@ config:
     // Create a script to help user organize files
     this.createSetupScript(projectPath, bundleFiles);
     
-    console.log(`✅ Created ${savedFiles.length} downloads for local AL-Engine setup`);
+    console.log(` Created ${savedFiles.length} downloads for local AL-Engine setup`);
     return savedFiles;
   }
 
@@ -624,7 +624,7 @@ config:
       
       console.log(`📥 Download created: ${a.download}`);
     } catch (error) {
-      console.warn(`⚠️ Failed to create download for ${fileName}:`, error);
+      console.warn(` Failed to create download for ${fileName}:`, error);
     }
   }
 
@@ -654,8 +654,8 @@ ${bundleFiles.map(file => {
   }
 }).join('\n')}
 
-echo "✅ AL-Engine RO-Crate setup complete!"
-echo "📂 Files organized in: $PROJECT_PATH"
+echo " AL-Engine RO-Crate setup complete!"
+echo " Files organized in: $PROJECT_PATH"
 `;
 
     this.createDownloadableFile('setup_rocrate.sh', script, 'setup');
@@ -671,7 +671,7 @@ echo "📂 Files organized in: $PROJECT_PATH"
     savedFiles: string[]
   ): Promise<void> {
     // The manifest is now created automatically by the backend service
-    console.log(`📋 Manifest will be created by backend service for project ${projectId}`);
+    console.log(` Manifest will be created by backend service for project ${projectId}`);
   }
 
   /**
@@ -688,7 +688,7 @@ echo "📂 Files organized in: $PROJECT_PATH"
     const projectPath = this.getProjectLocalPath(projectId);
     // TODO: In real implementation, this would check if the directory exists
     // return await this.checkDirectoryExists(projectPath);
-    console.log(`🔍 Would check if project exists at: ${projectPath}`);
+    console.log(` Would check if project exists at: ${projectPath}`);
     return false; // Placeholder
   }
 
@@ -697,7 +697,7 @@ echo "📂 Files organized in: $PROJECT_PATH"
    */
   async listLocalProjects(): Promise<string[]> {
     // TODO: In real implementation, this would list directories in ro-crates
-    console.log(`📋 Would list projects in: ${this.LOCAL_ROCRATE_ROOT}`);
+    console.log(` Would list projects in: ${this.LOCAL_ROCRATE_ROOT}`);
     return []; // Placeholder
   }
 }

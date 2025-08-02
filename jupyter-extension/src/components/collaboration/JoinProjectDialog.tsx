@@ -119,7 +119,7 @@ export const JoinProjectDialog: React.FC<JoinProjectDialogProps> = ({
             alignItems: 'center',
             gap: '8px'
           }}>
-            <span style={{ fontSize: '16px' }}>🧠</span>
+            <span style={{ fontSize: '16px' }}></span>
             Active Learning Project
           </h4>
           <p style={{ margin: 0, color: '#01579b', fontSize: '14px' }}>

@@ -31,7 +31,7 @@ export class VotingService {
    */
   async getVotingHistory(projectAddress: string): Promise<VotingRecord[]> {
     try {
-      console.log(`📜 Fetching voting history using contract methods for project ${projectAddress}`);
+      console.log(` Fetching voting history using contract methods for project ${projectAddress}`);
       
       // Resolve ALProject address
       const alProjectAddress = await resolveALProjectAddress(projectAddress, this.provider);
@@ -40,7 +40,7 @@ export class VotingService {
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
       if (!hasALContracts) {
-        console.log('📝 Project has no AL contracts');
+        console.log(' Project has no AL contracts');
         return [];
       }
 
@@ -50,18 +50,18 @@ export class VotingService {
 
       // Get current round to know how many rounds to check
       const currentRound = await votingContract.currentRound();
-      console.log(`📊 Checking voting history for ${currentRound} rounds`);
+      console.log(` Checking voting history for ${currentRound} rounds`);
 
       const votingRecords: VotingRecord[] = [];
 
       // For each round, get all samples and their voting data
       for (let round = 1; round <= currentRound; round++) {
         try {
-          console.log(`🔍 Processing round ${round}...`);
+          console.log(` Processing round ${round}...`);
           
           // Get all sample IDs for this round
           const sampleIds = await votingContract.getBatchSamples(round);
-          console.log(`📋 Found ${sampleIds.length} samples in round ${round}:`, sampleIds);
+          console.log(` Found ${sampleIds.length} samples in round ${round}:`, sampleIds);
 
           // For each sample, get voting details
           for (const sampleId of sampleIds) {
@@ -72,7 +72,7 @@ export class VotingService {
 
               // Only include finalized samples (completed voting)
               if (!isFinalized || !finalLabel) {
-                console.log(`⏳ Skipping ${sampleId} - not finalized yet`);
+                console.log(` Skipping ${sampleId} - not finalized yet`);
                 continue;
               }
 
@@ -109,7 +109,7 @@ export class VotingService {
               try {
                 consensusReached = await votingContract.wasConsensusAchieved(sampleId);
               } catch (consensusError) {
-                console.warn(`⚠️ Failed to check consensus for ${sampleId}:`, consensusError);
+                console.warn(` Failed to check consensus for ${sampleId}:`, consensusError);
                 // Fallback: no consensus if we can't check
                 consensusReached = false;
               }
@@ -126,15 +126,15 @@ export class VotingService {
               };
 
               votingRecords.push(votingRecord);
-              console.log(`✅ Added voting record for ${sampleId}: ${finalLabel}`);
+              console.log(` Added voting record for ${sampleId}: ${finalLabel}`);
               
             } catch (sampleError) {
-              console.warn(`⚠️ Error processing sample ${sampleId}:`, sampleError);
+              console.warn(` Error processing sample ${sampleId}:`, sampleError);
             }
           }
           
         } catch (roundError) {
-          console.warn(`⚠️ Error processing round ${round}:`, roundError);
+          console.warn(` Error processing round ${round}:`, roundError);
         }
       }
 
@@ -148,11 +148,11 @@ export class VotingService {
         return b.timestamp.getTime() - a.timestamp.getTime();
       });
 
-      console.log(`✅ Retrieved ${votingRecords.length} voting records using contract methods`);
+      console.log(` Retrieved ${votingRecords.length} voting records using contract methods`);
       return votingRecords;
 
     } catch (error) {
-      console.error('❌ Error fetching voting history using contract methods:', error);
+      console.error(' Error fetching voting history using contract methods:', error);
       return [];
     }
   }
@@ -162,7 +162,7 @@ export class VotingService {
    */
   async getUserContributions(projectAddress: string): Promise<UserContribution[]> {
     try {
-      console.log(`👥 Fetching real user contributions using contract methods for project ${projectAddress}`);
+      console.log(` Fetching real user contributions using contract methods for project ${projectAddress}`);
       
       // Resolve ALProject address
       const alProjectAddress = await resolveALProjectAddress(projectAddress, this.provider);
@@ -171,7 +171,7 @@ export class VotingService {
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
       if (!hasALContracts) {
-        console.log('📝 Project has no AL contracts');
+        console.log(' Project has no AL contracts');
         return [];
       }
 
@@ -187,10 +187,10 @@ export class VotingService {
       
       // Get all voters from the voting contract
       const voterList = await votingContract.getVoterList();
-      console.log(`📋 Found ${voterList.length} registered voters`);
+      console.log(` Found ${voterList.length} registered voters`);
 
       if (voterList.length === 0) {
-        console.log('📝 No voters registered in the project yet');
+        console.log(' No voters registered in the project yet');
         return [];
       }
 
@@ -243,11 +243,11 @@ export class VotingService {
                     }
                   }
                 } catch (sampleError) {
-                  console.warn(`⚠️ Error processing sample ${sampleId} for voter ${voterAddress}:`, sampleError);
+                  console.warn(` Error processing sample ${sampleId} for voter ${voterAddress}:`, sampleError);
                 }
               }
             } catch (roundError) {
-              console.warn(`⚠️ Error processing round ${round} for voter ${voterAddress}:`, roundError);
+              console.warn(` Error processing round ${round} for voter ${voterAddress}:`, roundError);
             }
           }
 
@@ -264,21 +264,21 @@ export class VotingService {
           };
 
           contributions.push(contribution);
-          console.log(`✅ Added user contribution for ${voterAddress}: ${totalVotes} votes`);
+          console.log(` Added user contribution for ${voterAddress}: ${totalVotes} votes`);
           
         } catch (voterError) {
-          console.warn(`⚠️ Error processing voter ${voter.addr}:`, voterError);
+          console.warn(` Error processing voter ${voter.addr}:`, voterError);
         }
       }
 
       // Sort by vote count (descending)
       contributions.sort((a, b) => b.votesCount - a.votesCount);
 
-      console.log(`✅ Retrieved ${contributions.length} real user contributions using contract methods`);
+      console.log(` Retrieved ${contributions.length} real user contributions using contract methods`);
       return contributions;
       
     } catch (error) {
-      console.error('❌ Error fetching user contributions using contract methods:', error);
+      console.error(' Error fetching user contributions using contract methods:', error);
       return [];
     }
   }
@@ -289,7 +289,7 @@ export class VotingService {
    */
   async submitBatchVote(projectAddress: string, sampleIds: string[], labels: string[], userAddress: string): Promise<boolean> {
     try {
-      console.log(`🗳️ Submitting BATCH vote (${sampleIds.length} samples) via Project:`, { projectAddress, sampleIds, labels, userAddress });
+      console.log(` Submitting BATCH vote (${sampleIds.length} samples) via Project:`, { projectAddress, sampleIds, labels, userAddress });
       
       // Validate inputs
       if (sampleIds.length !== labels.length) {
@@ -314,7 +314,7 @@ export class VotingService {
       
       // Submit batch vote through Project (Project will handle auto-registration and AL contract interaction)
       const batchType = sampleIds.length === 1 ? 'single-sample batch' : 'multi-sample batch';
-      console.log(`📤 Submitting ${batchType} vote for ${sampleIds.length} samples - Project will auto-register if needed...`);
+      console.log(` Submitting ${batchType} vote for ${sampleIds.length} samples - Project will auto-register if needed...`);
       
       // Create mutable copies to avoid Ethers.js readonly array errors
       const mutableSampleIds = [...sampleIds];
@@ -325,12 +325,12 @@ export class VotingService {
       
       // Wait for confirmation
       const receipt = await tx.wait();
-      console.log('✅ Batch vote confirmed in block:', receipt.blockNumber);
-      console.log('🎉 Batch vote successfully processed (including any auto-registration)');
+      console.log(' Batch vote confirmed in block:', receipt.blockNumber);
+      console.log(' Batch vote successfully processed (including any auto-registration)');
       
       return true;
     } catch (error) {
-      console.error('❌ Failed to submit batch vote via Project:', error);
+      console.error(' Failed to submit batch vote via Project:', error);
       
       // Provide helpful error messages
       if (error instanceof Error) {

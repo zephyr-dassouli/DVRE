@@ -54,7 +54,7 @@ const ProjectInformationPanel: React.FC<ProjectInformationPanelProps> = ({ proje
                 onClick={() => project.contractAddress && copyToClipboard(project.contractAddress, 'Contract address copied!')}
                 title="Copy full address"
               >
-                📋
+                
               </button>
             )}
           </div>
@@ -77,7 +77,7 @@ const ProjectInformationPanel: React.FC<ProjectInformationPanelProps> = ({ proje
               onClick={() => copyToClipboard(project.owner, 'Owner address copied!')}
               title="Copy full address"
             >
-              📋
+              
             </button>
           </div>
         </div>

@@ -154,10 +154,10 @@ export const useDALProject = (projectAddress?: string) => {
         }
 
         // Fetch AL configuration directly from smart contract
-        console.log('📋 Fetching AL metadata from smart contract:', project.address);
+        console.log(' Fetching AL metadata from smart contract:', project.address);
         try {
           const metadata = await projectContract.getProjectMetadata();
-          console.log('✅ Retrieved AL metadata from smart contract:', metadata);
+          console.log(' Retrieved AL metadata from smart contract:', metadata);
           
           // Extract AL configuration from smart contract metadata
           alConfiguration = {
@@ -181,7 +181,7 @@ export const useDALProject = (projectAddress?: string) => {
             try {
               const votingAddress = await projectContract.votingContract();
               if (votingAddress && votingAddress !== '0x0000000000000000000000000000000000000000') {
-                console.log('🗳️ Fetching voting configuration from AL contract:', votingAddress);
+                console.log(' Fetching voting configuration from AL contract:', votingAddress);
                 
                 // Import ALProjectVoting ABI
                 const ALProjectVoting = await import('../abis/ALProjectVoting.json');
@@ -191,7 +191,7 @@ export const useDALProject = (projectAddress?: string) => {
                 // Note: These methods might not exist in all contract versions
                 try {
                   const voterList = await votingContract.getVoterList();
-                  console.log('👥 Found voters:', voterList.length);
+                  console.log(' Found voters:', voterList.length);
                   
                   // Additional voting config could be retrieved here if methods exist
                   // alConfiguration.votingConsensus = await votingContract.getConsensusType();
@@ -205,7 +205,7 @@ export const useDALProject = (projectAddress?: string) => {
             }
           }
 
-          console.log('🔧 Parsed AL configuration from smart contract:', alConfiguration);
+          console.log(' Parsed AL configuration from smart contract:', alConfiguration);
         } catch (metadataError) {
           console.warn('Could not fetch AL metadata from smart contract:', metadataError);
           
@@ -222,7 +222,7 @@ export const useDALProject = (projectAddress?: string) => {
               votingTimeout: dalConfig.votingTimeout || 3600,
               labelSpace: dalConfig.labelSpace || [] // Remove default ['positive', 'negative']
             };
-            console.log('📁 Using fallback AL configuration from local storage:', alConfiguration);
+            console.log(' Using fallback AL configuration from local storage:', alConfiguration);
           }
         }
         
@@ -247,7 +247,7 @@ export const useDALProject = (projectAddress?: string) => {
       // const dalConfig = config?.extensions?.dal;
       
       // Debug logging to understand what configuration is available
-      console.log('🔍 DAL Project enrichment for:', {
+      console.log(' DAL Project enrichment for:', {
         projectId: project.projectId,
         projectAddress: project.address,
         hasSmartContractALConfig: !!alConfiguration,
@@ -326,7 +326,7 @@ export const useDALProject = (projectAddress?: string) => {
       setLoading(true);
       setError(null);
       
-      console.log('🚀 Triggering next AL iteration from useDALProject');
+      console.log(' Triggering next AL iteration from useDALProject');
       
       // Import ALContractService
       const { alContractService } = await import('../components/dal/services/ALContractService');
@@ -337,13 +337,13 @@ export const useDALProject = (projectAddress?: string) => {
       if (success) {
         // Reload project data to reflect changes
         await loadProjectDetails(projectAddress);
-        console.log('✅ AL iteration started successfully');
+        console.log(' AL iteration started successfully');
       } else {
         throw new Error('Failed to start AL iteration');
       }
       
     } catch (err) {
-      console.error('❌ Failed to start next iteration:', err);
+      console.error(' Failed to start next iteration:', err);
       setError(err instanceof Error ? err.message : 'Failed to start next iteration');
       throw err;
     } finally {
@@ -359,7 +359,7 @@ export const useDALProject = (projectAddress?: string) => {
       setLoading(true);
       setError(null);
       
-      console.log('🏁 Ending AL project from useDALProject');
+      console.log(' Ending AL project from useDALProject');
       
       // Import ALContractService
       const { alContractService } = await import('../components/dal/services/ALContractService');
@@ -370,13 +370,13 @@ export const useDALProject = (projectAddress?: string) => {
       if (success) {
         // Reload project data to reflect changes
         await loadProjectDetails(projectAddress);
-        console.log('✅ AL project ended successfully');
+        console.log(' AL project ended successfully');
       } else {
         throw new Error('Failed to end AL project');
       }
       
     } catch (err) {
-      console.error('❌ Failed to end project:', err);
+      console.error(' Failed to end project:', err);
       setError(err instanceof Error ? err.message : 'Failed to end project');
       throw err;
     } finally {
@@ -392,7 +392,7 @@ export const useDALProject = (projectAddress?: string) => {
       setLoading(true);
       setError(null);
       
-      console.log('🗳️ Submitting vote from useDALProject');
+      console.log(' Submitting vote from useDALProject');
       
       // Import ALContractService
       const { alContractService } = await import('../components/dal/services/ALContractService');
@@ -403,13 +403,13 @@ export const useDALProject = (projectAddress?: string) => {
       if (success) {
         // Reload project data to reflect the vote
         await loadProjectDetails(projectAddress);
-        console.log('✅ Vote submitted successfully');
+        console.log(' Vote submitted successfully');
       } else {
         throw new Error('Failed to submit vote');
       }
       
     } catch (err) {
-      console.error('❌ Failed to submit vote:', err);
+      console.error(' Failed to submit vote:', err);
       setError(err instanceof Error ? err.message : 'Failed to submit vote');
       throw err;
     } finally {

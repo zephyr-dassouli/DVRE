@@ -52,7 +52,7 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
     setError(null);
     
     try {
-      console.log('🔍 Loading enhanced AL project data for:', project.contractAddress);
+      console.log(' Loading enhanced AL project data for:', project.contractAddress);
       
       // Load enhanced project status from contracts
       const [enhancedStatus, votingData, contributionData, modelData] = await Promise.all([
@@ -64,7 +64,7 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
 
       // Fetch project description from project data JSON (already stored during creation)
       try {
-        console.log('📋 Fetching project description from project data JSON...');
+        console.log(' Fetching project description from project data JSON...');
         const provider = new ethers.JsonRpcProvider(RPC_URL);
         
         // First resolve ALProject address, then get base Project address for getProjectData()
@@ -82,16 +82,16 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
         
         // Extract description from the project data
         const description = projectData.description || projectData.objective || '';
-        console.log('📝 Project description extracted from project data:', `"${description}"`);
+        console.log(' Project description extracted from project data:', `"${description}"`);
         setProjectDescription(description);
         
         if (description && description.trim() !== '') {
-          console.log('✅ Project description set successfully:', description);
+          console.log(' Project description set successfully:', description);
         } else {
           console.log('ℹ️ Project description is empty or not set');
         }
       } catch (descError) {
-        console.error('❌ Could not fetch project description:', descError);
+        console.error(' Could not fetch project description:', descError);
         setProjectDescription('');
       }
 
@@ -153,7 +153,7 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
       }
 
       // Log contract state summary
-      console.log(`📊 Contract State Summary:
+      console.log(` Contract State Summary:
         - Project Active: ${enhancedStatus.isActive}
         - Current Round: ${enhancedStatus.currentIteration}/${enhancedStatus.maxIterations}
         - Batch Active: ${enhancedStatus.currentBatch.batchActive}

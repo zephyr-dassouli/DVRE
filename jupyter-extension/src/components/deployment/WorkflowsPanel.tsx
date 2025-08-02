@@ -138,7 +138,7 @@ requirements:
       <div className="workflow-info">
         <div className="workflow-summary">
           <div className="workflow-header">
-            <h5>🔄 Active Learning Iteration Workflow</h5>
+            <h5> Active Learning Iteration Workflow</h5>
             <span className="workflow-badge">Predefined</span>
           </div>
           
@@ -175,7 +175,7 @@ requirements:
           </div>
 
           <div className="workflow-section">
-            <h6>📤 Outputs</h6>
+            <h6> Outputs</h6>
             <ul className="io-list">
               <li><code>model_out.pkl</code> - Updated trained model</li>
               <li><code>query_indices.npy</code> - Selected sample indices for labeling</li>
@@ -202,14 +202,14 @@ requirements:
             className="copy-cwl-button"
             onClick={() => copyToClipboard(getALWorkflowCWL(), 'CWL workflow copied to clipboard!')}
           >
-            📋 Copy CWL
+             Copy CWL
           </button>
           
           <button
             className="copy-config-button"
             onClick={() => copyToClipboard(getConfigJSON(), 'Config JSON copied to clipboard!')}
           >
-            📋 Copy Config
+             Copy Config
           </button>
         </div>
 
@@ -238,7 +238,7 @@ requirements:
         )}
 
         <div className="workflow-runtime">
-          <h6>🔧 Runtime Configuration</h6>
+          <h6> Runtime Configuration</h6>
           <p>
             The workflow will be executed with runtime input mapping based on your project's 
             datasets and model configuration. File paths are injected at deployment time.

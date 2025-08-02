@@ -66,19 +66,19 @@ export const ProjectDetails: React.FC<ProjectDetailsProps> = ({
                 let filteredRoles = actualRoles;
                 
                 if (isActiveLearningProject) {
-                    console.log('🧠 Active Learning project detected - filtering coordinator role from invitations');
-                    console.log('📋 Original roles for invitations:', actualRoles);
+                    console.log(' Active Learning project detected - filtering coordinator role from invitations');
+                    console.log(' Original roles for invitations:', actualRoles);
                     
                     filteredRoles = actualRoles.filter(role => 
                         role.toLowerCase() !== 'coordinator'
                     );
                     
-                    console.log('📋 Filtered roles for invitations (removed coordinator):', filteredRoles);
+                    console.log(' Filtered roles for invitations (removed coordinator):', filteredRoles);
                     
                     // If no roles remain after filtering, provide 'contributor' as default
                     if (filteredRoles.length === 0) {
                         filteredRoles = ['contributor'];
-                        console.log('📋 No roles left, using default for invitations: contributor');
+                        console.log(' No roles left, using default for invitations: contributor');
                     }
                 }
                 

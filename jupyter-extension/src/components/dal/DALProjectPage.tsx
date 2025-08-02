@@ -150,7 +150,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
         const endStatus = await alContractService.getProjectEndStatus(project.contractAddress);
         
         if (endStatus.shouldEnd && !projectEndStatus.shouldEnd) {
-          console.log('🚨 Project should end based on smart contract conditions:', endStatus);
+          console.log(' Project should end based on smart contract conditions:', endStatus);
           setProjectEndStatus(endStatus);
         }
       } catch (error) {
@@ -205,7 +205,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           <h1>{project.name}</h1>
         </div>
         <div style={{ padding: '40px', textAlign: 'center' }}>
-          <div>🔄 Loading project data from smart contracts...</div>
+          <div> Loading project data from smart contracts...</div>
           <div style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
             This may take a few moments as we fetch voting history, user contributions, and model updates.
           </div>
@@ -222,7 +222,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
           <h1>{project.name}</h1>
         </div>
         <div style={{ padding: '40px', textAlign: 'center' }}>
-          <div style={{ color: '#ef4444' }}>❌ Error loading project data</div>
+          <div style={{ color: '#ef4444' }}> Error loading project data</div>
           <div style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
             {error}
           </div>
@@ -237,7 +237,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
               borderRadius: '4px' 
             }}
           >
-            🔄 Retry
+             Retry
           </button>
         </div>
       </div>

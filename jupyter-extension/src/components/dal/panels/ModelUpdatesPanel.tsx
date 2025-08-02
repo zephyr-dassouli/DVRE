@@ -33,7 +33,7 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
           backgroundColor: '#f9fafb',
           borderRadius: '8px'
         }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}></div>
           <h4>Contributor Access</h4>
           <p style={{ color: '#666', lineHeight: '1.6', maxWidth: '400px', margin: '0 auto' }}>
             Model updates are only available to project coordinators during active learning.
@@ -131,7 +131,7 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
           ))
         ) : (
           <div style={{ padding: '40px', textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}></div>
             <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
               No Model Updates Yet
             </div>

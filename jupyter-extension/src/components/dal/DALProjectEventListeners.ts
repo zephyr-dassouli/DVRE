@@ -50,7 +50,7 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
       // Updating here was causing double increments and wrong calculations
       
       // FIXED: Force refresh project data when sample completes to update activeVoting state
-      console.log('🔄 Sample completed, triggering project data refresh to clear activeVoting');
+      console.log(' Sample completed, triggering project data refresh to clear activeVoting');
       triggerRefresh();
     };
 
@@ -84,7 +84,7 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
       return () => {}; // No cleanup needed if no user
     }
 
-    console.log('🔗 Creating DAL Project Session for:', currentUser);
+    console.log(' Creating DAL Project Session for:', currentUser);
     const session = createDALProjectSession(project.contractAddress, currentUser);
     setDalSession(session);
 
@@ -93,7 +93,7 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
 
     // Set up session event listeners
     const handleStateChange = (newState: SessionState) => {
-      console.log('📊 Session state changed:', newState);
+      console.log(' Session state changed:', newState);
       setSessionState(newState);
       
       if (newState.batchProgress) {
@@ -111,7 +111,7 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
     };
 
     const handleIterationComplete = (iteration: number, samplesLabeled: number) => {
-      console.log(`🎉 Iteration ${iteration} completed with ${samplesLabeled} samples`);
+      console.log(` Iteration ${iteration} completed with ${samplesLabeled} samples`);
       setIterationCompleted(true);
       setIterationMessage(`AL Iteration ${iteration} completed successfully! ${samplesLabeled} samples were labeled.`);
       
@@ -122,12 +122,12 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
     };
 
     const handleSessionError = (errorMessage: string) => {
-      console.error('❌ DAL Session error:', errorMessage);
+      console.error(' DAL Session error:', errorMessage);
       setError(`Session Error: ${errorMessage}`);
     };
 
     const handleProjectShouldEnd = (details: { trigger: string; reason: string; currentRound: number; timestamp: number; }) => {
-      console.log('🚨 Project should end:', details);
+      console.log(' Project should end:', details);
       setProjectEndStatus({
         shouldEnd: true,
         reason: details.reason,
@@ -143,7 +143,7 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
 
     // Check AL-Engine health
     session.checkALEngineHealth().catch((err: any) => {
-      console.warn('⚠️ AL-Engine health check failed:', err);
+      console.warn(' AL-Engine health check failed:', err);
       setError('AL-Engine is not responsive. Please ensure it is running on localhost:5050');
     });
 

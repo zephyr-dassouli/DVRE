@@ -103,7 +103,7 @@ const GraphComponent: React.FC<GraphComponentProps> = ({ title }) => {
         </div>
 
         <div className="dvre-graph-error">
-          <div className="dvre-error-icon">⚠️</div>
+          <div className="dvre-error-icon"></div>
           <h3>Error Loading Projects</h3>
           <p>{error}</p>
           <button 

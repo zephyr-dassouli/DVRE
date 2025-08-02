@@ -15,7 +15,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     try {
       await onStartNextIteration();
     } catch (error) {
-      console.error('❌ Failed to start next iteration:', error);
+      console.error('Failed to start next iteration:', error);
       onError(error instanceof Error ? error.message : 'Failed to start iteration');
     }
   };
@@ -27,7 +27,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     try {
       await onEndProject();
     } catch (error) {
-      console.error('❌ Failed to end project:', error);
+      console.error('Failed to end project:', error);
       onError(error instanceof Error ? error.message : 'Failed to end project');
     }
   };
@@ -49,7 +49,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           marginBottom: '24px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-            <span style={{ fontSize: '24px' }}>ℹ️</span>
             <h4 style={{ margin: 0, color: '#1e40af' }}>Project Management Access</h4>
           </div>
           <p style={{ margin: 0, color: '#1e40af', lineHeight: '1.5' }}>
@@ -65,7 +64,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           padding: '24px',
           backgroundColor: '#f8fafc'
         }}>
-          <h4 style={{ marginBottom: '16px', color: '#1f2937' }}>📊 Project Status Summary</h4>
+          <h4 style={{ marginBottom: '16px', color: '#1f2937' }}>Project Status Summary</h4>
           <div className="status-grid" style={{ 
             display: 'grid', 
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
@@ -176,7 +175,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           padding: '24px',
           backgroundColor: 'white'
         }}>
-          <h4 style={{ marginBottom: '12px', color: '#1f2937' }}>🚀 Start Next Iteration</h4>
+          <h4 style={{ marginBottom: '12px', color: '#1f2937' }}>Start Next Iteration</h4>
           
           {/* Show warning if project should end or max iterations reached */}
           {(projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds) && (
@@ -192,7 +191,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 color: '#92400e',
                 marginBottom: '4px'
               }}>
-                ⚠️ Cannot Start New Iteration
+                 Cannot Start New Iteration
               </div>
               <div style={{ color: '#78350f', fontSize: '14px' }}>
                 {project.currentRound >= project.totalRounds 
@@ -257,7 +256,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           backgroundColor: projectEndStatus.shouldEnd ? '#fffbeb' : '#fef2f2'
         }}>
           <h4 style={{ marginBottom: '12px', color: projectEndStatus.shouldEnd ? '#d97706' : '#dc2626' }}>
-            {projectEndStatus.shouldEnd ? '🚨 Project Should End' : '🏁 End Project'}
+            {projectEndStatus.shouldEnd ? 'Project Should End' : 'End Project'}
           </h4>
           
           {projectEndStatus.shouldEnd && (
@@ -276,8 +275,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 alignItems: 'center',
                 gap: '8px'
               }}>
-                <span>{(projectEndStatus.reason && projectEndStatus.reason.includes('Maximum iterations')) ? '🎯' : 
-                        (projectEndStatus.reason && projectEndStatus.reason.includes('unlabeled samples')) ? '📊' : '🚨'}</span>
+                <span>{(projectEndStatus.reason && projectEndStatus.reason.includes('Maximum iterations')) ? '' : 
+                        (projectEndStatus.reason && projectEndStatus.reason.includes('unlabeled samples')) ? '' : ''}</span>
                 <span>Automatic End Condition Triggered</span>
               </div>
               <div style={{ color: '#78350f', fontSize: '14px', lineHeight: '1.4' }}>
@@ -337,7 +336,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         padding: '24px',
         backgroundColor: '#f8fafc'
       }}>
-        <h4 style={{ marginBottom: '16px', color: '#1f2937' }}>📊 Project Status Summary</h4>
+        <h4 style={{ marginBottom: '16px', color: '#1f2937' }}>Project Status Summary</h4>
         <div className="status-grid" style={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 

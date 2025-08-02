@@ -26,18 +26,18 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     setError(null);
     
     try {
-      console.log('🔍 Fetching AL configuration from blockchain for project:', project.contractAddress);
+      console.log(' Fetching AL configuration from blockchain for project:', project.contractAddress);
       const config = await alContractService.getALConfiguration(project.contractAddress);
       
       if (config) {
         setAlConfiguration(config);
-        console.log('✅ Loaded AL configuration from blockchain:', config);
+        console.log(' Loaded AL configuration from blockchain:', config);
       } else {
         setAlConfiguration(null);
         setError('No AL configuration found - project may not be deployed yet');
       }
     } catch (error) {
-      console.error('❌ Failed to fetch AL configuration:', error);
+      console.error(' Failed to fetch AL configuration:', error);
       setError('Failed to load AL configuration from blockchain');
     } finally {
       setLoading(false);
@@ -56,7 +56,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           <h3>Project Configuration</h3>
         </div>
         <div style={{ padding: '40px', textAlign: 'center' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}></div>
           <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
             Loading Configuration...
           </div>
@@ -75,7 +75,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           <h3>Project Configuration</h3>
         </div>
         <div style={{ padding: '40px', textAlign: 'center' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}></div>
           <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px', color: '#dc2626' }}>
             Configuration Error
           </div>
@@ -93,7 +93,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               cursor: 'pointer'
             }}
           >
-            🔄 Retry
+             Retry
           </button>
         </div>
       </div>

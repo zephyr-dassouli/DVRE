@@ -60,7 +60,7 @@ export class IPFSService {
       ];
 
       // Generate and add config/config.json from smart contract data
-      console.log('🔧 Generating config/config.json from smart contract data...');
+      console.log(' Generating config/config.json from smart contract data...');
       try {
         const { smartContractService } = await import('./SmartContractService');
         const configData = await smartContractService.generateConfigFromSmartContract(projectId, config);
@@ -228,7 +228,7 @@ export class IPFSService {
         const result = await response.text();
         const ipfsResponse = JSON.parse(result);
         
-        console.log(`✅ File uploaded to IPFS: ${file.name} -> ${ipfsResponse.Hash}`);
+        console.log(` File uploaded to IPFS: ${file.name} -> ${ipfsResponse.Hash}`);
         
         return {
           hash: ipfsResponse.Hash,
@@ -240,7 +240,7 @@ export class IPFSService {
       }
       
     } catch (error) {
-      console.error(`❌ IPFS upload failed for ${file.name}:`, error);
+      console.error(` IPFS upload failed for ${file.name}:`, error);
       
       // Check for specific error types
       if (error instanceof Error) {
@@ -257,7 +257,7 @@ export class IPFSService {
    For now, DVRE will use test mode for uploads.
           `);
         } else if (error.message.includes('fetch')) {
-          console.warn('⚠️ Network error - IPFS node may not be accessible or CORS not configured');
+          console.warn(' Network error - IPFS node may not be accessible or CORS not configured');
         }
       }
       
@@ -337,7 +337,7 @@ export class IPFSService {
         // Find the directory hash (last result with empty name or matching dirName)
         const directoryResult = results.find(r => r.Name === '' || r.Name === dirName) || results[results.length - 1];
         
-        console.log(`✅ Directory uploaded to IPFS: ${dirName} -> ${directoryResult.Hash}`);
+        console.log(` Directory uploaded to IPFS: ${dirName} -> ${directoryResult.Hash}`);
         
         // Calculate total size
         const totalSize = results.reduce((sum, r) => sum + (r.Size || 0), 0);
@@ -352,14 +352,14 @@ export class IPFSService {
       }
       
     } catch (error) {
-      console.error(`❌ IPFS directory upload failed for ${dirName}:`, error);
+      console.error(` IPFS directory upload failed for ${dirName}:`, error);
       
       // Check for specific error types
       if (error instanceof Error) {
         if (error.message.includes('Authentication failed')) {
           console.warn('🔐 IPFS Authentication Failed - using test mode for directory upload');
         } else if (error.message.includes('fetch')) {
-          console.warn('⚠️ Network error - IPFS node may not be accessible or CORS not configured');
+          console.warn(' Network error - IPFS node may not be accessible or CORS not configured');
         }
       }
       
@@ -418,12 +418,12 @@ export class IPFSService {
    */
   async testIPFSConnection(): Promise<boolean> {
     if (this.ipfsConfig.useMockUpload) {
-      console.log('📝 IPFS: Using mock/test mode');
+      console.log(' IPFS: Using mock/test mode');
       return true;
     }
 
     try {
-      console.log(`🔍 Testing IPFS connection to ${this.ipfsConfig.apiUrl}...`);
+      console.log(` Testing IPFS connection to ${this.ipfsConfig.apiUrl}...`);
       
       // Create AbortController for timeout (browser compatibility)
       const abortController = new AbortController();
@@ -445,7 +445,7 @@ export class IPFSService {
 
         if (response.ok) {
           const versionInfo = await response.json();
-          console.log(`✅ IPFS node connected successfully! Version: ${versionInfo.Version}`);
+          console.log(` IPFS node connected successfully! Version: ${versionInfo.Version}`);
           console.log(`🔐 API key authentication successful`);
           return true;
         } else if (response.status === 401) {
@@ -459,11 +459,11 @@ export class IPFSService {
         clearTimeout(timeoutId);
       }
     } catch (error) {
-      console.warn(`⚠️ IPFS connection test failed:`, error);
+      console.warn(` IPFS connection test failed:`, error);
       
       if (error instanceof TypeError && error.message.includes('fetch')) {
         console.warn(`
-🔧 IPFS Setup Information:
+ IPFS Setup Information:
    Your IPFS setup uses an authenticated proxy. Connection details:
    - API: ${this.ipfsConfig.apiUrl} (via auth proxy)  
    - Gateway: ${this.ipfsConfig.gatewayUrl}

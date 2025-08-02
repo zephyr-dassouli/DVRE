@@ -217,7 +217,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
         };
         
         projectConfigurationService.addDataset(projectId, 'training-dataset', trainingDataset, account);
-        console.log('📊 Added training dataset to RO-Crate:', trainingAsset.name, 'IPFS:', trainingAsset.ipfsHash);
+        console.log(' Added training dataset to RO-Crate:', trainingAsset.name, 'IPFS:', trainingAsset.ipfsHash);
       }
     }
 
@@ -237,7 +237,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
         };
         
         projectConfigurationService.addDataset(projectId, 'labeling-dataset', labelingDataset, account);
-        console.log('📊 Added labeling dataset to RO-Crate:', labelingAsset.name, 'IPFS:', labelingAsset.ipfsHash);
+        console.log(' Added labeling dataset to RO-Crate:', labelingAsset.name, 'IPFS:', labelingAsset.ipfsHash);
       }
     }
   };

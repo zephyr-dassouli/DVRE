@@ -42,7 +42,7 @@ export const getAllRequestersForProject = async (projectAddress: string): Promis
         }
       }
     } catch (error) {
-      console.log('📝 No requesters found or error reading requesters array');
+      console.log(' No requesters found or error reading requesters array');
     }
     
     return requesters;
@@ -97,7 +97,7 @@ export const getAllParticipantsForProject = async (projectAddress: string): Prom
     const provider = new ethers.JsonRpcProvider(RPC_URL);
     const projectContract = new ethers.Contract(projectAddress, Project.abi, provider);
     
-    console.log('📋 Getting participant data through individual contract calls...');
+    console.log(' Getting participant data through individual contract calls...');
     const participantAddresses: string[] = [];
     const roles: string[] = [];
     const weights: bigint[] = [];
@@ -116,7 +116,7 @@ export const getAllParticipantsForProject = async (projectAddress: string): Prom
         }
       }
     } catch (error) {
-      console.log('📝 No participants found or error reading participants array');
+      console.log(' No participants found or error reading participants array');
     }
     
     // Get individual participant data from mappings
@@ -138,7 +138,7 @@ export const getAllParticipantsForProject = async (projectAddress: string): Prom
       }
     }
     
-    console.log(`✅ Retrieved data for ${participantCount} participants through individual calls`);
+    console.log(` Retrieved data for ${participantCount} participants through individual calls`);
     
     return {
       participantAddresses,
@@ -421,7 +421,7 @@ export const useProjects = () => {
       setLoading(false);
       
       // Debug logging for templates
-      console.log('🔍 Templates loaded:', {
+      console.log(' Templates loaded:', {
         totalTemplates: loadedTemplates.length,
         activeTemplates: loadedTemplates.filter(t => t.isActive).length,
         alTemplate: loadedTemplates.find(t => t.projectType === 'active_learning'),
@@ -560,7 +560,7 @@ export const useProjects = () => {
         throw new Error("ProjectFactory not found");
       }
 
-      // ✅ CRITICAL FIX: Ensure templates are loaded before using them
+      //  CRITICAL FIX: Ensure templates are loaded before using them
       if (templates.length === 0) {
         console.log('Templates not loaded yet, loading templates first...');
         await loadTemplates();
@@ -623,7 +623,7 @@ export const useProjects = () => {
         project_type: isActivelearningTemplate ? 'active_learning' : (projectData.project_type || template.projectType)
       };
 
-      console.log('🔍 Template Detection:', {
+      console.log(' Template Detection:', {
         templateId,
         templateFound: !!templates.find(t => t.id === templateId),
         templateType: template.projectType,
@@ -657,9 +657,9 @@ export const useProjects = () => {
         });
       }
 
-      // ✅ FIXED: Pass enhanced data to smart contract
+      //  FIXED: Pass enhanced data to smart contract
       const projectDataString = JSON.stringify(enhancedProjectData);
-      console.log('📤 Sending to contract:', { projectDataString: projectDataString.substring(0, 200) + '...' });
+      console.log(' Sending to contract:', { projectDataString: projectDataString.substring(0, 200) + '...' });
       
       const tx = await factoryContract.createProjectFromTemplate(templateId, projectDataString);
       const receipt = await tx.wait();
@@ -679,7 +679,7 @@ export const useProjects = () => {
         const parsedEvent = factoryInterface.parseLog(projectCreatedEvent);
         const projectAddress = parsedEvent?.args[1]; // project address
 
-        console.log('✅ Project created at address:', projectAddress);
+        console.log(' Project created at address:', projectAddress);
 
         // RO-Crate will be created later during project deployment phase
         // No auto-creation during project collaboration creation
@@ -755,7 +755,7 @@ export const useProjects = () => {
         const parsedEvent = factoryInterface.parseLog(projectCreatedEvent);
         const projectAddress = parsedEvent?.args[1]; // project address
 
-        console.log('✅ Custom project created at address:', projectAddress);
+        console.log(' Custom project created at address:', projectAddress);
 
         // RO-Crate will be created later during project deployment phase
         // No auto-creation during project collaboration creation

@@ -46,7 +46,7 @@ export async function resolveALProjectAddress(
     console.log(`📍 Resolved ALProject address ${alExtension} from base Project ${baseProjectAddress}`);
     return alExtension;
   } catch (error) {
-    console.error(`❌ Failed to resolve ALProject address from ${baseProjectAddress}:`, error);
+    console.error(` Failed to resolve ALProject address from ${baseProjectAddress}:`, error);
     throw new Error(`Could not resolve ALProject address: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -74,7 +74,7 @@ export async function getBaseProjectAddress(
     console.log(`📍 Found base Project address ${baseProjectAddress} for ALProject ${alProjectAddress}`);
     return baseProjectAddress;
   } catch (error) {
-    console.error(`❌ Failed to get base Project address from ${alProjectAddress}:`, error);
+    console.error(` Failed to get base Project address from ${alProjectAddress}:`, error);
     throw new Error(`Could not get base Project address: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 } 

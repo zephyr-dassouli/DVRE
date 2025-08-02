@@ -56,7 +56,7 @@ export const ComputationModePanel: React.FC<ComputationModePanelProps> = ({
                 onChange={() => handleModeChange('local')}
               />
               <div className="mode-content">
-                <strong>🖥️ Local (Own Device)</strong>
+                <strong> Local (Own Device)</strong>
                 <p>Computation performed locally on your device. Suitable for prototyping and small-scale projects.</p>
                 <ul>
                   <li>CWL workflows executed via local al-engine</li>
@@ -94,7 +94,7 @@ export const ComputationModePanel: React.FC<ComputationModePanelProps> = ({
         {selectedMode === 'local' && (
           <div className="local-mode-config">
             <div className="local-info">
-              <h5>📁 Local Project Setup</h5>
+              <h5> Local Project Setup</h5>
               <p><strong>Project Folder:</strong> <code>{localProjectPath}</code></p>
               <p>When you deploy this project, all necessary files will be automatically downloaded from IPFS to ensure standardization and reproducibility.</p>
             </div>

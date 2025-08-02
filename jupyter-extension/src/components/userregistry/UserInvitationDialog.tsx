@@ -200,7 +200,7 @@ export const UserInvitationDialog: React.FC<UserInvitationDialogProps> = ({
                 gap: '8px',
                 fontSize: '14px'
               }}>
-                <span style={{ fontSize: '16px' }}>🧠</span>
+                <span style={{ fontSize: '16px' }}></span>
                 Active Learning Project
               </h4>
               <p style={{ margin: 0, color: '#01579b', fontSize: '13px' }}>

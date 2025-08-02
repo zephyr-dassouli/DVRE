@@ -7,12 +7,12 @@ async function verifyVote(sampleId, expectedVoter, expectedLabel) {
         const provider = new ethers.BrowserProvider(window.ethereum);
         
         // Connect to project contract (you'll need the ABI)
-        console.log(`🔍 Verifying vote for sample: ${sampleId}`);
+        console.log(` Verifying vote for sample: ${sampleId}`);
         console.log(`👤 Expected voter: ${expectedVoter}`);
-        console.log(`🏷️ Expected label: ${expectedLabel}`);
+        console.log(` Expected label: ${expectedLabel}`);
         
         // Check events (requires contract ABI)
-        console.log("✅ Vote verification script ready!");
+        console.log(" Vote verification script ready!");
         console.log("Note: Full verification requires contract ABIs");
         
         return {
@@ -28,7 +28,7 @@ async function verifyVote(sampleId, expectedVoter, expectedLabel) {
         };
         
     } catch (error) {
-        console.error("❌ Verification failed:", error);
+        console.error(" Verification failed:", error);
         return { error: error.message };
     }
 }
