@@ -135,6 +135,128 @@ export class ALContractService {
     }
   }
 
+  /**
+   * Check if any voting session is currently active for the project
+   * This is used as a guard before starting new iterations or final training
+   */
+  async isVotingActive(projectAddress: string): Promise<{
+    isActive: boolean;
+    activeSamples: number;
+    round: number;
+    timeRemaining: number;
+    reason?: string;
+  }> {
+    try {
+      console.log('🔍 Checking if voting is currently active for project:', projectAddress);
+      
+      // Resolve ALProject address
+      const alProjectAddress = await resolveALProjectAddress(projectAddress);
+      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, this.provider);
+      
+      // Check if project has AL contracts
+      const hasALContracts = await projectContract.hasALContracts();
+      if (!hasALContracts) {
+        console.log('📝 Project has no AL contracts - no voting active');
+        return {
+          isActive: false,
+          activeSamples: 0,
+          round: 0,
+          timeRemaining: 0,
+          reason: 'No AL contracts found'
+        };
+      }
+
+      // Get voting contract address
+      const votingContractAddress = await projectContract.votingContract();
+      if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
+        console.log('📝 No voting contract found - no voting active');
+        return {
+          isActive: false,
+          activeSamples: 0,
+          round: 0,
+          timeRemaining: 0,
+          reason: 'No voting contract found'
+        };
+      }
+
+      // Check current round and batch status
+      const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, this.provider);
+      const currentRound = await votingContract.currentRound();
+      
+      // Get batch status for current round
+      const batchStatus = await votingContract.getBatchStatus(currentRound);
+      
+      if (!batchStatus.isActive) {
+        console.log(`📝 No active batch in round ${currentRound} - no voting active`);
+        return {
+          isActive: false,
+          activeSamples: 0,
+          round: Number(currentRound),
+          timeRemaining: 0,
+          reason: `No active batch in round ${currentRound}`
+        };
+      }
+
+      // Get active batch details
+      const activeBatch = await this.getActiveBatch(alProjectAddress);
+      if (!activeBatch || activeBatch.sampleIds.length === 0) {
+        console.log('📝 No active samples found - no voting active');
+        return {
+          isActive: false,
+          activeSamples: 0,
+          round: Number(currentRound),
+          timeRemaining: 0,
+          reason: 'No active samples found'
+        };
+      }
+
+      // Check if any samples are actually still active for voting
+      let activeSampleCount = 0;
+      for (const sampleId of activeBatch.sampleIds) {
+        try {
+          const session = await votingContract.getVotingSession(sampleId);
+          const isActive = session[1] && !session[2]; // isActive && !isFinalized
+          if (isActive) {
+            activeSampleCount++;
+          }
+        } catch (error) {
+          console.warn(`⚠️ Could not check status for sample ${sampleId}:`, error);
+        }
+      }
+
+      const isVotingActive = activeSampleCount > 0;
+      const timeRemaining = activeBatch.timeRemaining || 0;
+
+      console.log(`📊 Voting status check result:`, {
+        isActive: isVotingActive,
+        activeSamples: activeSampleCount,
+        totalSamples: activeBatch.sampleIds.length,
+        round: Number(currentRound),
+        timeRemaining
+      });
+
+      return {
+        isActive: isVotingActive,
+        activeSamples: activeSampleCount,
+        round: Number(currentRound),
+        timeRemaining,
+        reason: isVotingActive 
+          ? `${activeSampleCount} samples still need votes in round ${currentRound}` 
+          : `All samples completed in round ${currentRound}`
+      };
+
+    } catch (error) {
+      console.error('❌ Error checking voting status:', error);
+      return {
+        isActive: false,
+        activeSamples: 0,
+        round: 0,
+        timeRemaining: 0,
+        reason: `Error checking voting status: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
   async getProjectStatus(projectAddress: string): Promise<{
     currentIteration: number;
     maxIterations: number;

@@ -60,6 +60,10 @@ class ALEngineEndpoints:
                 
                 logger.info(f"📨 Received start_iteration request for iteration {iteration}")
                 
+                # NOTE: Voting activity check should be performed on the frontend side
+                # before calling this endpoint, as AL-Engine doesn't have direct access
+                # to smart contracts to verify voting status
+                
                 # Execute AL iteration locally
                 result = self.server._execute_iteration_sync(iteration, data)
                 
@@ -197,6 +201,60 @@ class ALEngineEndpoints:
                     'success': False,
                     'error': str(e),
                     'message': 'Internal server error while processing labeled samples'
+                }), 500
+
+        # Final training endpoint
+        @app.route('/final_training', methods=['POST'])
+        def final_training():
+            """Start final training round - trains model on all labeled data without querying new samples"""
+            try:
+                data = request.get_json()
+                if not data:
+                    return jsonify({'error': 'No JSON data provided'}), 400
+                
+                iteration = data.get('iteration')
+                project_id = data.get('project_id', self.server.project_id)
+                final_training = data.get('final_training', False)
+                
+                if not iteration:
+                    return jsonify({'error': 'iteration number is required'}), 400
+                
+                if not final_training:
+                    return jsonify({'error': 'final_training flag must be set to True'}), 400
+                
+                logger.info(f"📨 Received final training request for iteration {iteration} (project: {project_id})")
+                
+                # NOTE: Voting activity check should be performed on the frontend side
+                # before calling this endpoint, as AL-Engine doesn't have direct access
+                # to smart contracts to verify voting status
+                
+                # Execute final training iteration
+                result = self.server._execute_final_training_sync(iteration, project_id)
+                
+                if result.get('success'):
+                    logger.info(f"✅ Final training iteration {iteration} completed successfully")
+                    return jsonify({
+                        'success': True,
+                        'iteration': iteration,
+                        'result': result,
+                        'performance': result.get('performance'),
+                        'message': f'Final training iteration {iteration} completed successfully'
+                    })
+                else:
+                    logger.error(f"❌ Final training iteration {iteration} failed: {result.get('error')}")
+                    return jsonify({
+                        'success': False,
+                        'iteration': iteration,
+                        'error': result.get('error'),
+                        'message': f'Final training iteration {iteration} failed'
+                    }), 500
+                    
+            except Exception as e:
+                logger.error(f"❌ API error in final_training: {e}")
+                return jsonify({
+                    'success': False,
+                    'error': str(e),
+                    'message': 'Internal server error during final training'
                 }), 500
 
         # Model performance endpoint - Real metrics from AL workflow

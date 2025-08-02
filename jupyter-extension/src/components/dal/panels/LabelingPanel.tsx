@@ -84,6 +84,13 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     const loadActiveBatch = async () => {
       try {
         const dalSession = (window as any).currentDALSession;
+        console.log(' LabelingPanel: Attempting to load active batch...', {
+          dalSession: !!dalSession,
+          sessionPhase: sessionState?.phase,
+          userRole: project.userRole,
+          projectActive: project?.isActive
+        });
+        
         if (dalSession && sessionState?.phase === 'voting') {
           console.log(' Loading active batch for labeling...');
           const batch = await dalSession.getActiveBatch();
@@ -104,12 +111,18 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
             // Check if user has already voted in this batch
             await checkCurrentVotingStatus(batch);
           } else {
-            console.log(' No active batch found');
+            console.log('❌ No active batch found');
             setActiveBatch(null);
           }
+        } else {
+          console.log('❌ Conditions not met for loading batch:', {
+            hasDalSession: !!dalSession,
+            sessionPhase: sessionState?.phase,
+            expectedPhase: 'voting'
+          });
         }
       } catch (error) {
-        console.error(' Failed to load active batch:', error);
+        console.error('❌ Failed to load active batch:', error);
         setActiveBatch(null);
       }
     };
@@ -121,6 +134,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     // Set a retry timeout for cases where batch is slow to appear
     const retryTimeout = setTimeout(() => {
       if (sessionState?.phase === 'voting' && !activeBatch) {
+        console.log('🔄 Retrying active batch load after 2s timeout...');
         loadActiveBatch();
       }
     }, 2000);
@@ -135,12 +149,17 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     
     // If we don't have an active batch initially, poll for it
     if (!activeBatch) {
-      console.log(' Starting polling for active voting sessions...');
+      console.log(' Starting polling for active voting sessions...', {
+        userRole: project.userRole,
+        projectActive: project?.isActive,
+        sessionState: sessionState?.phase
+      });
       
       pollInterval = setInterval(async () => {
         try {
           const dalSession = (window as any).currentDALSession;
           if (dalSession) {
+            console.log(' Polling for active batch...');
             const batch = await dalSession.getActiveBatch();
             if (batch) {
               console.log(' Found active batch during polling:', batch);
@@ -158,7 +177,11 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
               await checkCurrentVotingStatus(batch);
               
               clearInterval(pollInterval); // Stop polling once we find an active batch
+            } else {
+              console.log(' No active batch found during polling');
             }
+          } else {
+            console.log(' No DAL session available during polling');
           }
         } catch (error) {
           console.error('Error during active batch polling:', error);
@@ -175,6 +198,8 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
         clearInterval(pollInterval);
         clearTimeout(stopPollingTimeout);
       };
+    } else {
+      console.log(' Already have active batch, skipping polling');
     }
   }, [activeBatch]); // Include activeBatch in dependencies
 

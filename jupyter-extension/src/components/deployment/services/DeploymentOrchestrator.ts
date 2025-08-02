@@ -457,7 +457,7 @@ export class DeploymentOrchestrator {
           // Try parsing as ALProjectDeployer event
           const deployerParsed = alProjectDeployerContract.interface.parseLog(log);
           if (deployerParsed) {
-            console.log(` ALProjectDeployer Event: ${deployerParsed.name}`, deployerParsed.args);
+            console.log(`ALProjectDeployer Event: ${deployerParsed.name}`, deployerParsed.args);
             continue;
           }
         } catch {
@@ -502,20 +502,20 @@ export class DeploymentOrchestrator {
       
       const [, alProject, votingContract, storageContract, roCrateAsset] = parsedEvent.args;
       
-      console.log(' AL smart contracts deployed successfully:');
-      console.log(' ALProject:', alProject);
-      console.log(' Voting contract:', votingContract);
-      console.log('🗄️ Storage contract:', storageContract);
-      console.log('📦 RO-Crate asset:', roCrateAsset, '(owned by user)');
+      console.log('AL smart contracts deployed successfully:');
+      console.log('ALProject:', alProject);
+      console.log('Voting contract:', votingContract);
+      console.log('Storage contract:', storageContract);
+      console.log('RO-Crate asset:', roCrateAsset, '(owned by user)');
       
       // Verify the AL extension was linked
       try {
         const ProjectABI = (await import('../../../abis/Project.json')).default;
         const projectContract = new ethers.Contract(config.contractAddress!, ProjectABI.abi, signer);
         const linkedALExtension = await projectContract.getALExtension();
-        console.log(' Verification - AL extension linked:', linkedALExtension === alProject);
+        console.log('Verification - AL extension linked:', linkedALExtension === alProject);
       } catch (verifyError) {
-        console.warn(' Could not verify AL extension linking:', verifyError);
+        console.warn('Could not verify AL extension linking:', verifyError);
       }
 
       return {

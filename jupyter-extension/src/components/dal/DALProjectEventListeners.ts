@@ -64,15 +64,10 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
 
   // Set up DAL Session event listeners
   const setupSessionEventListeners = () => {
-    // Only coordinators need AL-Engine integration
-    if (!project.userRole || project.userRole !== 'coordinator') {
-      console.log('Skipping AL-Engine session setup for contributor role');
-      return () => {}; // Return empty cleanup function
-    }
-
-    console.log('Setting up DAL Session for coordinator');
+    console.log(`Setting up DAL Session for ${project.userRole || 'unknown'} role`);
     
-    // Create DAL session for coordinators
+    // Create DAL session for all users (needed for voting detection)
+    // But only coordinators get full AL-Engine integration
     const session = new DALProjectSession(project.contractAddress, currentUser);
     setDalSession(session);
 
@@ -94,13 +89,25 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
 
     const handleSessionError = (errorMessage: string) => {
       console.error('DAL Session error:', errorMessage);
-      // For coordinators, show AL-Engine errors as warnings, not blocking errors
-      if (errorMessage.includes('AL-Engine')) {
-        console.warn('AL-Engine warning for coordinator:', errorMessage);
-        // Don't set a blocking error, just log it
+      
+      // Role-based error handling
+      if (project.userRole !== 'coordinator') {
+        // For contributors, only log AL-Engine errors, don't show them
+        if (errorMessage.includes('AL-Engine')) {
+          console.log('AL-Engine not available for contributor (expected):', errorMessage);
+          return; // Don't show AL-Engine errors to contributors
+        }
       } else {
-        setError(`Session Error: ${errorMessage}`);
+        // For coordinators, show AL-Engine errors as warnings, not blocking errors
+        if (errorMessage.includes('AL-Engine')) {
+          console.warn('AL-Engine warning for coordinator:', errorMessage);
+          // Don't set a blocking error, just log it
+          return;
+        }
       }
+      
+      // Show other errors to all users
+      setError(`Session Error: ${errorMessage}`);
     };
 
     const handleProjectShouldEnd = (details: { trigger: string; reason: string; currentRound: number; timestamp: number; }) => {
@@ -118,19 +125,32 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
     session.on('error', handleSessionError);
     session.on('project-should-end', handleProjectShouldEnd);
 
-    // Check AL-Engine health for coordinators only
-    session.checkALEngineHealth().catch((err: any) => {
-      console.warn('AL-Engine health check failed for coordinator:', err);
-      // Don't block the page - just log the warning
-      // The coordinator can still use the interface, they'll just see AL-Engine is unavailable
-    });
+    // Store session globally for LabelingPanel access
+    (window as any).currentDALSession = session;
 
-    // Return cleanup function
+    // Only coordinators get AL-Engine health checks and full AL-Engine integration
+    if (project.userRole === 'coordinator') {
+      console.log('Enabling AL-Engine integration for coordinator');
+      // Check AL-Engine health for coordinators only
+      session.checkALEngineHealth().catch((err: any) => {
+        console.warn('AL-Engine health check failed for coordinator:', err);
+        // Don't block the page - just log the warning
+        // The coordinator can still use the interface, they'll just see AL-Engine is unavailable
+      });
+    } else {
+      console.log('Skipping AL-Engine integration for contributor (voting detection still enabled)');
+    }
+
     return () => {
       console.log('Cleaning up DAL Session');
       session.removeAllListeners();
       session.endSession().catch(console.error);
       setDalSession(null);
+      
+      // Clear global session reference
+      if ((window as any).currentDALSession === session) {
+        delete (window as any).currentDALSession;
+      }
     };
   };
 

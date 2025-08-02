@@ -516,10 +516,12 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             currentUser={currentUser}
             isCoordinator={isCoordinator}
             onStartNextIteration={handlers.handleStartNextIteration}
+            onStartFinalTraining={handlers.handleStartFinalTraining}
             onEndProject={handlers.handleEndProject}
             onRefresh={handlers.handleRefreshData}
             onError={setError}
             projectEndStatus={projectEndStatus}
+            modelUpdates={modelUpdates}
           />
         )}
 

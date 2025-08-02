@@ -48,16 +48,17 @@ export interface QuerySample {
 
 export interface SessionState {
   projectId: string;
+  userAddress?: string;
+  phase: 'idle' | 'generating_samples' | 'voting' | 'aggregating' | 'completed' | 'ending' | 'error' | 'final_training' | 'final_training_completed';
   isActive: boolean;
-  phase: 'idle' | 'generating_samples' | 'voting' | 'aggregating' | 'completed' | 'ending' | 'error';
+  querySamples?: QuerySample[];
   batchProgress?: {
     totalSamples: number;
     completedSamples: number;
     currentSampleIndex: number;
     sampleIds: string[];
-    round: number; // FIXED: Made round required for proper tracking
+    round: number;
   };
-  querySamples?: QuerySample[];
   error?: string;
   lastUpdate: Date;
   // Project end fields
@@ -146,7 +147,7 @@ export class DALProjectSession extends EventEmitter {
    */
   async startIteration(): Promise<void> {
     try {
-      console.log(' Starting AL iteration workflow');
+      console.log('Starting AL iteration workflow');
 
       this.updateState({
         phase: 'generating_samples',
@@ -161,7 +162,7 @@ export class DALProjectSession extends EventEmitter {
       this.emit('iteration-started', nextIteration);
 
       // Step 2: Call AL-Engine to start next iteration (train model + query samples)
-      console.log(`🔬 Starting AL iteration ${nextIteration} with AL-Engine`);
+      console.log(`Starting AL iteration ${nextIteration} with AL-Engine`);
       const samples = await this.startNextIteration(nextIteration);
       
       // Step 3: Start batch voting on smart contracts (this increments currentRound in Project)
@@ -169,7 +170,7 @@ export class DALProjectSession extends EventEmitter {
       
       // Step 4: Get the updated batch progress from contracts after voting started
       const enhancedStatus = await alContractService.getEnhancedProjectStatus(this.state.projectId);
-      console.log(` Contract state after batch voting:`, enhancedStatus.currentBatch);
+      console.log(`Contract state after batch voting:`, enhancedStatus.currentBatch);
       
       // Step 5: Update session state with contract state
       this.updateState({
@@ -188,11 +189,82 @@ export class DALProjectSession extends EventEmitter {
 
       this.emit('samples-generated', samples);
 
-      console.log(` AL iteration ${nextIteration} workflow started (Contract round ${enhancedStatus.currentBatch.round})`);
+      console.log(`AL iteration ${nextIteration} workflow started (Contract round ${enhancedStatus.currentBatch.round})`);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to start iteration';
-      console.error(' Failed to start AL iteration:', error);
+      console.error('Failed to start AL iteration:', error);
+      
+      this.updateState({
+        phase: 'error',
+        error: errorMessage,
+        isActive: false
+      });
+
+      this.emit('error', errorMessage);
+      throw error;
+    }
+  }
+
+  /**
+   * Start final training round - trains model on all labeled data without querying new samples
+   */
+  async startFinalTraining(): Promise<void> {
+    try {
+      console.log('Starting final training workflow');
+
+      this.updateState({
+        phase: 'final_training',
+        isActive: true,
+        error: undefined
+      });
+
+      // Step 1: Get project status to determine the final iteration number
+      const projectStatus = await alContractService.getEnhancedProjectStatus(this.state.projectId);
+      const finalIteration = projectStatus.currentIteration + 1;
+
+      this.emit('final-training-started', finalIteration);
+
+      // Step 2: Call AL-Engine for final training (no sample querying)
+      console.log(`Starting final training iteration ${finalIteration} with AL-Engine`);
+      
+      const response = await fetch(`${this.alEngineBaseUrl}/final_training`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          iteration: finalIteration,
+          project_id: this.state.projectId,
+          final_training: true // Flag to indicate this is final training
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Final training failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(`Final training failed: ${result.error || 'Unknown error'}`);
+      }
+
+      // Step 3: Update session state to indicate completion
+      this.updateState({
+        phase: 'final_training_completed',
+        isActive: false,
+        error: undefined
+      });
+
+      this.emit('final-training-completed', { 
+        iteration: finalIteration, 
+        performance: result.performance || null 
+      });
+
+      console.log(`Final training iteration ${finalIteration} completed successfully`);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start final training';
+      console.error('Failed to start final training:', error);
       
       this.updateState({
         phase: 'error',

@@ -109,6 +109,36 @@ class ALEngineServer:
                 'iteration': iteration_number
             }
 
+    def _execute_final_training_sync(self, iteration_number, project_id):
+        """Execute final training synchronously for API calls (no sample querying)"""
+        logger.info(f"🤖 Executing final training iteration {iteration_number} locally via API")
+        
+        try:
+            # Initialize project if needed
+            if not self.project_id and project_id:
+                config_path = f"../ro-crates/{project_id}/config.json"
+                logger.info(f"Dynamically initializing project for final training: {project_id}")
+                self._initialize_project(project_id, config_path)
+            elif not self.project_id:
+                raise ValueError("No project_id provided and server not initialized with a project")
+            
+            # Use the original config file
+            original_config_file = Path(self.config_path)
+            
+            # Execute final training locally (no sample querying)
+            result = self._run_final_training_iteration(iteration_number, original_config_file)
+            
+            logger.info(f"✅ Final training iteration {iteration_number} completed successfully")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Final training iteration {iteration_number} failed: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'iteration': iteration_number
+            }
+
     def _run_local_iteration(self, iteration_number, config_file):
         """Run iteration locally using cwltool to execute the CWL workflow"""
         logger.info(f"Running iteration {iteration_number} locally via CWL workflow")
@@ -306,6 +336,95 @@ class ALEngineServer:
                 'execution_method': 'direct_python'
             }
 
+    def _run_final_training_iteration(self, iteration_number, config_file):
+        """Run final training iteration - trains on all labeled data without querying new samples"""
+        logger.info(f"Running final training iteration {iteration_number} using direct al_iteration.py call")
+        
+        try:
+            # Set up file paths
+            project_dir = Path(f"../ro-crates/{self.project_id}")
+            labeled_data = project_dir / "inputs" / "datasets" / "labeled_samples.csv"
+            unlabeled_data = project_dir / "inputs" / "datasets" / "unlabeled_samples.csv"
+            outputs_dir = project_dir / "outputs"
+            outputs_dir.mkdir(exist_ok=True)
+            
+            # Build command to run al_iteration.py with final training flag
+            cmd = [
+                "python", "al_iteration.py",
+                "--labeled_data", str(labeled_data),
+                "--labeled_labels", str(labeled_data),  # Same file for iris dataset
+                "--unlabeled_data", str(unlabeled_data),
+                "--config", str(config_file),
+                "--iteration", str(iteration_number),
+                "--project_id", self.project_id,
+                "--final_training"  # Special flag for final training
+            ]
+            
+            # Add model input from previous iteration
+            if iteration_number > 1:
+                model_file = outputs_dir / f"model_round_{iteration_number-1}.pkl"
+                if model_file.exists():
+                    cmd.extend(["--model_in", str(model_file)])
+            
+            logger.info(f"🔧 Final training executing: {' '.join(cmd)}")
+            
+            # Execute AL iteration script with final training flag
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=Path(__file__).parent  # Run from src directory
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"✅ Final training iteration {iteration_number} completed successfully")
+                
+                # Check for expected outputs (no query samples for final training)
+                model_file = outputs_dir / f"model_round_{iteration_number}.pkl"
+                perf_file = outputs_dir / f"performance_round_{iteration_number}.json"
+                
+                outputs = {}
+                if model_file.exists():
+                    outputs['model_out'] = str(model_file)
+                if perf_file.exists():
+                    outputs['performance'] = str(perf_file)
+                
+                # Load performance metrics if available
+                performance = None
+                if perf_file.exists():
+                    try:
+                        with open(perf_file, 'r') as f:
+                            performance = json.load(f)
+                        logger.info(f"📊 Final training performance: Accuracy={performance.get('accuracy', 'N/A'):.3f}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not load performance metrics: {e}")
+                
+                return {
+                    'success': True,
+                    'outputs': outputs,
+                    'performance': performance,
+                    'stdout': result.stdout,
+                    'execution_method': 'final_training_direct_python',
+                    'final_training': True
+                }
+            else:
+                logger.error(f"❌ Final training iteration {iteration_number} failed")
+                logger.error(f"STDERR: {result.stderr}")
+                return {
+                    'success': False,
+                    'error': result.stderr,
+                    'stdout': result.stdout,
+                    'execution_method': 'final_training_direct_python'
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Final training execution failed: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'execution_method': 'final_training_direct_python'
+            }
+
     def _process_labeled_samples(self, iteration_number, labeled_samples, project_id):
         """Process and store labeled samples for the next training iteration"""
         logger.info(f"🔄 Processing {len(labeled_samples)} labeled samples for iteration {iteration_number}")
@@ -410,6 +529,7 @@ class ALEngineServer:
         logger.info(f"📡 API endpoints available:")
         logger.info(f"   GET  http://localhost:{self.port}/health")
         logger.info(f"   POST http://localhost:{self.port}/start_iteration")
+        logger.info(f"   POST http://localhost:{self.port}/final_training")
         logger.info(f"   GET  http://localhost:{self.port}/status")
         logger.info(f"   GET  http://localhost:{self.port}/config")
         logger.info(f"   GET  http://localhost:{self.port}/results/<iteration>")

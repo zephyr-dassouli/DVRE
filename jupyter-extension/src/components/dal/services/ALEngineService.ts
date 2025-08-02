@@ -16,6 +16,7 @@ export interface ModelUpdate {
   };
   samplesAddedCount: number;
   notes: string;
+  isFinalTraining?: boolean; // Added for UI detection
 }
 
 export class ALEngineService {
@@ -417,6 +418,9 @@ export class ALEngineService {
               // Get samples count for this iteration from voting history
               const iterationRecords = votingHistory.filter(r => r.iterationNumber === iteration);
               
+              // Check if this is a final training round
+              const isFinalTraining = performanceData.performance.final_training === true;
+              
               const modelUpdate: ModelUpdate = {
                 iterationNumber: iteration,
                 timestamp: new Date(performanceData.timestamp || Date.now()),
@@ -427,11 +431,14 @@ export class ALEngineService {
                   f1Score: performanceData.performance.f1_score || 0
                 },
                 samplesAddedCount: iterationRecords.length,
-                notes: `Iteration ${iteration}: AL model performance - ${performanceData.performance.test_samples} test samples`
+                notes: isFinalTraining 
+                  ? `Final Training Round: Complete dataset training - ${performanceData.performance.test_samples} test samples`
+                  : `Iteration ${iteration}: AL model performance - ${performanceData.performance.test_samples} test samples`,
+                isFinalTraining: isFinalTraining // Add flag for UI detection
               };
               
               modelUpdates.push(modelUpdate);
-              console.log(` Retrieved real performance for iteration ${iteration}: ${(modelUpdate.performance.accuracy * 100).toFixed(1)}% accuracy`);
+              console.log(` Retrieved real performance for ${isFinalTraining ? 'final training' : `iteration ${iteration}`}: ${(modelUpdate.performance.accuracy * 100).toFixed(1)}% accuracy`);
             } else {
               console.log(` No performance data available for iteration ${iteration}`);
             }

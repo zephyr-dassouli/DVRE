@@ -6,10 +6,57 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   currentUser,
   isCoordinator,
   onStartNextIteration,
+  onStartFinalTraining,
   onEndProject,
   onError,
-  projectEndStatus
+  projectEndStatus,
+  modelUpdates // Add modelUpdates prop
 }) => {
+
+  const [votingStatus, setVotingStatus] = React.useState<{
+    isActive: boolean;
+    activeSamples: number;
+    round: number;
+    timeRemaining: number;
+    reason?: string;
+    isChecking: boolean;
+  }>({
+    isActive: false,
+    activeSamples: 0,
+    round: 0,
+    timeRemaining: 0,
+    isChecking: false
+  });
+
+  // Check voting status when component mounts and periodically
+  React.useEffect(() => {
+    const checkVotingStatus = async () => {
+      if (!isCoordinator || !project?.contractAddress) return;
+      
+      try {
+        setVotingStatus(prev => ({ ...prev, isChecking: true }));
+        
+        const { alContractService } = await import('../services/ALContractService');
+        const status = await alContractService.isVotingActive(project.contractAddress);
+        
+        setVotingStatus({
+          ...status,
+          isChecking: false
+        });
+      } catch (error) {
+        console.error('Failed to check voting status:', error);
+        setVotingStatus(prev => ({ ...prev, isChecking: false }));
+      }
+    };
+
+    // Check immediately
+    checkVotingStatus();
+
+    // Check every 30 seconds
+    const interval = setInterval(checkVotingStatus, 30000);
+
+    return () => clearInterval(interval);
+  }, [isCoordinator, project?.contractAddress]);
 
   const handleStartNextIteration = async () => {
     try {
@@ -17,6 +64,20 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     } catch (error) {
       console.error('Failed to start next iteration:', error);
       onError(error instanceof Error ? error.message : 'Failed to start iteration');
+    }
+  };
+
+  const handleStartFinalTraining = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to start the final training round? This will train the model on all labeled data without querying new samples.'
+    );
+    if (!confirmed) return;
+
+    try {
+      await onStartFinalTraining();
+    } catch (error) {
+      console.error('Failed to start final training:', error);
+      onError(error instanceof Error ? error.message : 'Failed to start final training');
     }
   };
 
@@ -31,6 +92,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       onError(error instanceof Error ? error.message : 'Failed to end project');
     }
   };
+
+  // Determine if final training should be available
+  const shouldShowFinalTraining = (projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds) && project.isActive;
+  
+  // Check if final training has been completed
+  const finalTrainingCompleted = modelUpdates.some(update => update.isFinalTraining === true);
+
+  // Check if operations are blocked by voting
+  const isBlockedByVoting = votingStatus.isActive;
+  const canStartIteration = project.isActive && !projectEndStatus.shouldEnd && project.currentRound < project.totalRounds && !isBlockedByVoting;
+  const canStartFinalTraining = shouldShowFinalTraining && !isBlockedByVoting;
 
   if (!isCoordinator) {
     return (
@@ -164,6 +236,29 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         <p>Coordinator controls for project management</p>
       </div>
       
+      {/* Voting Status Popup Warning (like AL-Engine status) */}
+      {isCoordinator && votingStatus.isActive && (
+        <div style={{
+          backgroundColor: '#fef3c7',
+          border: '1px solid #f59e0b',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <div>
+            <strong style={{ color: '#92400e' }}>Voting Session Active</strong>
+            <p style={{ margin: '4px 0 0 0', color: '#92400e', fontSize: '14px' }}>
+              Cannot start new operations: {votingStatus.activeSamples} samples still need votes in round {votingStatus.round}
+              <br />
+              Time remaining: {Math.ceil(votingStatus.timeRemaining / 60)} minutes
+            </p>
+          </div>
+        </div>
+      )}
+      
       <div className="control-actions" style={{ 
         display: 'grid', 
         gap: '20px', 
@@ -173,81 +268,153 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           border: '1px solid #d1d5db',
           borderRadius: '8px',
           padding: '24px',
-          backgroundColor: 'white'
+          backgroundColor: 'white',
+          marginBottom: '30px' 
         }}>
           <h4 style={{ marginBottom: '12px', color: '#1f2937' }}>Start Next Iteration</h4>
           
           {/* Show warning if project should end or max iterations reached */}
-          {(projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds) && (
-            <div style={{
-              backgroundColor: '#fef3c7',
-              border: '1px solid #f59e0b',
-              borderRadius: '6px',
-              padding: '12px',
-              marginBottom: '16px'
-            }}>
-              <div style={{ 
-                fontWeight: 'bold', 
-                color: '#92400e',
-                marginBottom: '4px'
-              }}>
-                 Cannot Start New Iteration
-              </div>
-              <div style={{ color: '#78350f', fontSize: '14px' }}>
-                {project.currentRound >= project.totalRounds 
-                  ? `Maximum iterations reached (${project.currentRound}/${project.totalRounds})`
-                  : projectEndStatus.reason || 'Project should end'
-                }
-              </div>
+          {!project.isActive ? (
+            <div style={{ color: '#6b7280', marginBottom: '16px' }}>
+              Project is currently inactive.
+            </div>
+          ) : (projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds) ? (
+            <div style={{ color: '#6b7280', marginBottom: '16px' }}>
+              Project has reached its maximum iterations or should end.
+            </div>
+          ) : (
+            <div style={{ color: '#6b7280', marginBottom: '16px' }}>
+              Trigger a new Active Learning round. This will:
+              <br />• Train the model with newly labeled samples
+              <br />• Generate new samples for labeling  
+              <br />• Start batch voting for the next round
             </div>
           )}
-          
-          <p style={{ color: '#666', marginBottom: '16px', lineHeight: '1.5' }}>
-            Trigger a new Active Learning round. This will:
-            <br />• Train the model with newly labeled samples
-            <br />• Generate new samples for labeling  
-            <br />• Start batch voting for the next round
-          </p>
           <button 
             className="primary-btn"
             onClick={handleStartNextIteration}
-            disabled={!project.isActive || projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds}
+            disabled={!canStartIteration}
             style={{
               padding: '12px 24px',
-              backgroundColor: (project.isActive && !projectEndStatus.shouldEnd && project.currentRound < project.totalRounds) ? '#10b981' : '#9ca3af',
+              backgroundColor: canStartIteration ? '#10b981' : '#9ca3af',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
-              cursor: (project.isActive && !projectEndStatus.shouldEnd && project.currentRound < project.totalRounds) ? 'pointer' : 'not-allowed',
+              cursor: canStartIteration ? 'pointer' : 'not-allowed',
               fontSize: '16px',
               fontWeight: 'bold',
               transition: 'all 0.2s ease'
             }}
             onMouseEnter={(e) => {
-              if (project.isActive && !projectEndStatus.shouldEnd && project.currentRound < project.totalRounds) {
+              if (canStartIteration) {
                 e.currentTarget.style.backgroundColor = '#059669';
               }
             }}
             onMouseLeave={(e) => {
-              if (project.isActive && !projectEndStatus.shouldEnd && project.currentRound < project.totalRounds) {
+              if (canStartIteration) {
                 e.currentTarget.style.backgroundColor = '#10b981';
               }
             }}
           >
             {!project.isActive ? 'Project Inactive' : 
-             (projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds) ? 'Cannot Start (Project Should End)' :
-             'Start Next Iteration'}
+            votingStatus.isActive ? 'Cannot Start (Voting Active)' :
+            (projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds) ? 'Cannot Start (Project Should End)' :
+            'Start Next Iteration'}
           </button>
-          {!project.isActive && (
+          {votingStatus.isActive && (
             <div style={{ 
               fontSize: '12px', 
-              color: '#ef4444', 
+              color: '#f59e0b', 
               marginTop: '8px' 
             }}>
-              Project must be active to start iterations
+              Complete current voting session first
             </div>
           )}
         </div>
+        
+        {shouldShowFinalTraining && (
+          <div className="action-card" style={{
+            border: '1px solid #3b82f6',
+            borderRadius: '8px',
+            padding: '24px',
+            backgroundColor: '#f0f9ff'
+          }}>
+            <h4 style={{ marginBottom: '12px', color: '#1e40af' }}>Final Training Round</h4>
+            
+            {!votingStatus.isActive && (
+              <div style={{
+                backgroundColor: '#e0f2fe',
+                border: '1px solid #0284c7',
+                borderRadius: '6px',
+                padding: '12px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ 
+                  fontWeight: 'bold', 
+                  color: '#0369a1',
+                  marginBottom: '4px'
+                }}>
+                  Ready for Final Training
+                </div>
+                <div style={{ color: '#0c4a6e', fontSize: '14px' }}>
+                  All regular iterations are complete. You can now perform a final training round.
+                </div>
+              </div>
+            )}
+            
+            <p style={{ color: '#666', marginBottom: '16px', lineHeight: '1.5' }}>
+              Final training will train the model on all labeled data without querying new samples.
+            </p>
+            <button 
+              className="primary-btn"
+              onClick={handleStartFinalTraining}
+              disabled={!canStartFinalTraining || finalTrainingCompleted}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: (!canStartFinalTraining || finalTrainingCompleted) ? '#9ca3af' : '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: (!canStartFinalTraining || finalTrainingCompleted) ? 'not-allowed' : 'pointer',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                if (canStartFinalTraining && !finalTrainingCompleted) {
+                  e.currentTarget.style.backgroundColor = '#1d4ed8';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (canStartFinalTraining && !finalTrainingCompleted) {
+                  e.currentTarget.style.backgroundColor = '#3b82f6';
+                }
+              }}
+            >
+              {finalTrainingCompleted ? 'Final Training Completed' : 
+               votingStatus.isActive ? 'Cannot Start (Voting Active)' :
+               'Start Final Training Round'}
+            </button>
+            {finalTrainingCompleted && (
+              <div style={{ 
+                fontSize: '12px', 
+                color: '#166534', 
+                marginTop: '8px' 
+              }}>
+                Final training round has been completed. Check Model Updates for performance metrics.
+              </div>
+            )}
+            {votingStatus.isActive && (
+              <div style={{ 
+                fontSize: '12px', 
+                color: '#f59e0b', 
+                marginTop: '8px' 
+              }}>
+                Complete current voting session first
+              </div>
+            )}
+          </div>
+        )}
         
         <div className="action-card" style={{
           border: projectEndStatus.shouldEnd ? '2px solid #f59e0b' : '1px solid #fca5a5',
@@ -259,7 +426,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             {projectEndStatus.shouldEnd ? 'Project Should End' : 'End Project'}
           </h4>
           
-          {projectEndStatus.shouldEnd && (
+          {projectEndStatus.shouldEnd && projectEndStatus.reason && projectEndStatus.reason !== 'undefined' && (
             <div style={{
               backgroundColor: '#fef3c7',
               border: '1px solid #f59e0b',
@@ -280,7 +447,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 <span>Automatic End Condition Triggered</span>
               </div>
               <div style={{ color: '#78350f', fontSize: '14px', lineHeight: '1.4' }}>
-                <strong>Reason:</strong> {projectEndStatus.reason || 'Unknown reason'}
+                <strong>Reason:</strong> {projectEndStatus.reason}
                 <br />
                 <strong>Current Round:</strong> {projectEndStatus.currentRound || 0} of {projectEndStatus.maxIterations || 0}
               </div>
@@ -325,6 +492,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             }}
           >
             {!project.isActive ? 'Project Already Ended' : 
+             votingStatus.isActive ? 'End Project Now (Warning: Voting Active)' :
              projectEndStatus.shouldEnd ? 'End Project Now (Recommended)' : 'End Project'}
           </button>
         </div>

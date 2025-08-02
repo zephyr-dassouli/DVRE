@@ -7,6 +7,7 @@ import { SessionState } from './services/DALProjectSession';
 
 export interface ProjectHandlers {
   handleStartNextIteration: () => Promise<void>;
+  handleStartFinalTraining: () => Promise<void>;
   handleEndProject: () => Promise<void>;
   handleBatchVoteSubmission: (sampleIds: string[], labels: string[]) => Promise<void>;
   handleVoteSubmission: (sampleId: string, label: string) => Promise<void>;
@@ -40,16 +41,81 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
 
     try {
       setError(null);
-      console.log(' Starting next AL iteration via DAL Session bridge');
+      
+      // GUARD: Check if voting is currently active
+      console.log('🔍 Checking for active voting before starting new iteration...');
+      const { alContractService } = await import('./services/ALContractService');
+      const votingStatus = await alContractService.isVotingActive(project.contractAddress);
+      
+      if (votingStatus.isActive) {
+        const errorMessage = `Cannot start new iteration: Voting is currently active!\n\n` +
+          `• ${votingStatus.activeSamples} samples still need votes\n` +
+          `• Round: ${votingStatus.round}\n` +
+          `• Time remaining: ${Math.ceil(votingStatus.timeRemaining / 60)} minutes\n\n` +
+          `Please wait for all voting to complete before starting the next iteration.`;
+        
+        setError(errorMessage);
+        console.warn('🚫 Cannot start iteration - voting is active:', votingStatus);
+        return;
+      }
+      
+      console.log('✅ No active voting detected - proceeding with iteration');
+      console.log('Starting next AL iteration via DAL Session bridge');
       
       // Use the DAL Session bridge to orchestrate the complete workflow
       await dalSession.startIteration();
       
-      console.log(' AL iteration workflow started successfully via DAL Session');
+      console.log('AL iteration workflow started successfully via DAL Session');
       
     } catch (error) {
-      console.error(' Failed to start next AL iteration:', error);
+      console.error('Failed to start next AL iteration:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to start iteration';
+      setError(errorMessage);
+    }
+  };
+
+  const handleStartFinalTraining = async () => {
+    if (!isCoordinator) {
+      setError('Only coordinators can start final training');
+      return;
+    }
+
+    if (!dalSession) {
+      setError('DAL Session not initialized. Please wait a moment and try again.');
+      return;
+    }
+
+    try {
+      setError(null);
+      
+      // GUARD: Check if voting is currently active
+      console.log('🔍 Checking for active voting before starting final training...');
+      const { alContractService } = await import('./services/ALContractService');
+      const votingStatus = await alContractService.isVotingActive(project.contractAddress);
+      
+      if (votingStatus.isActive) {
+        const errorMessage = `Cannot start final training: Voting is currently active!\n\n` +
+          `• ${votingStatus.activeSamples} samples still need votes\n` +
+          `• Round: ${votingStatus.round}\n` +
+          `• Time remaining: ${Math.ceil(votingStatus.timeRemaining / 60)} minutes\n\n` +
+          `Please wait for all voting to complete before starting final training.`;
+        
+        setError(errorMessage);
+        console.warn('🚫 Cannot start final training - voting is active:', votingStatus);
+        return;
+      }
+      
+      console.log('✅ No active voting detected - proceeding with final training');
+      console.log('Starting final training via DAL Session bridge');
+      
+      // Use the DAL Session bridge to orchestrate the complete workflow
+      await dalSession.startFinalTraining();
+      
+      console.log('Final training workflow started successfully via DAL Session');
+      
+    } catch (error) {
+      console.error('Failed to start final training:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start final training';
       setError(errorMessage);
     }
   };
@@ -383,6 +449,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
 
   return {
     handleStartNextIteration,
+    handleStartFinalTraining,
     handleEndProject,
     handleBatchVoteSubmission,
     handleVoteSubmission,

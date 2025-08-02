@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def run_iteration_direct(project_id, config_path, iteration_number):
+def run_iteration_direct(project_id, config_path, iteration_number, final_training=False):
     """
     Run a single AL iteration using our fixed al_iteration.py directly
     """
@@ -54,6 +54,11 @@ def run_iteration_direct(project_id, config_path, iteration_number):
             "--project_id", project_id
         ]
         
+        # Add final training flag if requested
+        if final_training:
+            cmd.append("--final_training")
+            logger.info(f"🎯 Final training mode enabled for iteration {iteration_number}")
+        
         # Add model input for iterations > 1
         if iteration_number > 1:
             model_file = outputs_dir / f"model_round_{iteration_number-1}.pkl"
@@ -71,7 +76,10 @@ def run_iteration_direct(project_id, config_path, iteration_number):
         )
         
         if result.returncode == 0:
-            logger.info(f"✅ AL iteration {iteration_number} completed successfully")
+            if final_training:
+                logger.info(f"✅ Final training iteration {iteration_number} completed successfully")
+            else:
+                logger.info(f"✅ AL iteration {iteration_number} completed successfully")
             
             # Check for expected outputs
             query_file = outputs_dir / f"query_samples_round_{iteration_number}.json"
@@ -90,16 +98,21 @@ def run_iteration_direct(project_id, config_path, iteration_number):
                 'success': True,
                 'iteration': iteration_number,
                 'outputs': outputs,
-                'stdout': result.stdout
+                'stdout': result.stdout,
+                'final_training': final_training
             }
         else:
-            logger.error(f"❌ AL iteration {iteration_number} failed")
+            if final_training:
+                logger.error(f"❌ Final training iteration {iteration_number} failed")
+            else:
+                logger.error(f"❌ AL iteration {iteration_number} failed")
             logger.error(f"STDERR: {result.stderr}")
             return {
                 'success': False,
                 'iteration': iteration_number,
                 'error': result.stderr,
-                'stdout': result.stdout
+                'stdout': result.stdout,
+                'final_training': final_training
             }
             
     except Exception as e:
@@ -107,7 +120,8 @@ def run_iteration_direct(project_id, config_path, iteration_number):
         return {
             'success': False,
             'iteration': iteration_number,
-            'error': str(e)
+            'error': str(e),
+            'final_training': final_training
         }
 
 def run_full_workflow(project_id, config_path, max_iterations=None):
@@ -152,6 +166,7 @@ def main():
     parser.add_argument('--project_id', type=str, help='Project identifier (required for non-server modes)')
     parser.add_argument('--config', type=str, help='AL configuration file (required for non-server modes)')
     parser.add_argument('--iteration', type=int, help='Run specific iteration (default: run all)')
+    parser.add_argument('--final_training', action='store_true', help='Final training round - no sample querying')
     parser.add_argument('--workflow', action='store_true', help='Run full workflow')
     parser.add_argument('--max_iterations', type=int, help='Maximum iterations for workflow mode')
     parser.add_argument('--server', action='store_true', help='Run HTTP API server mode')
@@ -173,13 +188,19 @@ def main():
             # Use our fixed direct execution approach
             if args.iteration:
                 # Run specific iteration
-                result = run_iteration_direct(args.project_id, args.config, args.iteration)
+                result = run_iteration_direct(args.project_id, args.config, args.iteration, args.final_training)
                 if result.get('success'):
-                    logger.info(f"✅ Iteration {args.iteration} completed successfully")
+                    if args.final_training:
+                        logger.info(f"✅ Final training iteration {args.iteration} completed successfully")
+                    else:
+                        logger.info(f"✅ Iteration {args.iteration} completed successfully")
                     if 'outputs' in result:
                         logger.info(f"📁 Outputs: {list(result['outputs'].keys())}")
                 else:
-                    logger.error(f"❌ Iteration {args.iteration} failed: {result.get('error')}")
+                    if args.final_training:
+                        logger.error(f"❌ Final training iteration {args.iteration} failed: {result.get('error')}")
+                    else:
+                        logger.error(f"❌ Iteration {args.iteration} failed: {result.get('error')}")
                     sys.exit(1)
             elif args.workflow:
                 # Run full workflow
@@ -194,6 +215,9 @@ def main():
                 print(f"  ")
                 print(f"  # Run single iteration with cumulative learning:")
                 print(f"  python main.py --project_id <addr> --config <config.json> --iteration 1")
+                print(f"  ")
+                print(f"  # Run final training iteration:")
+                print(f"  python main.py --project_id <addr> --config <config.json> --iteration 5 --final_training")
                 print(f"  ")
                 print(f"  # Run full workflow:")
                 print(f"  python main.py --project_id <addr> --config <config.json> --workflow")

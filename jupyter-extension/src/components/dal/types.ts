@@ -70,8 +70,8 @@ export interface ModelUpdate {
     f1Score: number;
   };
   samplesAddedCount: number;
-  modelParameters?: any;
   notes?: string;
+  isFinalTraining?: boolean; // Added for UI detection
 }
 
 export interface VotingRecord {

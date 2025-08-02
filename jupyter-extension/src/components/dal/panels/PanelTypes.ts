@@ -32,6 +32,7 @@ export interface ConfigurationPanelProps extends BasePanelProps {
 
 export interface ControlPanelProps extends BasePanelProps {
   onStartNextIteration: () => Promise<void>;
+  onStartFinalTraining: () => Promise<void>;
   onEndProject: () => Promise<void>;
   projectEndStatus: {
     shouldEnd: boolean;
@@ -39,6 +40,7 @@ export interface ControlPanelProps extends BasePanelProps {
     currentRound: number;
     maxIterations: number;
   };
+  modelUpdates: ModelUpdate[]; // Add this to detect final training completion
 }
 
 export interface ModelUpdatesPanelProps extends BasePanelProps {

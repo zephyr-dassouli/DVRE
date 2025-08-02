@@ -253,6 +253,7 @@ def main():
     parser.add_argument('--iteration', type=int, required=True, help='Current iteration number')
     parser.add_argument('--config', required=True, help='Path to configuration file')
     parser.add_argument('--project_id', help='Project ID for output organization')
+    parser.add_argument('--final_training', action='store_true', help='Final training round - no sample querying')
     
     args = parser.parse_args()
 
@@ -292,10 +293,13 @@ def main():
     
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"🚀 Starting AL Iteration {args.iteration} with Performance Evaluation")
+    if args.final_training:
+        print(f"🎯 Starting Final Training Round {args.iteration} (No Sample Querying)")
+    else:
+        print(f"🚀 Starting AL Iteration {args.iteration} with Performance Evaluation")
 
     # 🔄 CRITICAL FIX: Accumulate newly labeled samples from voting results (for iterations > 1)
-    if args.iteration > 1 and args.project_id:
+    if args.iteration > 1 and args.project_id and not args.final_training:
         newly_added = accumulate_newly_labeled_samples(args.project_id, args.iteration, args.unlabeled_data)
         if newly_added > 0:
             print(f"🎯 Accumulated {newly_added} newly labeled samples from previous iterations!")
@@ -312,8 +316,8 @@ def main():
     X_unlabeled = load_data(args.unlabeled_data)
     print(f"✅ Data loaded: {len(y_labeled)} labeled, {len(X_unlabeled)} unlabeled.")
 
-    # 🔄 ADDITIONAL FIX: Remove previously labeled samples from unlabeled pool
-    if args.iteration > 1 and args.project_id:
+    # 🔄 ADDITIONAL FIX: Remove previously labeled samples from unlabeled pool (skip for final training)
+    if args.iteration > 1 and args.project_id and not args.final_training:
         print("🧹 Removing previously queried samples from unlabeled pool...")
         
         try:
@@ -362,7 +366,7 @@ def main():
             print("⚠️ Continuing with full unlabeled dataset...")
             original_index_mapping = {i: i for i in range(len(X_unlabeled))}
     else:
-        # First iteration - no filtering needed
+        # First iteration or final training - no filtering needed
         original_index_mapping = {i: i for i in range(len(X_unlabeled))}
 
     # 3. Split labeled data into train/test for performance evaluation
@@ -397,63 +401,87 @@ def main():
         # Re-evaluate performance of loaded model
         print("🔍 Evaluating loaded model performance...")
     else:
-        print("✨ This is the first iteration, training on initial data.")
+        if args.final_training:
+            print("✨ Final training round: training on complete labeled dataset.")
+        else:
+            print("✨ This is the first iteration, training on initial data.")
 
     # 7. **PERFORMANCE EVALUATION STEP**
     print("\n📊 Evaluating model performance...")
     performance_metrics = evaluate_model_performance(learner, X_test, y_test, config)
 
-    # 8. Query for new samples to be labeled
-    n_queries = config.get('query_batch_size', 1)
-    query_indices, _ = learner.query(X_unlabeled, n_instances=n_queries)
-    print(f"🎯 Queried {len(query_indices)} new instances to be labeled.")
+    # 8. Query for new samples to be labeled (SKIP for final training)
+    if not args.final_training:
+        n_queries = config.get('query_batch_size', 1)
+        query_indices, _ = learner.query(X_unlabeled, n_instances=n_queries)
+        print(f"🎯 Queried {len(query_indices)} new instances to be labeled.")
 
-    # 9. Get the actual data for the queried samples
-    query_samples = X_unlabeled[query_indices]
-    
-    # 10. Save the queried SAMPLES (not indices) to a JSON file
-    output_data = []
-    if detect_format(Path(args.unlabeled_data)) == '.csv':
-        unlabeled_df = pd.read_csv(args.unlabeled_data)
-        feature_columns = unlabeled_df.columns[:-1] if unlabeled_df.shape[1] > len(query_samples[0]) else unlabeled_df.columns
-        samples_df = pd.DataFrame(query_samples, columns=feature_columns[:len(query_samples[0])])
+        # 9. Get the actual data for the queried samples
+        query_samples = X_unlabeled[query_indices]
         
-        # 🔄 FIX: Use correct original indices from mapping
-        mapped_original_indices = [original_index_mapping[idx] for idx in query_indices]
-        samples_df['original_index'] = mapped_original_indices
-        output_data = samples_df.to_dict(orient='records')
-        
-        print(f"🔗 Query indices in filtered space: {query_indices}")
-        print(f"🔗 Mapped to original indices: {mapped_original_indices}")
-    else: # .npy
-        # 🔄 FIX: Use correct original indices from mapping  
-        mapped_original_indices = [original_index_mapping[idx] for idx in query_indices]
-        output_data = [
-            {'features': sample.tolist(), 'original_index': int(mapped_idx)} 
-            for idx, sample, mapped_idx in zip(query_indices, query_samples, mapped_original_indices)
-        ]
+        # 10. Save the queried SAMPLES (not indices) to a JSON file
+        output_data = []
+        if detect_format(Path(args.unlabeled_data)) == '.csv':
+            unlabeled_df = pd.read_csv(args.unlabeled_data)
+            feature_columns = unlabeled_df.columns[:-1] if unlabeled_df.shape[1] > len(query_samples[0]) else unlabeled_df.columns
+            samples_df = pd.DataFrame(query_samples, columns=feature_columns[:len(query_samples[0])])
+            
+            # 🔄 FIX: Use correct original indices from mapping
+            mapped_original_indices = [original_index_mapping[idx] for idx in query_indices]
+            samples_df['original_index'] = mapped_original_indices
+            output_data = samples_df.to_dict(orient='records')
+            
+            print(f"🔗 Query indices in filtered space: {query_indices}")
+            print(f"🔗 Mapped to original indices: {mapped_original_indices}")
+        else: # .npy
+            # 🔄 FIX: Use correct original indices from mapping  
+            mapped_original_indices = [original_index_mapping[idx] for idx in query_indices]
+            output_data = [
+                {'features': sample.tolist(), 'original_index': int(mapped_idx)} 
+                for idx, sample, mapped_idx in zip(query_indices, query_samples, mapped_original_indices)
+            ]
 
-    # 11. Save query samples to output directory with iteration number
-    query_samples_file = output_dir / f"query_samples_round_{args.iteration}.json"
-    with open(query_samples_file, 'w') as f:
-        json.dump(output_data, f, indent=2)
-    print(f"✅ Saved query samples to {query_samples_file}")
+        # 11. Save query samples to output directory with iteration number
+        query_samples_file = output_dir / f"query_samples_round_{args.iteration}.json"
+        with open(query_samples_file, 'w') as f:
+            json.dump(output_data, f, indent=2)
+        print(f"✅ Saved query samples to {query_samples_file}")
+    else:
+        print("🎯 Final training round: Skipping sample querying step.")
 
     # 12. **SAVE PERFORMANCE METRICS TO RO-CRATE OUTPUTS**
+    # Add final training marker to performance metrics
+    performance_metrics['final_training'] = args.final_training
+    
     performance_file = output_dir / f"performance_round_{args.iteration}.json"
     with open(performance_file, 'w') as f:
         json.dump(performance_metrics, f, indent=2)
     print(f"📊 Saved performance metrics to {performance_file}")
-
+    
+    if args.final_training:
+        print(f"📋 Marked as final training round in performance metrics")
+    
     # 13. Save the current model state for the next iteration
     model_path = output_dir / f"model_round_{args.iteration}.pkl"
     joblib.dump(learner.estimator, model_path)
     print(f"✅ Saved model for next round to {model_path}")
 
-    # 14. 🔄 IMPORTANT: Document expected voting results format for frontend
-    voting_format_doc = output_dir / f"VOTING_RESULTS_FORMAT_round_{args.iteration}.md"
-    with open(voting_format_doc, 'w') as f:
-        f.write(f"""# Voting Results Format for Round {args.iteration}
+    # 14. 🔄 Final training completion message
+    if args.final_training:
+        print(f"\n🎉 Final Training Round {args.iteration} completed successfully!")
+        print(f"📊 Final Performance: Accuracy={performance_metrics['accuracy']:.3f}, F1={performance_metrics['f1_score']:.3f}")
+        print(f"📁 All outputs saved to: {output_dir}")
+        print(f"\n✅ MODEL TRAINING COMPLETE:")
+        print(f"   • Trained on ALL {len(X_labeled)} labeled samples")
+        print(f"   • No new samples queried (final training)")
+        print(f"   • Final model saved: {model_path}")
+        print(f"   • Performance metrics: {performance_file}")
+        print(f"   • Project ready for final results publication!")
+    else:
+        # 14. 🔄 IMPORTANT: Document expected voting results format for frontend (regular iterations only)
+        voting_format_doc = output_dir / f"VOTING_RESULTS_FORMAT_round_{args.iteration}.md"
+        with open(voting_format_doc, 'w') as f:
+            f.write(f"""# Voting Results Format for Round {args.iteration}
 
 The AL-Engine expects voting results to be saved in the following format:
 `{output_dir.parent}/voting_results_round_{args.iteration}.json`
@@ -482,15 +510,15 @@ Expected JSON structure:
 
 The frontend voting service should save results in this format after each voting session.
 """)
-    print(f"📋 Saved voting results format documentation to {voting_format_doc}")
+        print(f"📋 Saved voting results format documentation to {voting_format_doc}")
 
-    print(f"\n🎉 AL Iteration {args.iteration} completed successfully!")
-    print(f"📊 Performance: Accuracy={performance_metrics['accuracy']:.3f}, F1={performance_metrics['f1_score']:.3f}")
-    print(f"📁 All outputs saved to: {output_dir}")
-    print(f"\n💡 NEXT STEPS:")
-    print(f"   1. Users should vote on the queried samples")
-    print(f"   2. Frontend should save voting results to: {output_dir.parent}/voting_results_round_{args.iteration}.json")
-    print(f"   3. Run iteration {args.iteration + 1} to see the improved model with accumulated training data!")
+        print(f"\n🎉 AL Iteration {args.iteration} completed successfully!")
+        print(f"📊 Performance: Accuracy={performance_metrics['accuracy']:.3f}, F1={performance_metrics['f1_score']:.3f}")
+        print(f"📁 All outputs saved to: {output_dir}")
+        print(f"\n💡 NEXT STEPS:")
+        print(f"   1. Users should vote on the queried samples")
+        print(f"   2. Frontend should save voting results to: {output_dir.parent}/voting_results_round_{args.iteration}.json")
+        print(f"   3. Run iteration {args.iteration + 1} to see the improved model with accumulated training data!")
 
 if __name__ == '__main__':
     main() 
