@@ -45,6 +45,40 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     isCheckingStatus: false
   });
 
+  // Real-time countdown timer state
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  
+  // Initialize timeRemaining when activeBatch changes
+  useEffect(() => {
+    if (activeBatch?.timeRemaining) {
+      setTimeRemaining(activeBatch.timeRemaining);
+    }
+  }, [activeBatch]);
+  
+  // Real-time countdown timer effect
+  useEffect(() => {
+    if (timeRemaining > 0) {
+      const timer = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      return () => clearInterval(timer);
+    }
+  }, [timeRemaining]);
+  
+  // Format time remaining display
+  const formatTimeRemaining = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  };
+
   // Load active batch when session state changes
   useEffect(() => {
     const loadActiveBatch = async () => {
@@ -681,7 +715,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
                   ))}
                 </div>
                 <div className="time-remaining" style={{ fontSize: '14px', color: '#666' }}>
-                  ⏱️ Time remaining: {Math.floor((project.activeVoting?.timeRemaining || 0) / 60)}m {(project.activeVoting?.timeRemaining || 0) % 60}s
+                  ⏱️ Time remaining: {formatTimeRemaining(timeRemaining)}
                 </div>
               </div>
             </div>

@@ -808,7 +808,7 @@ export class ALContractService {
 
   /**
    * @dev Check if project should end based on smart contract conditions
-   * Uses the shouldProjectEnd() function from Project.sol
+   * Uses the shouldProjectEnd() function from ALProject.sol
    */
   async getProjectEndStatus(projectAddress: string): Promise<{
     shouldEnd: boolean;
@@ -817,7 +817,9 @@ export class ALContractService {
     maxIterations: number;
   }> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
+      // IMPORTANT: Resolve ALProject address first since shouldProjectEnd() exists only on ALProject
+      const alProjectAddress = await resolveALProjectAddress(projectAddress);
+      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, this.provider);
       
       // Call the smart contract's shouldProjectEnd function
       const [shouldEnd, reason] = await projectContract.shouldProjectEnd();
