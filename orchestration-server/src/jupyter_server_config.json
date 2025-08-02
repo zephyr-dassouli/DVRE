@@ -1,8 +1,0 @@
-{
-  "ServerApp": {
-    "jpserver_extensions": {
-      "dvre_orchestration_server": true
-    },
-    "disable_check_xsrf": true
-  }
-} 

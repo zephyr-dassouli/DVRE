@@ -1,6 +1,0 @@
-include README*.md
-include requirements.txt
-include jupyter_config.py
-recursive-include src *.py
-recursive-include src *.json
-include src/jupyter_server_config.json 
