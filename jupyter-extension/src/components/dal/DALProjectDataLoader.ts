@@ -2,13 +2,11 @@
  * DAL Project Data Loader - Handles loading and refreshing project data from smart contracts
  */
 
-import { DALProject, ModelUpdate, VotingRecord, UserContribution } from './types';
-import { alContractService } from './services/ALContractService';
 import { ethers } from 'ethers';
-// Remove unused imports since they're not being used in this file
-// import { useState, useEffect } from 'react';
-import ALProject from '../../abis/ALProject.json';
 import { RPC_URL } from '../../config/contracts';
+import { DALProject } from './types';
+import { alContractService } from './services/ALContractService';
+import { ModelUpdate, VotingRecord, UserContribution } from './types';
 
 export interface ProjectDataState {
   modelUpdates: ModelUpdate[];
@@ -66,12 +64,20 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
 
       // Fetch project description from project data JSON (already stored during creation)
       try {
-        console.log('🔍 Fetching project description from project data...');
+        console.log('📋 Fetching project description from project data JSON...');
         const provider = new ethers.JsonRpcProvider(RPC_URL);
-        const projectContract = new ethers.Contract(project.contractAddress, ALProject.abi, provider);
+        
+        // First resolve ALProject address, then get base Project address for getProjectData()
+        const { resolveALProjectAddress, getBaseProjectAddress } = await import('./utils/AddressResolver');
+        const alProjectAddress = await resolveALProjectAddress(project.contractAddress, provider);
+        const baseProjectAddress = await getBaseProjectAddress(alProjectAddress, provider);
+        
+        // getProjectData() exists on base Project contract, not ALProject
+        const Project = (await import('../../abis/Project.json')).default;
+        const baseProjectContract = new ethers.Contract(baseProjectAddress, Project.abi, provider);
         
         // Get the project data JSON that was stored during creation
-        const projectDataString = await projectContract.getProjectData();
+        const projectDataString = await baseProjectContract.getProjectData();
         const projectData = JSON.parse(projectDataString);
         
         // Extract description from the project data

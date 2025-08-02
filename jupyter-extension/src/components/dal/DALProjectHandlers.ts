@@ -4,7 +4,6 @@
 
 import { DALProject } from './types';
 import { SessionState } from './services/DALProjectSession';
-import ALProject from '../../abis/ALProject.json';
 
 export interface ProjectHandlers {
   handleStartNextIteration: () => Promise<void>;
@@ -128,38 +127,44 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
     console.log('Publishing final AL project results...');
     
     try {
-      // Step 0: Check if project has ended before allowing publication
-      console.log('🔍 Checking project status before publishing...');
+      // Import required services
+      const { alContractService } = await import('./services/ALContractService');
+      const { ethers } = await import('ethers');
+      const { RPC_URL } = await import('../../config/contracts');
       
-      if (project?.isActive) {
-        const errorMessage = 'Cannot publish final results while project is still active. Please end the project first using the "End Project" button in the Control Panel.';
-        console.error('❌ Project still active, cannot publish:', errorMessage);
-        setError(errorMessage);
-        return;
-      }
-      
-      // Additional check using smart contract
+      // Check if we can access project end status
+      let endStatus;
       try {
-        const { alContractService } = await import('./services/ALContractService');
-        const projectStatus = await alContractService.getProjectStatus(project.contractAddress);
+        endStatus = await alContractService.getProjectEndStatus(project.contractAddress);
         
-        if (projectStatus.isActive) {
-          const errorMessage = 'Smart contract reports project is still active. Please end the project first before publishing final results.';
-          console.error('❌ Smart contract reports project still active:', errorMessage);
-          setError(errorMessage);
-          return;
+        if (!endStatus.shouldEnd) {
+          const shouldForce = window.confirm(
+            `Project is still active (Round ${endStatus.currentRound}/${endStatus.maxIterations}). ` +
+            'Do you want to force publish final results anyway?'
+          );
+          if (!shouldForce) {
+            return;
+          }
+        } else {
+          console.log(`✅ Project should end: ${endStatus.reason}`);
         }
-        
-        console.log('✅ Project status check passed - project has ended, ready to publish');
       } catch (statusError) {
-        console.warn('⚠️ Could not verify project status from smart contract, continuing with publication:', statusError);
+        console.warn('Could not get project end status, proceeding with publication...', statusError);
       }
+      
+      // IMPORTANT: Get the base Project address for AL-Engine operations
+      // AL-Engine expects the base Project address for its directory structure
+      const { getBaseProjectAddress } = await import('./utils/AddressResolver');
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      const baseProjectAddress = await getBaseProjectAddress(project.contractAddress, provider);
+      console.log(`🔄 Using base Project address for AL-Engine: ${baseProjectAddress} (original: ${project.contractAddress})`);
       
       // Step 1: Get the complete RO-Crate folder from AL-Engine
       console.log('📋 Step 1: Collecting complete RO-Crate folder from AL-Engine...');
       const alEngineUrl = 'http://localhost:5050'; // AL-Engine API base URL
       
-      const roCrateFolderResponse = await fetch(`${alEngineUrl}/api/project/${project.contractAddress}/ro-crate`);
+      // Use base Project address for AL-Engine API call
+      const roCrateFolderResponse = await fetch(`${alEngineUrl}/api/project/${baseProjectAddress}/ro-crate`);
       
       if (!roCrateFolderResponse.ok) {
         throw new Error(`AL-Engine API failed: ${roCrateFolderResponse.status} ${roCrateFolderResponse.statusText}`);
@@ -299,9 +304,12 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
         
         // Step 5b: Update Project contract with final RO-Crate hash
         console.log('📋 Updating Project contract with final RO-Crate hash...');
-        const projectContract = new ethers.Contract(project.contractAddress, ALProject.abi, signer);
         
-        // Use the new setFinalROCrateHash function
+        // Get the base Project contract (setFinalROCrateHash is on base Project, not ALProject)
+        const Project = (await import('../../abis/Project.json')).default;
+        const projectContract = new ethers.Contract(baseProjectAddress, Project.abi, signer);
+        
+        // Use the setFinalROCrateHash function on base Project contract
         const setFinalHashTx = await projectContract.setFinalROCrateHash(ipfsResults.hash);
         await setFinalHashTx.wait();
         console.log('✅ Project contract updated with final RO-Crate hash');
