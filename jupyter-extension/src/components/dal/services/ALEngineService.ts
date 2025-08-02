@@ -460,8 +460,8 @@ export class ALEngineService {
                 },
                 samplesAddedCount: iterationRecords.length,
                 notes: isFinalTraining 
-                  ? `Final Training Round: Complete dataset training - ${performanceData.performance.test_samples} test samples`
-                  : `Iteration ${iteration}: AL model performance - ${performanceData.performance.test_samples} test samples`,
+                  ? `Final Training Round: Model performance based on ${performanceData.performance.test_samples} test samples`
+                  : `Iteration ${iteration}: Model performance based on ${performanceData.performance.test_samples} test samples`,
                 isFinalTraining: isFinalTraining // Add flag for UI detection
               };
               
