@@ -9,7 +9,6 @@
  */
 
 import { ethers } from 'ethers';
-import { EventEmitter } from 'events';
 import { RPC_URL } from '../../../config/contracts';
 import ALProject from '../../../abis/ALProject.json';
 import ALProjectVoting from '../../../abis/ALProjectVoting.json';
@@ -121,13 +120,19 @@ export class OffChainContractService {
       const votingContractAddress = await projectContract.votingContract();
       const currentRound = await projectContract.currentRound();
       const currentBatchSampleIdsRaw = await projectContract.getCurrentBatchSampleIds();
-      const alConfig = await projectContract.getALConfiguration();
-      const votingTimeout = Number(alConfig._votingTimeout);
-      const labelSpaceRaw = alConfig._labelSpace;
+      const [
+        , // queryStrategy (unused)
+        , // alScenario (unused)
+        , // maxIteration (unused)
+        , // currentRoundFromConfig (unused)
+        , // queryBatchSize (unused)
+        votingTimeout,
+        labelSpace
+      ] = await projectContract.getALConfiguration();
       
       // Create new non-readonly arrays to avoid Ethers.js readonly property errors
       const currentBatchSampleIds = [...currentBatchSampleIdsRaw];
-      const labelSpace = [...labelSpaceRaw];
+      const labelSpaceArray = [...labelSpace];
       
       // If currentBatchSampleIds is empty, check if there's an active batch in the voting contract
       if (currentBatchSampleIds.length === 0) {
@@ -156,7 +161,7 @@ export class OffChainContractService {
             const activeBatch = await votingContract.computeActiveBatch(
               batchSampleIds,
               sampleActiveStates,
-              labelSpace,
+              labelSpaceArray,
               votingTimeout,
               currentRound
             );
@@ -190,7 +195,7 @@ export class OffChainContractService {
       const activeBatch = await votingContract.computeActiveBatch(
         currentBatchSampleIds,
         sampleActiveStates,
-        labelSpace,
+        labelSpaceArray,
         votingTimeout,
         currentRound
       );

@@ -55,39 +55,46 @@ export class SmartContractService {
       
       if (config.contractAddress) {
         try {
-          // Get project contract instance
+          // Import ALProject ABI instead of Project ABI
+          const ALProject = (await import('../../../abis/ALProject.json')).default;
           const projectContract = new ethers.Contract(
             config.contractAddress,
-            Project.abi,
+            ALProject.abi,
             provider
           );
 
-          // Try to get AL metadata from smart contract
-          try {
-            const projectMetadata = await projectContract.getProjectMetadata();
+          // Check if project has AL contracts deployed
+          const hasALContracts = await projectContract.hasALContracts();
+          if (hasALContracts) {
+            // Get real AL configuration using correct method and destructuring
+            const [
+              queryStrategy,
+              alScenario,
+              maxIteration,
+              currentRound,
+              queryBatchSize,
+              votingTimeout,
+              labelSpace
+            ] = await projectContract.getALConfiguration();
+            
             smartContractData = {
-              queryStrategy: projectMetadata._queryStrategy || 'uncertainty_sampling',
-              alScenario: projectMetadata._alScenario || 'pool_based',
-              maxIterations: Number(projectMetadata._maxIteration) || 10,
-              queryBatchSize: Number(projectMetadata._queryBatchSize) || 5,
-              labelSpace: projectMetadata._labelSpace || [], // Remove default ['positive', 'negative']
+              queryStrategy: queryStrategy || 'uncertainty_sampling',
+              alScenario: alScenario || 'pool_based',
+              maxIterations: Number(maxIteration) || 10,
+              queryBatchSize: Number(queryBatchSize) || 5,
+              labelSpace: labelSpace ? [...labelSpace] : [],
               votingContract: await projectContract.votingContract?.() || null,
               storageContract: await projectContract.storageContract?.() || null
             };
-            console.log('✅ Retrieved AL metadata from smart contract');
-          } catch (contractError) {
-            console.warn('⚠️ Could not retrieve AL metadata from contract, using configuration data');
-            // Fallback to stored configuration - using correct field names
-            smartContractData = {
-              queryStrategy: config.extensions.dal.queryStrategy || 'uncertainty_sampling',
-              alScenario: config.extensions.dal.alScenario || 'pool_based',
-              maxIterations: config.extensions.dal.maxIterations || 10,
-              queryBatchSize: config.extensions.dal.queryBatchSize || 5,
-              labelSpace: config.extensions.dal.labelSpace || []
-            };
+            console.log('✅ Retrieved AL metadata from smart contract using ALProject.getALConfiguration()');
+            console.log('📋 Real AL config:', smartContractData);
+          } else {
+            console.log('📝 AL contracts not yet deployed, using stored configuration');
+            throw new Error('AL contracts not deployed yet');
           }
-        } catch (error) {
-          console.warn('⚠️ Could not connect to smart contract, using stored configuration');
+        } catch (contractError) {
+          console.warn('⚠️ Could not retrieve AL metadata from contract, using configuration data');
+          // Fallback to stored configuration - using correct field names
           smartContractData = {
             queryStrategy: config.extensions.dal.queryStrategy || 'uncertainty_sampling',
             alScenario: config.extensions.dal.alScenario || 'pool_based',

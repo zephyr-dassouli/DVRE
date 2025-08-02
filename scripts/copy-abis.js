@@ -25,8 +25,11 @@ function copyABIFiles(sourceDir, destDir) {
         new: [],
         changed: [],
         unchanged: [],
-        failed: []
+        failed: [],
+        skipped: []
     };
+    
+    const processedFiles = new Set(); // Track files we've already processed
     
     function processDirectory(currentDir, relativePath = '') {
         const items = fs.readdirSync(currentDir);
@@ -40,6 +43,17 @@ function copyABIFiles(sourceDir, destDir) {
                 processDirectory(itemPath, path.join(relativePath, item));
             } else if (stat.isFile() && item.endsWith('.json') && !item.endsWith('.dbg.json')) {
                 // Process .json files but skip .dbg.json debug files
+                
+                // Skip interface files that are duplicates from different contracts
+                if (item.startsWith('I') && item.endsWith('.json') && processedFiles.has(item)) {
+                    results.skipped.push({
+                        name: item,
+                        source: itemPath,
+                        reason: 'Duplicate interface file'
+                    });
+                    continue;
+                }
+                
                 const destPath = path.join(destDir, item);
                 
                 try {
@@ -67,6 +81,10 @@ function copyABIFiles(sourceDir, destDir) {
                         fs.copyFileSync(itemPath, destPath);
                         results.new.push(fileInfo);
                     }
+                    
+                    // Mark this filename as processed
+                    processedFiles.add(item);
+                    
                 } catch (error) {
                     console.error(`❌ Failed to process ${item}:`, error.message);
                     results.failed.push({
@@ -145,6 +163,15 @@ function main() {
         console.log(`❌ Failed files (${srcResults.failed.length}):`);
         srcResults.failed.forEach(file => {
             console.log(`   • ${file.name}: ${file.error}`);
+        });
+        console.log('');
+    }
+    
+    // Show skipped files (for debugging)
+    if (srcResults.skipped.length > 0) {
+        console.log(`⏭️ Skipped files (${srcResults.skipped.length}):`);
+        srcResults.skipped.forEach(file => {
+            console.log(`   • ${file.name} (${file.reason})`);
         });
         console.log('');
     }

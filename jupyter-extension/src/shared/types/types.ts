@@ -96,8 +96,11 @@ export interface DALTemplateParameters {
   modelType?: string;
   modelParameters?: any;
   maxIterations?: number;
+  queryBatchSize?: number;
   labelingBudget?: number;
   validationSplit?: number;
+  votingConsensus?: string;
+  votingTimeout?: number;
   labelSpace?: string[];
   workflowInputs?: string[];
   workflowOutputs?: string[];

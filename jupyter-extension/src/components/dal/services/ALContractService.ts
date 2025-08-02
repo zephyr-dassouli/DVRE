@@ -4,7 +4,6 @@
  */
 
 import { ethers } from 'ethers';
-import { EventEmitter } from 'events';
 import { RPC_URL } from '../../../config/contracts';
 import ALProject from '../../../abis/ALProject.json';
 import ALProjectVoting from '../../../abis/ALProjectVoting.json';
@@ -208,12 +207,25 @@ export class ALContractService {
     metadata: any
   ): Promise<{success: boolean, sampleIds?: string[], queriedSamples?: any[], error?: string}> {
     try {
-      // Trigger Python AL-Engine
+      // Get real AL configuration from the ALProject contract
+      console.log('🔍 Getting real AL configuration from ALProject contract...');
+      const realALConfig = await this.getALConfiguration(projectAddress);
+      
+      if (!realALConfig) {
+        console.error('❌ Could not get AL configuration from contract');
+        return { success: false, error: 'Could not get AL configuration from contract' };
+      }
+      
+      console.log('✅ Real AL configuration from contract:', realALConfig);
+      
+      // Trigger Python AL-Engine with real configuration
       const alConfig = {
-        n_queries: Number(metadata._queryBatchSize) || 2,
-        query_strategy: metadata._queryStrategy || 'uncertainty_sampling',  
-        label_space: metadata._labelSpace || []
+        nQueries: Number(realALConfig.queryBatchSize) || 2,
+        queryStrategy: realALConfig.queryStrategy || 'uncertainty_sampling',  
+        labelSpace: realALConfig.labelSpace || []
       };
+      
+      console.log('📋 AL-Engine config being sent:', alConfig);
 
       const pythonResult = await this.triggerPythonALEngine(projectAddress, iterationNumber, alConfig);
       
@@ -537,7 +549,15 @@ export class ALContractService {
       
       // Get basic project info
       const isActive = await projectContract.getIsActive();
-      const alConfig = await projectContract.getALConfiguration();
+      const [
+        queryStrategy,
+        alScenario,
+        maxIteration,
+        currentRound,
+        queryBatchSize,
+        votingTimeout,
+        labelSpace
+      ] = await projectContract.getALConfiguration();
       
       // Use off-chain contract service for participants
       const participants = await offChainContractService.getAllParticipants(projectAddress);
@@ -557,7 +577,6 @@ export class ALContractService {
           };
         } else {
           // Default batch info when no active batch
-          const currentRound = await projectContract.currentRound();
           currentBatch = {
             round: Number(currentRound),
             totalSamples: 0,
@@ -569,7 +588,6 @@ export class ALContractService {
         }
       } catch (error) {
         console.log('📝 Could not get current batch progress');
-        const currentRound = await projectContract.currentRound();
         currentBatch = {
           round: Number(currentRound),
           totalSamples: 0,
@@ -603,15 +621,15 @@ export class ALContractService {
       return { 
         // Basic project info
         isActive,
-        currentIteration: Number(alConfig._currentRound),
-        maxIterations: Number(alConfig._maxIteration) || 10,
+        currentIteration: Number(currentRound),
+        maxIterations: Number(maxIteration) || 10,
         
         // AL Configuration  
-        queryStrategy: alConfig._queryStrategy || 'uncertainty_sampling',
-        alScenario: alConfig._alScenario || 'pool_based',
-        queryBatchSize: Number(alConfig._queryBatchSize) || 2,
-        votingTimeout: Number(alConfig._votingTimeout) || 3600,
-        labelSpace: alConfig._labelSpace ? [...alConfig._labelSpace] : [], // Remove default ['positive', 'negative']
+        queryStrategy: queryStrategy || 'uncertainty_sampling',
+        alScenario: alScenario || 'pool_based',
+        queryBatchSize: Number(queryBatchSize) || 2,
+        votingTimeout: Number(votingTimeout) || 3600,
+        labelSpace: labelSpace ? [...labelSpace] : [],
         
         // Current batch info
         currentBatch: {
@@ -666,22 +684,39 @@ export class ALContractService {
         return null;
       }
       
-      // Get AL configuration from contract
-      const alConfig = await projectContract.getALConfiguration();
-      console.log('📋 Raw AL config from contract:', alConfig);
+      // Get AL configuration from contract using destructuring
+      const [
+        queryStrategy,
+        alScenario, 
+        maxIteration,
+        currentRound,
+        queryBatchSize,
+        votingTimeout,
+        labelSpace
+      ] = await projectContract.getALConfiguration();
+      
+      console.log('📋 Raw AL config from contract:', {
+        queryStrategy,
+        alScenario,
+        maxIteration: maxIteration.toString(),
+        currentRound: currentRound.toString(),
+        queryBatchSize: queryBatchSize.toString(),
+        votingTimeout: votingTimeout.toString(),
+        labelSpace
+      });
       
       return {
-        scenario: alConfig._alScenario || 'pool_based',
-        queryStrategy: alConfig._queryStrategy || 'uncertainty_sampling',
+        scenario: alScenario || 'pool_based',
+        queryStrategy: queryStrategy || 'uncertainty_sampling',
         model: {
-          type: alConfig._modelType || 'logistic_regression',
-          parameters: alConfig._modelParameters || {}
+          type: 'logistic_regression',  // Default since not stored in contract
+          parameters: {}
         },
-        queryBatchSize: Number(alConfig._queryBatchSize) || 2,
-        maxIterations: Number(alConfig._maxIteration) || 10,
-        votingConsensus: alConfig._votingConsensus || 'simple_majority',
-        votingTimeout: Number(alConfig._votingTimeout) || 3600,
-        labelSpace: alConfig._labelSpace ? [...alConfig._labelSpace] : []
+        queryBatchSize: Number(queryBatchSize) || 2,
+        maxIterations: Number(maxIteration) || 10,
+        votingConsensus: 'simple_majority',  // Default since not stored in ALProject
+        votingTimeout: Number(votingTimeout) || 3600,
+        labelSpace: labelSpace ? [...labelSpace] : []
       };
       
     } catch (error) {
@@ -739,15 +774,21 @@ export class ALContractService {
       
       // Call the smart contract's shouldProjectEnd function
       const [shouldEnd, reason] = await projectContract.shouldProjectEnd();
-      const currentRound = await projectContract.currentRound();
-      const alConfig = await projectContract.getALConfiguration();
-      const maxIterations = Number(alConfig._maxIteration) || 0;
+      const [
+        , // queryStrategy (unused)
+        , // alScenario (unused)
+        maxIteration,
+        currentRound,
+        , // queryBatchSize (unused)
+        , // votingTimeout (unused)
+        // labelSpace (unused)
+      ] = await projectContract.getALConfiguration();
       
       return {
         shouldEnd,
         reason,
         currentRound: Number(currentRound),
-        maxIterations
+        maxIterations: Number(maxIteration)
       };
     } catch (error) {
       console.error('Error checking project end status:', error);

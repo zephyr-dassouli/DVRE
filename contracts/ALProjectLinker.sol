@@ -33,6 +33,41 @@ contract ALProjectLinker {
         address storageContract
     );
     
+    // Detailed debugging events
+    event ALProjectSetupStarted(address indexed alProject);
+    event ALProjectSetupCompleted(address indexed alProject);
+    event ALExtensionLinked(address indexed baseProject, address indexed alProject);
+    event ROCrateHashUpdated(address indexed baseProject, string rocrateHash);
+    
+    /**
+     * @dev Setup ALProject only (called by ALProjectDeployer)
+     * Does not touch base Project contract - ALProjectDeployer handles that
+     */
+    function setupALProjectOnly(
+        address alProject,
+        address votingContract,
+        address storageContract,
+        string calldata queryStrategy,
+        string calldata alScenario,
+        uint256 maxIteration,
+        uint256 queryBatchSize,
+        string[] calldata labelSpace
+    ) external {
+        // Setup AL project with voting and storage contracts
+        emit ALProjectSetupStarted(alProject);
+        IALProject(alProject).setupALProject(
+            votingContract,
+            storageContract,
+            queryStrategy,
+            alScenario,
+            maxIteration,
+            queryBatchSize,
+            labelSpace,
+            "" // empty rocrateHash since ALProjectDeployer handles it
+        );
+        emit ALProjectSetupCompleted(alProject);
+    }
+    
     /**
      * @dev Link pre-deployed AL contracts together and to base project
      * @param baseProject Address of existing Project contract
@@ -58,10 +93,8 @@ contract ALProjectLinker {
         string[] calldata labelSpace,
         string calldata rocrateHash
     ) external {
-        // Verify caller is project creator
-        require(IProject(baseProject).creator() == msg.sender, "Only project creator");
-        
         // Setup AL project with voting and storage contracts
+        emit ALProjectSetupStarted(alProject);
         IALProject(alProject).setupALProject(
             votingContract,
             storageContract,
@@ -72,12 +105,15 @@ contract ALProjectLinker {
             labelSpace,
             rocrateHash
         );
+        emit ALProjectSetupCompleted(alProject);
         
         // Link AL extension to base project
         IProject(baseProject).setALExtension(alProject);
+        emit ALExtensionLinked(baseProject, alProject);
         
         // Update RO-Crate hash on base project
         IProject(baseProject).updateROCrateHash(rocrateHash);
+        emit ROCrateHashUpdated(baseProject, rocrateHash);
         
         emit ALProjectLinked(baseProject, alProject, votingContract, storageContract);
     }

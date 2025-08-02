@@ -5,7 +5,8 @@
 import { DALProject, ModelUpdate, VotingRecord, UserContribution } from './types';
 import { alContractService } from './services/ALContractService';
 import { ethers } from 'ethers';
-import { useState, useEffect } from 'react';
+// Remove unused imports since they're not being used in this file
+// import { useState, useEffect } from 'react';
 import ALProject from '../../abis/ALProject.json';
 import { RPC_URL } from '../../config/contracts';
 

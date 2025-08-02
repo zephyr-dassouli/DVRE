@@ -279,11 +279,12 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
           deploymentMessage += `  📍 ALProjectStorage: ${result.alContractAddresses.storage}\n`;
         }
       } else if (result.steps.alSmartContracts === 'failed') {
-        deploymentMessage += `⚠️ AL Smart Contracts: Failed\n`;
+        deploymentMessage += `❌ AL Smart Contracts: Failed\n`;
+        deploymentMessage += `  ⚠️ ALProjectVoting and ALProjectStorage deployment failed\n`;
+        deploymentMessage += `  💡 Check console for error details\n`;
       } else if (result.steps.alSmartContracts === 'skipped') {
-        deploymentMessage += `⏭️ AL Smart Contracts: Skipped (Test Mode)\n`;
-        deploymentMessage += `  ℹ️ ALProjectVoting and ALProjectStorage not deployed\n`;
-        deploymentMessage += `  ℹ️ Contract methods setALMetadata, setVotingContract unavailable\n`;
+        deploymentMessage += `⏭️ AL Smart Contracts: Skipped (Non-AL Project)\n`;
+        deploymentMessage += `  ℹ️ This project doesn't require AL contracts\n`;
       }
       
       if (result.steps.ipfsUpload === 'success') {

@@ -243,7 +243,7 @@ export class ROCrateService {
               "queryStrategy": config.extensions.dal.queryStrategy,
               "scenario": config.extensions.dal.alScenario,
               "maxIterations": config.extensions.dal.maxIterations,
-              "labelingBudget": config.extensions.dal.queryBatchSize,
+              "queryBatchSize": config.extensions.dal.queryBatchSize,
               "model": config.extensions.dal.model
             }
           }] : [])

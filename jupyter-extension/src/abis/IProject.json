@@ -1,22 +1,123 @@
 {
   "_format": "hh-sol-artifact-1",
   "contractName": "IProject",
-  "sourceName": "contracts/ALProjectVoting.sol",
+  "sourceName": "contracts/ALProject.sol",
   "abi": [
     {
       "inputs": [
         {
-          "internalType": "string",
-          "name": "sampleId",
-          "type": "string"
+          "internalType": "address",
+          "name": "_participant",
+          "type": "address"
         },
         {
           "internalType": "string",
-          "name": "finalLabel",
+          "name": "_role",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_weight",
+          "type": "uint256"
+        }
+      ],
+      "name": "addParticipantWithRole",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "creator",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getAllParticipants",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "participantAddresses",
+          "type": "address[]"
+        },
+        {
+          "internalType": "string[]",
+          "name": "roles",
+          "type": "string[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "weights",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "joinTimestamps",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_participant",
+          "type": "address"
+        }
+      ],
+      "name": "getParticipantRole",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
           "type": "string"
         }
       ],
-      "name": "notifyVotingSessionEnded",
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "isActive",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_participant",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "_role",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_weight",
+          "type": "uint256"
+        }
+      ],
+      "name": "updateParticipant",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -25,29 +126,11 @@
       "inputs": [
         {
           "internalType": "string",
-          "name": "sampleId",
+          "name": "_rocrateHash",
           "type": "string"
         }
       ],
-      "name": "notifyVotingSessionStarted",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "string",
-          "name": "sampleId",
-          "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "label",
-          "type": "string"
-        }
-      ],
-      "name": "receiveFinalLabelFromVoting",
+      "name": "updateROCrateHash",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

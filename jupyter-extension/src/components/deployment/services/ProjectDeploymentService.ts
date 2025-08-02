@@ -196,15 +196,15 @@ export class ProjectDeploymentService {
     if (config.extensions?.dal) {
       const dalConfig = config.extensions.dal;
       const inputs: any = {
-        query_strategy: dalConfig.query_strategy || 'uncertainty_sampling',
-        AL_scenario: dalConfig.AL_scenario || 'pool_based',
-        max_iterations: dalConfig.max_iterations || 10,
-        labeling_budget: dalConfig.labeling_budget || 100,
+        query_strategy: dalConfig.queryStrategy || 'uncertainty_sampling',
+        AL_scenario: dalConfig.alScenario || 'pool_based',
+        max_iterations: dalConfig.maxIterations || 10,
+        labeling_budget: dalConfig.queryBatchSize || 5,
         validation_split: dalConfig.validation_split || 0.2,
-        training_dataset: dalConfig.training_dataset || '',
-        labeling_dataset: dalConfig.labeling_dataset || '',
-        voting_consensus: dalConfig.voting_consensus || 0.7,
-        voting_timeout: dalConfig.voting_timeout_seconds || 3600
+        training_dataset: dalConfig.trainingDataset || '',
+        labeling_dataset: dalConfig.labelingDataset || '',
+        voting_consensus: dalConfig.votingConsensus || 'simple_majority',
+        voting_timeout: dalConfig.votingTimeout || 3600
       };
 
       if (votingContractAddress) {

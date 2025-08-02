@@ -4,7 +4,6 @@
  */
 
 import { ethers } from 'ethers';
-import { EventEmitter } from 'events';
 import { RPC_URL } from '../../../config/contracts';
 import ALProject from '../../../abis/ALProject.json';
 import ALProjectVoting from '../../../abis/ALProjectVoting.json';

@@ -129,14 +129,21 @@ contract ALProject {
         uint256 _queryBatchSize,
         string[] memory _labelSpace,
         string memory _rocrateHash
-    ) external onlyCreator {
+    ) external {
+        // During initial setup, allow any caller (ALProjectLinker)
+        // After setup, only allow creator
+        if (votingContract != address(0) || storageContract != address(0)) {
+            require(msg.sender == IProject(baseProject).creator(), "Only creator after initial setup");
+        }
+        
         // Validate inputs
         require(_votingContract != address(0) && _storageContract != address(0), "Invalid contract addresses");
         require(votingContract == address(0), "AL contracts already linked");
         require(storageContract == address(0), "AL contracts already linked");
         require(_maxIteration > 0, "Invalid max iteration");
         require(_queryBatchSize > 0, "Invalid batch size");
-        require(bytes(_rocrateHash).length > 0, "RO-Crate hash cannot be empty");
+        // Allow empty rocrateHash during deployment - ALProjectDeployer handles it separately
+        // require(bytes(_rocrateHash).length > 0, "RO-Crate hash cannot be empty");
         
         // 1. Link AL contracts (from linkALContracts)
         votingContract = _votingContract;

@@ -54,6 +54,11 @@ contract Project {
     
     // AL Extension Support
     address public alExtension; // Link to ALProject contract for AL projects
+    mapping(address => bool) public approvedDelegates; // Delegates that can perform AL operations
+
+    // AL Extension Events
+    event DelegateApproved(address indexed delegate, address indexed creator);
+    event DelegateRevoked(address indexed delegate, address indexed creator);
     
     // Common Project Events
     event ProjectCreated(address indexed creator, uint256 timestamp);
@@ -123,7 +128,7 @@ contract Project {
         emit FinalROCrateHashUpdated(msg.sender, _rocrateHashFinal, block.timestamp);
     }
     
-    function updateROCrateHash(string memory _rocrateHash) external virtual onlyCreator {
+    function updateROCrateHash(string memory _rocrateHash) external virtual onlyCreatorOrDelegate {
         require(bytes(_rocrateHash).length > 0, "RO-Crate hash cannot be empty");
         rocrateHash = _rocrateHash;
         lastModified = block.timestamp;
@@ -410,10 +415,44 @@ contract Project {
     
     // --- AL Extension Management ---
     /**
+     * @dev Approve a delegate (like ALProjectDeployer) to perform AL operations
+     * @param _delegate Address to approve as delegate
+     */
+    function approveDelegate(address _delegate) external onlyCreator {
+        require(_delegate != address(0), "Invalid delegate address");
+        approvedDelegates[_delegate] = true;
+        emit DelegateApproved(_delegate, msg.sender);
+    }
+    
+    /**
+     * @dev Revoke delegate permissions
+     * @param _delegate Address to revoke delegate permissions from
+     */
+    function revokeDelegate(address _delegate) external onlyCreator {
+        approvedDelegates[_delegate] = false;
+        emit DelegateRevoked(_delegate, msg.sender);
+    }
+    
+    /**
+     * @dev Check if an address is an approved delegate
+     */
+    function isApprovedDelegate(address _delegate) external view returns (bool) {
+        return approvedDelegates[_delegate];
+    }
+    
+    /**
+     * @dev Modifier that allows creator or approved delegates
+     */
+    modifier onlyCreatorOrDelegate() {
+        require(msg.sender == creator || approvedDelegates[msg.sender], "Only creator or delegate");
+        _;
+    }
+
+    /**
      * @dev Link an ALProject extension to this project
      * @param _alExtension Address of the deployed ALProject contract
      */
-    function setALExtension(address _alExtension) external onlyCreator {
+    function setALExtension(address _alExtension) external onlyCreatorOrDelegate {
         require(_alExtension != address(0), "Invalid AL extension address");
         require(alExtension == address(0), "AL extension already set");
         alExtension = _alExtension;

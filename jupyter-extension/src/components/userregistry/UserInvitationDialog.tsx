@@ -44,7 +44,6 @@ export const UserInvitationDialog: React.FC<UserInvitationDialogProps> = ({
   useEffect(() => {
     const loadProjectInfo = async () => {
       try {
-        const { useProjects } = await import('../../hooks/useProjects');
         // We need to create a temporary instance to get project info
         // This is a workaround since we can't use hooks conditionally
         const provider = new (await import('ethers')).ethers.JsonRpcProvider(

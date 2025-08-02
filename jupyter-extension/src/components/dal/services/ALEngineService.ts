@@ -129,9 +129,9 @@ export class ALEngineService {
         iteration: iteration,
         project_id: projectId,
         config_override: {
-          n_queries: alConfig.n_queries || 2,
-          query_strategy: alConfig.query_strategy || 'uncertainty_sampling',
-          label_space: alConfig.label_space || [] // Remove default ['positive', 'negative']
+          n_queries: alConfig.nQueries || alConfig.n_queries || 2,
+          query_strategy: alConfig.queryStrategy || alConfig.query_strategy || 'uncertainty_sampling',
+          label_space: alConfig.labelSpace || alConfig.label_space || [] // Remove default ['positive', 'negative']
         }
       };
       
@@ -302,7 +302,7 @@ export class ALEngineService {
   fallbackToSimulation(alConfig: any, iteration: number): {success: boolean, queryIndices: number[], error?: string} {
     console.log('🔄 Using simulation fallback for AL-Engine');
     
-    const batchSize = alConfig.n_queries || 2;
+    const batchSize = alConfig.nQueries || alConfig.n_queries || 2;
     const simulatedIndices = Array.from({ length: batchSize }, (_, i) => i + (iteration - 1) * batchSize);
     
     console.log(`🎯 Simulated query indices: [${simulatedIndices.join(', ')}]`);
