@@ -129,7 +129,7 @@ export class DALProjectSession extends EventEmitter {
           }
         });
       } else {
-        console.log('ℹ️ No active voting session found');
+        console.log(' No active voting session found');
       }
     } catch (error) {
       console.error(' Failed to initialize session state:', error);
@@ -680,7 +680,7 @@ export class DALProjectSession extends EventEmitter {
   }
 
   private cleanupContractListeners(): void {
-    console.log('🧹 Cleaning up smart contract event listeners');
+    console.log(' Cleaning up smart contract event listeners');
     this.contractListeners.forEach(cleanup => cleanup());
     this.contractListeners = [];
   }

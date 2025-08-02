@@ -46,7 +46,7 @@ export class ALEngineService {
    * Clear stored AL samples for a project (called when voting sessions end)
    */
   clearStoredALSamples(projectAddress: string): void {
-    console.log(`🧹 Clearing stored AL samples for project ${projectAddress}`);
+    console.log(` Clearing stored AL samples for project ${projectAddress}`);
     
     // Clear stored samples for this project
     const samples = this.currentALSamples.get(projectAddress);
@@ -90,7 +90,7 @@ export class ALEngineService {
    */
   async triggerPythonALEngine(projectId: string, iteration: number, alConfig: any): Promise<{success: boolean, queryIndices?: number[], queriedSamples?: any[], error?: string}> {
     try {
-      console.log(`🌐 Triggering Python AL-Engine via HTTP API for project ${projectId}, iteration ${iteration}`);
+      console.log(` Triggering Python AL-Engine via HTTP API for project ${projectId}, iteration ${iteration}`);
       
       const alEngineUrl = config.alEngine.apiUrl || 'http://localhost:5050'; // AL-Engine API server
       
@@ -427,7 +427,7 @@ export class ALEngineService {
                   f1Score: performanceData.performance.f1_score || 0
                 },
                 samplesAddedCount: iterationRecords.length,
-                notes: `Iteration ${iteration}: Real AL model performance (${performanceData.performance.test_samples} test samples)`
+                notes: `Iteration ${iteration}: AL model performance - ${performanceData.performance.test_samples} test samples`
               };
               
               modelUpdates.push(modelUpdate);

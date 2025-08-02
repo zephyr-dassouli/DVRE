@@ -302,7 +302,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
                 color: sessionState.phase === 'error' ? '#ef4444' : '#10b981', 
                 fontWeight: 'bold'
               }}>
-                🤖 AL-Engine: {sessionState.phase.replace('_', ' ').toUpperCase()}
+                 AL-Engine: {sessionState.phase.replace('_', ' ').toUpperCase()}
                 {sessionState.phase === 'voting' && sessionState.batchProgress && 
                   ` (${sessionState.batchProgress.completedSamples}/${sessionState.batchProgress.totalSamples})`
                 }

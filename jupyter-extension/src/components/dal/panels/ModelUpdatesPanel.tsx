@@ -5,21 +5,6 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
   modelUpdates,
   isCoordinator
 }) => {
-  const formatTimeAgo = (date: Date): string => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffDays > 0) {
-      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    } else if (diffHours > 0) {
-      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    } else {
-      return 'Recently';
-    }
-  };
-
   if (!isCoordinator) {
     return (
       <div className="model-updates-panel">
@@ -70,9 +55,6 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
               }}>
                 <div className="iteration-info">
                   <h4>Iteration {update.iterationNumber}</h4>
-                  <span className="timestamp" style={{ color: '#666', fontSize: '14px' }}>
-                    {formatTimeAgo(update.timestamp)}
-                  </span>
                 </div>
                 <div className="samples-added" style={{
                   backgroundColor: '#dcfce7',

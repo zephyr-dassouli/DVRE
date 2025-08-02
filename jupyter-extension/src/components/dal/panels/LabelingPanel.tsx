@@ -104,7 +104,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
             // Check if user has already voted in this batch
             await checkCurrentVotingStatus(batch);
           } else {
-            console.log('ℹ️ No active batch found');
+            console.log(' No active batch found');
             setActiveBatch(null);
           }
         }
@@ -510,7 +510,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
               padding: '12px 24px',
               border: 'none',
               borderRadius: '6px',
-              backgroundColor: batchVotes[sampleId] === label ? '#3b82f6' : '#6366f1',
+              backgroundColor: batchVotes[sampleId] === label ? '#3b82f6' : '#bfdbfe',
               color: 'white',
               fontSize: '16px',
               fontWeight: 'bold',
@@ -782,9 +782,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
               }}>
                 <h4 style={{ marginBottom: '12px', color: '#374151' }}>What happens now?</h4>
                 <ul style={{ textAlign: 'left', margin: 0, paddingLeft: '20px' }}>
-                  <li>All voting sessions have been finalized</li>
-                  <li>Final results can be viewed in the "Publish Final Results" tab</li>
-                  <li>The model performance and labeled dataset are available</li>
+                  <li>Voting has been finalized</li>
                   <li>No more iterations can be started</li>
                 </ul>
               </div>

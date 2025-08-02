@@ -272,67 +272,67 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
       
       // Add step-by-step results
       if (result.steps.alSmartContracts === 'success') {
-        deploymentMessage += ` AL Smart Contracts: Deployed\n`;
+        deploymentMessage += `AL Smart Contracts: Deployed\n`;
         // Show AL contract addresses if they were actually deployed
         if (result.alContractAddresses) {
-          deploymentMessage += `  📍 ALProjectVoting: ${result.alContractAddresses.voting}\n`;
-          deploymentMessage += `  📍 ALProjectStorage: ${result.alContractAddresses.storage}\n`;
+          deploymentMessage += `ALProjectVoting: ${result.alContractAddresses.voting}\n`;
+          deploymentMessage += `ALProjectStorage: ${result.alContractAddresses.storage}\n`;
         }
       } else if (result.steps.alSmartContracts === 'failed') {
-        deploymentMessage += ` AL Smart Contracts: Failed\n`;
-        deploymentMessage += `   ALProjectVoting and ALProjectStorage deployment failed\n`;
-        deploymentMessage += `   Check console for error details\n`;
+        deploymentMessage += `AL Smart Contracts: Failed\n`;
+        deploymentMessage += `ALProjectVoting and ALProjectStorage deployment failed\n`;
+        deploymentMessage += `Check console for error details\n`;
       } else if (result.steps.alSmartContracts === 'skipped') {
-        deploymentMessage += `⏭️ AL Smart Contracts: Skipped (Non-AL Project)\n`;
-        deploymentMessage += `  ℹ️ This project doesn't require AL contracts\n`;
+        deploymentMessage += `AL Smart Contracts: Skipped (Non-AL Project)\n`;
+        deploymentMessage += `This project doesn't require AL contracts\n`;
       }
       
       if (result.steps.ipfsUpload === 'success') {
-        deploymentMessage += ` IPFS Upload: Success\n`;
-        deploymentMessage += ` RO-Crate Hash: ${result.roCrateHash}\n`;
+        deploymentMessage += `IPFS Upload: Success\n`;
+        deploymentMessage += `RO-Crate Hash: ${result.roCrateHash}\n`;
       } else {
-        deploymentMessage += ` IPFS Upload: Failed\n`;
+        deploymentMessage += `IPFS Upload: Failed\n`;
       }
 
       if (result.steps.localROCrateSave === 'success') {
-        deploymentMessage += ` Local RO-Crate Save: Success\n`;
-        deploymentMessage += ` Local Path: ${result.localROCratePath}\n`;
+        deploymentMessage += `Local RO-Crate Save: Success\n`;
+        deploymentMessage += `Local Path: ${result.localROCratePath}\n`;
       } else if (result.steps.localROCrateSave === 'failed') {
-        deploymentMessage += ` Local RO-Crate Save: Failed\n`;
+        deploymentMessage += `Local RO-Crate Save: Failed\n`;
       } else {
         if (computationMode === 'remote') {
-          deploymentMessage += `⏭️ Local RO-Crate Save: Skipped (Remote/Infra Sharing mode)\n`;
+          deploymentMessage += `Local RO-Crate Save: Skipped (Remote/Infra Sharing mode)\n`;
         } else {
-          deploymentMessage += `⏭️ Local RO-Crate Save: Skipped\n`;
+          deploymentMessage += `Local RO-Crate Save: Skipped\n`;
         }
       }
 
       // Local file download results
       if (result.steps.localFileDownload === 'success') {
-        deploymentMessage += ` Local Files: Downloaded (${result.downloadedFiles?.length || 0} files)\n`;
-        deploymentMessage += ` Local Path: ${result.localDownloadPath}\n`;
+        deploymentMessage += `Local Files: Downloaded (${result.downloadedFiles?.length || 0} files)\n`;
+        deploymentMessage += `Local Path: ${result.localDownloadPath}\n`;
       } else if (result.steps.localFileDownload === 'failed') {
-        deploymentMessage += ` Local Files: Download Failed\n`;
+        deploymentMessage += `Local Files: Download Failed\n`;
       } else if (result.steps.localFileDownload === 'skipped') {
-        deploymentMessage += `⏭️ Local Files: Skipped (RO-Crate format used instead)\n`;
+        deploymentMessage += `Local Files: Skipped (RO-Crate format used instead)\n`;
       }
       
       if (result.steps.orchestrationDeploy === 'success') {
-        deploymentMessage += ` Orchestration: Deployed\n`;
+        deploymentMessage += `Orchestration: Deployed\n`;
         if (result.orchestrationWorkflowId) {
-          deploymentMessage += `🆔 Workflow ID: ${result.orchestrationWorkflowId}\n`;
-          deploymentMessage += ` Monitor at: http://145.100.135.97:5004\n`;
+          deploymentMessage += `Workflow ID: ${result.orchestrationWorkflowId}\n`;
+          deploymentMessage += `Monitor at: http://145.100.135.97:5004\n`;
         }
       } else if (result.steps.orchestrationDeploy === 'failed') {
-        deploymentMessage += ` Orchestration: Failed\n`;
+        deploymentMessage += `Orchestration: Failed\n`;
       } else if (result.steps.orchestrationDeploy === 'skipped') {
-        deploymentMessage += `⏭️ Orchestration: Skipped (Local mode)\n`;
+        deploymentMessage += `Orchestration: Skipped (Local mode)\n`;
       }
       
       if (result.steps.smartContractUpdate === 'success') {
-        deploymentMessage += ` Smart Contract: Updated\n`;
+        deploymentMessage += `Smart Contract: Updated\n`;
       } else if (result.steps.smartContractUpdate === 'failed') {
-        deploymentMessage += ` Smart Contract: Update Failed\n`;
+        deploymentMessage += `Smart Contract: Update Failed\n`;
       }
 
       // Overall status - determine success based on critical steps
@@ -405,7 +405,7 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
     const isALProject = project.extensions?.dal !== undefined;
     
     if (isALProject) {
-      return `🤖 Active Learning Project - ${baseDescription}`;
+      return ` Active Learning Project - ${baseDescription}`;
     }
     
     return baseDescription;

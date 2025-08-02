@@ -78,7 +78,7 @@ requirements:
     const dalConfig = project.extensions?.dal;
     if (!dalConfig) return "No Active Learning configuration found.";
 
-    return `Preconfigured Active Learning workflow using ${dalConfig.queryStrategy || 'uncertainty_sampling'} strategy with ${dalConfig.model?.type || 'default'} model. Maximum ${dalConfig.max_iterations || 'unlimited'} iterations with batch size of ${dalConfig.labeling_budget || 2}.`;
+    return `Preconfigured Active Learning workflow with parameters defined in the configuration panel.`;
   };
 
   // Generate config.json content based on project's DAL configuration
@@ -164,7 +164,7 @@ requirements:
 
         <div className="workflow-inputs-outputs">
           <div className="workflow-section">
-            <h6>📥 Inputs</h6>
+            <h6>Inputs</h6>
             <ul className="io-list">
               <li><code>labeled_data</code> - Training dataset with labels</li>
               <li><code>labeled_labels</code> - Labels corresponding to training data</li>
@@ -250,15 +250,15 @@ requirements:
               <pre className="runtime-code">
 {`labeled_data:
   class: File
-  path: /project/datasets/labeled_training.npy
+  path: /project/datasets/labeled_samples.csv
 
 labeled_labels:
   class: File
-  path: /project/datasets/training_labels.npy
+  path: /project/datasets/labeled_labels.csv
 
 unlabeled_data:
   class: File
-  path: /project/datasets/unlabeled_pool.npy
+  path: /project/datasets/unlabeled_samples.csv
 
 config:
   class: File

@@ -28,7 +28,7 @@ export async function resolveALProjectAddress(
     try {
       await alProjectContract.hasALContracts();
       // If this succeeds, it's already an ALProject address
-      console.log(`📍 Address ${baseProjectAddress} is already an ALProject contract`);
+      console.log(` Address ${baseProjectAddress} is already an ALProject contract`);
       return baseProjectAddress;
     } catch {
       // If it fails, this might be a base Project address, get the alExtension
@@ -43,7 +43,7 @@ export async function resolveALProjectAddress(
       throw new Error('No AL extension found for this project');
     }
     
-    console.log(`📍 Resolved ALProject address ${alExtension} from base Project ${baseProjectAddress}`);
+    console.log(` Resolved ALProject address ${alExtension} from base Project ${baseProjectAddress}`);
     return alExtension;
   } catch (error) {
     console.error(` Failed to resolve ALProject address from ${baseProjectAddress}:`, error);
@@ -71,7 +71,7 @@ export async function getBaseProjectAddress(
       throw new Error('Invalid base project address');
     }
     
-    console.log(`📍 Found base Project address ${baseProjectAddress} for ALProject ${alProjectAddress}`);
+    console.log(` Found base Project address ${baseProjectAddress} for ALProject ${alProjectAddress}`);
     return baseProjectAddress;
   } catch (error) {
     console.error(` Failed to get base Project address from ${alProjectAddress}:`, error);

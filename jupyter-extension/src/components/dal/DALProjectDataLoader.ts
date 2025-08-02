@@ -88,7 +88,7 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
         if (description && description.trim() !== '') {
           console.log(' Project description set successfully:', description);
         } else {
-          console.log('ℹ️ Project description is empty or not set');
+          console.log(' Project description is empty or not set');
         }
       } catch (descError) {
         console.error(' Could not fetch project description:', descError);

@@ -221,9 +221,6 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
               <p style={{ margin: '0 0 8px 0', color: '#166534', fontSize: '14px', fontWeight: 'bold' }}>
                  IPFS Hash: <code style={{ backgroundColor: '#e5e7eb', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>{finalRoCrateHash}</code>
               </p>
-              <p style={{ margin: '0 0 12px 0', color: '#166534', fontSize: '14px' }}>
-                 Public IPFS URL: <a href={`https://ipfs.io/ipfs/${finalRoCrateHash}`} target="_blank" rel="noopener noreferrer" style={{ color: '#059669', textDecoration: 'underline' }}>View on IPFS</a>
-              </p>
             </div>
             
             {/* Storage Access Instructions */}
@@ -246,7 +243,7 @@ export const PublishFinalResultsPanel: React.FC<PublishFinalResultsPanelProps> =
                 <li>Click on the asset to view details and download the complete RO-Crate folder</li>
               </ol>
               <p style={{ margin: 0, color: '#1e40af', fontSize: '14px', fontStyle: 'italic' }}>
-                 All project contributors can access the final results from their Storage tab.
+                 All project participants can access the final results from their Storage tab.
               </p>
             </div>
           </div>

@@ -149,7 +149,7 @@ export const setupProjectEventListeners = (deps: EventListenerDependencies): Eve
 
     // Return cleanup function
     return () => {
-      console.log('🧹 Cleaning up DAL Session');
+      console.log(' Cleaning up DAL Session');
       session.removeAllListeners();
       session.endSession().catch(console.error);
       setDalSession(null);

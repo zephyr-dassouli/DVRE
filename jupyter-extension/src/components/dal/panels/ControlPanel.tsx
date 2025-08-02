@@ -293,8 +293,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               'Manually end the project. This will:'
             }
             <br />• Deactivate the project permanently
-            <br />• Finalize all voting sessions
-            <br />• Trigger final results collection
+            <br />• Finalize voting for the project
+            <br />• Allow final results to be published
             <br />• <strong>This action cannot be undone!</strong>
           </p>
           <button 

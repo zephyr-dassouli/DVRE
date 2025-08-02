@@ -31,7 +31,7 @@ export const ComputationModePanel: React.FC<ComputationModePanelProps> = ({
     // Generate local project path
     const projectName = project.projectData?.name || project.projectId;
     const sanitizedName = projectName.replace(/[^a-zA-Z0-9-_]/g, '_');
-    setLocalProjectPath(`~/dvre-projects/${sanitizedName}/`);
+    setLocalProjectPath(`~al-engine/ro-crates/${sanitizedName}/`);
   }, [project]);
 
   const handleModeChange = (mode: 'local' | 'remote') => {
@@ -78,12 +78,12 @@ export const ComputationModePanel: React.FC<ComputationModePanelProps> = ({
                 disabled
               />
               <div className="mode-content">
-                <strong>☁️ Infra Sharing (Remote Node)</strong>
+                <strong>Infra Sharing (Remote Node)</strong>
                 <p>Computation delegated to remote nodes via Orchestrator. <em>(Coming Soon)</em></p>
                 <ul>
                   <li>Workflows sent to Orchestrator server</li>
                   <li>Execution on remote compute nodes</li>
-                  <li>Results returned and processed locally</li>
+                  <li>Results processed remotely</li>
                 </ul>
               </div>
             </label>
@@ -100,13 +100,14 @@ export const ComputationModePanel: React.FC<ComputationModePanelProps> = ({
             </div>
 
             <div className="download-section">
-              <h5>📦 Automatic File Download</h5>
+              <h5>Automatic File Download</h5>
               <p>During deployment, the system will automatically download:</p>
-              <ul>
+              <ul> 
+                <li><strong>RO-Crate:</strong> ro-crate-metadata.json</li>
                 <li><strong>CWL Workflow:</strong> al_iteration.cwl</li>
-                <li><strong>Configuration:</strong> project_config.json, voting_config.json</li>
+                <li><strong>Configuration:</strong> project_config.json</li>
                 <li><strong>Datasets:</strong> All project datasets from IPFS</li>
-                <li><strong>Models:</strong> Model files and metadata (if available)</li>
+                <li><strong>Model:</strong> Model files and metadata (if available)</li>
               </ul>
               <p><em>No manual action required - files will be ready for local execution after deployment.</em></p>
             </div>

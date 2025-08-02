@@ -197,11 +197,11 @@ export const useDALProject = (projectAddress?: string) => {
                   // alConfiguration.votingConsensus = await votingContract.getConsensusType();
                   // alConfiguration.votingTimeout = await votingContract.getVotingTimeout();
                 } catch (votingConfigError) {
-                  console.log('ℹ️ Additional voting config not available:', (votingConfigError as Error).message);
+                  console.log(' Additional voting config not available:', (votingConfigError as Error).message);
                 }
               }
             } catch (votingContractError) {
-              console.log('ℹ️ Could not fetch voting contract details:', (votingContractError as Error).message);
+              console.log(' Could not fetch voting contract details:', (votingContractError as Error).message);
             }
           }
 

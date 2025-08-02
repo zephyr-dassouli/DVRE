@@ -450,7 +450,7 @@ export class IPFSService {
           return true;
         } else if (response.status === 401) {
           console.warn(`🔐 IPFS Authentication Failed: API key "${this.ipfsConfig.apiKey}" was rejected (Status: 401)`);
-          console.warn(`ℹ️  Please verify API key configuration in ./api-keys.txt on your VM`);
+          console.warn(`  Please verify API key configuration in ./api-keys.txt on your VM`);
           return false; // Connection works but auth failed
         } else {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
