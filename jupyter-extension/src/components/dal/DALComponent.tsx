@@ -7,6 +7,7 @@ import { projectConfigurationService } from '../deployment/services/ProjectConfi
 import { ethers } from 'ethers';
 import { RPC_URL } from '../../config/contracts';
 import ALProject from '../../abis/ALProject.json';
+import { resolveALProjectAddress, getBaseProjectAddress } from './utils/AddressResolver';
 
 /**
  * DAL Landing Page Component - Shows user's DAL projects
@@ -37,7 +38,12 @@ export const DALComponent: React.FC<DALComponentProps> = ({
       try {
         // Get provider and create contract instance
         const provider = new ethers.JsonRpcProvider(RPC_URL);
-        const projectContract = new ethers.Contract(project.address, ALProject.abi, provider);
+        
+        // Use shared utility to resolve ALProject address
+        const alProjectAddress = await resolveALProjectAddress(project.address, provider);
+        
+        // Now use the resolved ALProject address
+        const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, provider);
 
         // Check if AL contracts are deployed
         const hasALContracts = await projectContract.hasALContracts();
@@ -52,8 +58,13 @@ export const DALComponent: React.FC<DALComponentProps> = ({
 
         // Fetch project description and AL configuration from project data JSON
         try {
+          // Get the base project address to call getProjectData()
+          const baseProjectAddress = await getBaseProjectAddress(alProjectAddress, provider);
+          const Project = (await import('../../abis/Project.json')).default;
+          const baseProjectContract = new ethers.Contract(baseProjectAddress, Project.abi, provider);
+          
           // Get the project data JSON that was stored during creation
-          const projectDataString = await projectContract.getProjectData();
+          const projectDataString = await baseProjectContract.getProjectData();
           const projectData = JSON.parse(projectDataString);
           
           // Extract project description from project data
@@ -80,27 +91,46 @@ export const DALComponent: React.FC<DALComponentProps> = ({
           
           // Try to get AL metadata from smart contract as fallback
           try {
-            const metadata = await projectContract.getProjectMetadata();
+            // Use getALConfiguration() instead of getProjectMetadata()
+            const [
+              queryStrategy,
+              alScenario,
+              maxIteration,
+              , // currentRound (unused)
+              queryBatchSize,
+              , // votingTimeout (unused)
+              labelSpace
+            ] = await projectContract.getALConfiguration();
             
-            // Extract project description from smart contract metadata (fallback)
-            projectDescription = metadata._description || '';
-            
-            // Extract AL configuration from smart contract metadata (fallback)
+            // Extract AL configuration from smart contract (fallback)
             alConfiguration = {
-              queryStrategy: metadata._queryStrategy || 'uncertainty_sampling',
-              scenario: metadata._alScenario || 'pool_based', 
+              queryStrategy: queryStrategy || 'uncertainty_sampling',
+              scenario: alScenario || 'pool_based', 
               model: { 
                 type: 'logistic_regression',
                 parameters: {} 
               },
-              maxIterations: Number(metadata._maxIteration) || 10,
-              queryBatchSize: Number(metadata._queryBatchSize) || 10,
+              maxIterations: Number(maxIteration) || 10,
+              queryBatchSize: Number(queryBatchSize) || 10,
               votingConsensus: 'simple_majority',
               votingTimeout: 3600,
-              labelSpace: metadata._labelSpace && metadata._labelSpace.length > 0 
-                ? metadata._labelSpace 
+              labelSpace: labelSpace && labelSpace.length > 0 
+                ? [...labelSpace] 
                 : ['positive', 'negative']
             };
+            
+            // For description, try to get it from base project if available
+            try {
+              const baseProjectAddress = await getBaseProjectAddress(alProjectAddress, provider);
+              const Project = (await import('../../abis/Project.json')).default;
+              const baseProjectContract = new ethers.Contract(baseProjectAddress, Project.abi, provider);
+              const projectDataString = await baseProjectContract.getProjectData();
+              const projectData = JSON.parse(projectDataString);
+              projectDescription = projectData.description || projectData.objective || '';
+            } catch (descError) {
+              console.warn('Could not get description from base project:', descError);
+              projectDescription = '';
+            }
           } catch (metadataError) {
             console.warn('Could not fetch AL metadata from smart contract:', metadataError);
             

@@ -71,9 +71,9 @@ export class SmartContractService {
               queryStrategy,
               alScenario,
               maxIteration,
-              currentRound,
+              , // currentRound (unused)
               queryBatchSize,
-              votingTimeout,
+              , // votingTimeout (unused)
               labelSpace
             ] = await projectContract.getALConfiguration();
             

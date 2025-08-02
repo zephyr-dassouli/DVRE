@@ -13,6 +13,7 @@ import { VotingService, ActiveVoting } from './VotingService';
 import { ALEngineService, ModelUpdate } from './ALEngineService';
 import { offChainContractService } from './OffChainContractService';
 import { VotingRecord, UserContribution } from '../types';
+import { resolveALProjectAddress } from '../utils/AddressResolver';
 
 export { VotingRecord, UserContribution, ActiveVoting, ModelUpdate };
 
@@ -100,7 +101,9 @@ export class ALContractService {
 
   async getActiveVoting(projectAddress: string): Promise<ActiveVoting | null> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
+      // Resolve ALProject address
+      const alProjectAddress = await resolveALProjectAddress(projectAddress);
+      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, this.provider);
       
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
@@ -109,7 +112,7 @@ export class ALContractService {
       }
 
       // Use off-chain implementation instead of removed contract function
-      const activeBatch = await this.getActiveBatch(projectAddress);
+      const activeBatch = await this.getActiveBatch(alProjectAddress);
       if (!activeBatch || activeBatch.sampleIds.length === 0) {
         return null;
       }
@@ -118,17 +121,17 @@ export class ALContractService {
       const sampleId = activeBatch.sampleIds[0];
       const sampleData = this.getSampleDataById(sampleId) || { sampleId, data: 'Sample data' };
         
-        return {
+      return {
         sampleId,
         sampleData,
         labelOptions: activeBatch.labelOptions,
-          currentVotes: {},
+        currentVotes: {},
         timeRemaining: Number(activeBatch.timeRemaining),
-          voters: []
-        };
+        voters: []
+      };
     } catch (error) {
       console.error('Error getting active voting:', error);
-        return null;
+      return null;
     }
   }
 
@@ -139,22 +142,36 @@ export class ALContractService {
     activeVoting: ActiveVoting | null;
   }> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
+      // Resolve ALProject address
+      const alProjectAddress = await resolveALProjectAddress(projectAddress);
+      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, this.provider);
       
       const currentRound = await projectContract.currentRound();
-      const metadata = await projectContract.getProjectMetadata();
+      const [
+        ,  // queryStrategy (unused)
+        ,  // alScenario (unused)
+        maxIteration,
+        ,  // currentRoundFromConfig (unused)
+        ,  // queryBatchSize (unused)
+        ,  // votingTimeout (unused)
+        // labelSpace (unused)
+      ] = await projectContract.getALConfiguration();
       const activeVoting = await this.getActiveVoting(projectAddress);
 
       let isActive = true;
-        try {
-          isActive = await projectContract.isActive();
-        } catch (activeError) {
-          console.log('📝 isActive method not available, assuming project is active');
+      try {
+        // Get isActive from base project contract
+        const baseProjectAddress = await projectContract.baseProject();
+        const Project = (await import('../../../abis/Project.json')).default;
+        const baseProjectContract = new ethers.Contract(baseProjectAddress, Project.abi, this.provider);
+        isActive = await baseProjectContract.isActive();
+      } catch (activeError) {
+        console.log('📝 isActive method not available, assuming project is active');
       }
 
       return {
         currentIteration: Number(currentRound),
-        maxIterations: Number(metadata._maxIteration) || 10,
+        maxIterations: Number(maxIteration) || 10,
         isActive,
         activeVoting
       };
@@ -173,19 +190,19 @@ export class ALContractService {
     try {
       console.log(`🚀 Starting next AL iteration for project ${projectAddress}`);
       
-      // Get project metadata for AL configuration
-      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
-      const metadata = await projectContract.getProjectMetadata();
+      // Resolve ALProject address and get project contract
+      const alProjectAddress = await resolveALProjectAddress(projectAddress);
+      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, this.provider);
       const currentRound = await projectContract.currentRound();
       const iterationNumber = Number(currentRound) + 1;
 
       console.log(`🔬 Current round: ${currentRound}, starting iteration: ${iterationNumber}`);
 
-      // Trigger AL-Engine with sample generation
+      // Trigger AL-Engine with sample generation - pass projectContract instead of metadata
       const alResult = await this.triggerALEngineWithSampleGeneration(
-        projectAddress, 
+        alProjectAddress,  // Use resolved ALProject address 
         iterationNumber, 
-        metadata
+        projectContract
       );
 
       if (!alResult.success) {
@@ -204,7 +221,7 @@ export class ALContractService {
   private async triggerALEngineWithSampleGeneration(
     projectAddress: string, 
     iterationNumber: number, 
-    metadata: any
+    projectContract: ethers.Contract
   ): Promise<{success: boolean, sampleIds?: string[], queriedSamples?: any[], error?: string}> {
     try {
       // Get real AL configuration from the ALProject contract
@@ -545,10 +562,23 @@ export class ALContractService {
     };
   }> {
     try {
-      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
+      // Resolve ALProject address
+      const alProjectAddress = await resolveALProjectAddress(projectAddress);
+      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, this.provider);
       
-      // Get basic project info
-      const isActive = await projectContract.getIsActive();
+      // Check if project has AL contracts first
+      const hasALContracts = await projectContract.hasALContracts();
+      if (!hasALContracts) {
+        console.log('📝 Project does not have AL contracts deployed yet');
+        throw new Error('AL contracts not deployed yet');
+      }
+      
+      // Get basic project info - call baseProject.isActive() through the interface
+      const baseProjectAddress = await projectContract.baseProject();
+      const Project = (await import('../../../abis/Project.json')).default;
+      const baseProjectContract = new ethers.Contract(baseProjectAddress, Project.abi, this.provider);
+      const isActive = await baseProjectContract.isActive();
+      
       const [
         queryStrategy,
         alScenario,
@@ -559,8 +589,8 @@ export class ALContractService {
         labelSpace
       ] = await projectContract.getALConfiguration();
       
-      // Use off-chain contract service for participants
-      const participants = await offChainContractService.getAllParticipants(projectAddress);
+      // Use off-chain contract service for participants - pass the ALProject address
+      const participants = await offChainContractService.getAllParticipants(alProjectAddress);
 
       // Use off-chain implementation for current batch progress
       let currentBatch = null;
@@ -601,7 +631,7 @@ export class ALContractService {
       // Try to get active batch if available
       let activeVoting;
       try {
-        const activeBatch = await this.getActiveBatch(projectAddress);
+        const activeBatch = await this.getActiveBatch(alProjectAddress);
         if (activeBatch && activeBatch.sampleIds.length > 0) {
           const sampleId = activeBatch.sampleIds[0];
           const sampleData = this.getSampleDataById(sampleId) || { sampleId, data: 'Sample data' };
@@ -675,7 +705,9 @@ export class ALContractService {
     try {
       console.log(`⚙️ Fetching AL configuration from contract: ${projectAddress}`);
       
-      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
+      // Resolve ALProject address
+      const alProjectAddress = await resolveALProjectAddress(projectAddress);
+      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, this.provider);
       
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
