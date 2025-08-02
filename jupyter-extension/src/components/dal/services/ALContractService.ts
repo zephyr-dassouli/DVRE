@@ -663,6 +663,7 @@ export class ALContractService {
     isActive: boolean;
     currentIteration: number;
     maxIterations: number;
+    finalTraining: boolean; // Add final training flag
     
     // AL Configuration
     queryStrategy: string;
@@ -725,6 +726,9 @@ export class ALContractService {
         votingTimeout,
         labelSpace
       ] = await projectContract.getALConfiguration();
+      
+      // Read final training flag
+      const finalTraining = await projectContract.finalTraining();
       
       // Use off-chain contract service for participants - pass the ALProject address
       const participants = await offChainContractService.getAllParticipants(alProjectAddress);
@@ -790,6 +794,7 @@ export class ALContractService {
         isActive,
         currentIteration: Number(currentRound),
         maxIterations: Number(maxIteration) || 10,
+        finalTraining: Boolean(finalTraining),
         
         // AL Configuration  
         queryStrategy: queryStrategy || 'uncertainty_sampling',
@@ -991,6 +996,41 @@ export class ALContractService {
       return true;
     } catch (error) {
       console.error(' Failed to notify unlabeled samples exhausted:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Mark final training as completed in the smart contract
+   */
+  async markFinalTrainingCompleted(projectAddress: string): Promise<boolean> {
+    try {
+      console.log(`Marking final training as completed for project: ${projectAddress}`);
+      
+      // Resolve ALProject address
+      const alProjectAddress = await resolveALProjectAddress(projectAddress);
+      
+      // Get signer for transaction
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      if (!signer) {
+        throw new Error('No signer available for transaction');
+      }
+      
+      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, signer);
+      
+      // Call the contract method
+      const tx = await projectContract.markFinalTrainingCompleted();
+      console.log(`Transaction sent: ${tx.hash}`);
+      
+      // Wait for confirmation
+      const receipt = await tx.wait();
+      console.log(`Final training marked as completed. Transaction confirmed: ${receipt.transactionHash}`);
+      
+      return true;
+      
+    } catch (error) {
+      console.error('Failed to mark final training as completed:', error);
       return false;
     }
   }

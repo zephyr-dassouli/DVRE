@@ -96,8 +96,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   // Determine if final training should be available
   const shouldShowFinalTraining = (projectEndStatus.shouldEnd || project.currentRound >= project.totalRounds) && project.isActive;
   
-  // Check if final training has been completed
-  const finalTrainingCompleted = modelUpdates.some(update => update.isFinalTraining === true);
+  // Check if final training has been completed from contract state
+  const finalTrainingCompleted = project.finalTraining === true;
 
   // Check if operations are blocked by voting
   const isBlockedByVoting = votingStatus.isActive;

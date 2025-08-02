@@ -55,11 +55,11 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
           `Please wait for all voting to complete before starting the next iteration.`;
         
         setError(errorMessage);
-        console.warn('🚫 Cannot start iteration - voting is active:', votingStatus);
+        console.warn('Cannot start iteration - voting is active:', votingStatus);
         return;
       }
       
-      console.log('✅ No active voting detected - proceeding with iteration');
+      console.log('No active voting detected - proceeding with iteration');
       console.log('Starting next AL iteration via DAL Session bridge');
       
       // Use the DAL Session bridge to orchestrate the complete workflow
@@ -101,11 +101,11 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
           `Please wait for all voting to complete before starting final training.`;
         
         setError(errorMessage);
-        console.warn('🚫 Cannot start final training - voting is active:', votingStatus);
+        console.warn('Cannot start final training - voting is active:', votingStatus);
         return;
       }
       
-      console.log('✅ No active voting detected - proceeding with final training');
+      console.log('No active voting detected - proceeding with final training');
       console.log('Starting final training via DAL Session bridge');
       
       // Use the DAL Session bridge to orchestrate the complete workflow
@@ -267,7 +267,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       });
       
       // Step 2: Convert folder structure to IPFS file format
-      console.log('📦 Step 2: Preparing folder structure for IPFS upload...');
+      console.log(' Step 2: Preparing folder structure for IPFS upload...');
       const { IPFSService } = await import('../deployment/services/IPFSService');
       
       const bundleFiles = folderData.folder_structure.files.map((file: any) => {

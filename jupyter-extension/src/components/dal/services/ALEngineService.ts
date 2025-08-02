@@ -393,6 +393,34 @@ export class ALEngineService {
       // Get all iterations from voting history
       const iterations = new Set(votingHistory.map(r => r.iterationNumber));
       
+      // Also check for final training round (might not be in voting history)
+      // Final training is typically the next iteration after the last voting round
+      if (iterations.size > 0) {
+        const maxIteration = Math.max(...Array.from(iterations));
+        const finalTrainingIteration = maxIteration + 1;
+        
+        // Check if final training performance data exists
+        try {
+          const finalResponse = await fetch(
+            `${config.alEngine.apiUrl}/model_performance/${finalTrainingIteration}?project_id=${projectAddress}`,
+            {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' }
+            }
+          );
+          
+          if (finalResponse.ok) {
+            const finalPerformanceData = await finalResponse.json();
+            if (finalPerformanceData.performance && finalPerformanceData.performance.final_training === true) {
+              iterations.add(finalTrainingIteration);
+              console.log(` Found final training data for iteration ${finalTrainingIteration}`);
+            }
+          }
+        } catch (finalError) {
+          console.log(` No final training data found yet`);
+        }
+      }
+      
       if (iterations.size === 0) {
         console.log(' No voting iterations found');
         return [];

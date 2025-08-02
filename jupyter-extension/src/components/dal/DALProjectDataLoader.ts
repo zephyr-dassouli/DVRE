@@ -114,7 +114,7 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
       })));
       setModelUpdates(modelData);
 
-      // Update project data with enhanced contract state
+      // Update project object with current state from smart contracts
       (project as any).isActive = enhancedStatus.isActive;
       (project as any).currentRound = enhancedStatus.currentIteration;
       (project as any).totalRounds = enhancedStatus.maxIterations;
@@ -122,6 +122,7 @@ export const createDataLoader = (deps: DataLoaderDependencies) => {
       (project as any).votingTimeout = enhancedStatus.votingTimeout;
       (project as any).labelSpace = enhancedStatus.labelSpace;
       (project as any).participants = enhancedStatus.members.addresses.length;
+      (project as any).finalTraining = enhancedStatus.finalTraining; // Add final training flag
       
       // Set active voting from contract state
       if (enhancedStatus.activeVoting) {

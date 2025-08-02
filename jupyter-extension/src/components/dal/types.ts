@@ -16,6 +16,7 @@ export interface DALProject {
   workflowConfigured: boolean;
   creator: string;
   isActive: boolean;
+  finalTraining?: boolean; // Add final training flag
   
   // Enhanced DAL-specific properties
   alConfiguration?: DALConfiguration;

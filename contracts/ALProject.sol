@@ -78,6 +78,7 @@ contract ALProject {
     
     // AL Project end conditions tracking
     bool public unlabeledSamplesExhausted = false;
+    bool public finalTraining = false; // Track final training completion
 
     // AL Project Events
     event ALContractsDeployed(address votingContract, address storageContract);
@@ -249,6 +250,15 @@ contract ALProject {
         require(!unlabeledSamplesExhausted, "Already marked as exhausted");
         unlabeledSamplesExhausted = true;
         _checkProjectEndConditions();
+    }
+    
+    /**
+     * @dev External function for coordinator to mark final training as completed
+     */
+    function markFinalTrainingCompleted() external onlyCreator {
+        require(!finalTraining, "Final training already completed");
+        finalTraining = true;
+        emit ALRoundTriggered(currentRound, "Final training completed", block.timestamp);
     }
     
     // --- Round Tracking ---

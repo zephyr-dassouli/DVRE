@@ -255,6 +255,19 @@ export class DALProjectSession extends EventEmitter {
         error: undefined
       });
 
+      // Step 4: Update smart contract to mark final training as completed
+      try {
+        console.log('Marking final training as completed in smart contract...');
+        const success = await alContractService.markFinalTrainingCompleted(this.state.projectId);
+        if (success) {
+          console.log('Successfully marked final training as completed in contract');
+        } else {
+          console.warn('Failed to mark final training in contract, but training completed');
+        }
+      } catch (contractError) {
+        console.warn('Contract update failed but final training completed:', contractError);
+      }
+
       this.emit('final-training-completed', { 
         iteration: finalIteration, 
         performance: result.performance || null 
