@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { DVREProjectConfiguration } from './services/ProjectConfigurationService';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -24,27 +24,56 @@ interface JoinRequest {
 const UserList: React.FC<UserListProps> = ({ project, onUserAction }) => {
   const { account } = useAuth();
   const [activeTab, setActiveTab] = useState<'members' | 'requests'>('members');
+  const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Mock data - in real implementation, this would come from the project's smart contract
-  const members: ProjectMember[] = [
-    {
-      address: project.owner || '',
-      role: 'Coordinator',
-      joinedAt: project.created,
-      isOwner: true
-    },
-    // Add participants from project data if available (excluding owner to avoid duplicates)
-    ...(project.projectData?.participants || [])
-      .filter((p: any) => {
-        const participantAddress = p.address || p.participant;
-        return participantAddress?.toLowerCase() !== project.owner?.toLowerCase();
-      })
-      .map((p: any) => ({
-        address: p.address || p.participant,
-        role: p.role || 'Contributor',
-        joinedAt: p.joinedAt || Date.now()
-      }))
-  ];
+  // Load participants from smart contract
+  const loadParticipants = useCallback(async () => {
+    if (!project.contractAddress) {
+      // Fallback to basic owner info if no contract address
+      setMembers([{
+        address: project.owner || '',
+        role: 'Coordinator',
+        joinedAt: typeof project.created === 'number' ? project.created : Date.now() / 1000,
+        isOwner: true
+      }]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { getAllParticipantsForProject } = await import('../../hooks/useProjects');
+      const participantsData = await getAllParticipantsForProject(project.contractAddress);
+      
+      console.log('Loaded participants for project:', project.contractAddress, participantsData);
+      
+      // Convert the smart contract data to member objects
+      const contractMembers: ProjectMember[] = participantsData.participantAddresses.map((address, index) => ({
+        address,
+        role: participantsData.roles[index],
+        joinedAt: Number(participantsData.joinTimestamps[index]),
+        isOwner: address.toLowerCase() === project.owner?.toLowerCase()
+      }));
+      
+      setMembers(contractMembers);
+    } catch (error) {
+      console.error('Failed to load participants from contract:', error);
+      // Fallback to basic owner info
+      setMembers([{
+        address: project.owner || '',
+        role: 'Coordinator',
+        joinedAt: typeof project.created === 'number' ? project.created : Date.now() / 1000,
+        isOwner: true
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  }, [project.contractAddress, project.owner, project.created]);
+
+  // Load participants when component mounts or project changes
+  useEffect(() => {
+    loadParticipants();
+  }, [loadParticipants]);
 
   const joinRequests: JoinRequest[] = [
     // Mock pending requests - would come from contract
@@ -88,6 +117,8 @@ const UserList: React.FC<UserListProps> = ({ project, onUserAction }) => {
     switch (role.toLowerCase()) {
       case 'owner': return '#4caf50';
       case 'admin': return '#2196f3';
+      case 'coordinator': return '#6f42c1';
+      case 'contributor': return '#ff9800';
       case 'annotator': return '#ff9800';
       case 'viewer': return '#9c27b0';
       default: return '#757575';
@@ -95,7 +126,7 @@ const UserList: React.FC<UserListProps> = ({ project, onUserAction }) => {
   };
 
   const formatTimestamp = (timestamp: number): string => {
-    return new Date(timestamp).toLocaleDateString('en-US', {
+    return new Date(timestamp * 1000).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -118,6 +149,24 @@ const UserList: React.FC<UserListProps> = ({ project, onUserAction }) => {
           <span className="stat-value">{pendingCount}</span>
           <span className="stat-label">Pending Requests</span>
         </div>
+        <div className="stat-item">
+          <button
+            onClick={loadParticipants}
+            disabled={loading}
+            style={{
+              padding: '6px 12px',
+              background: loading ? '#6b7280' : 'var(--jp-brand-color1)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '12px',
+              opacity: loading ? 0.6 : 1
+            }}
+          >
+            {loading ? 'Loading...' : 'Refresh Members'}
+          </button>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -139,7 +188,11 @@ const UserList: React.FC<UserListProps> = ({ project, onUserAction }) => {
       {/* Members Tab */}
       {activeTab === 'members' && (
         <div className="members-list">
-          {members.length === 0 ? (
+          {loading ? (
+            <div className="empty-state">
+              <p>Loading members from smart contract...</p>
+            </div>
+          ) : members.length === 0 ? (
             <div className="empty-state">
               <p>No members found in this project.</p>
             </div>
@@ -161,7 +214,7 @@ const UserList: React.FC<UserListProps> = ({ project, onUserAction }) => {
                         onClick={() => member.address && copyToClipboard(member.address, 'Address copied!')}
                         title="Copy address"
                       >
-                        
+                        📋
                       </button>
                     </div>
                     <div 
@@ -182,6 +235,10 @@ const UserList: React.FC<UserListProps> = ({ project, onUserAction }) => {
                     
                     {member.address?.toLowerCase() === account?.toLowerCase() && (
                       <div className="user-badge">You</div>
+                    )}
+                    
+                    {member.isOwner && (
+                      <div className="user-badge" style={{ background: '#6f42c1', marginLeft: '8px' }}>Owner</div>
                     )}
                   </div>
 
