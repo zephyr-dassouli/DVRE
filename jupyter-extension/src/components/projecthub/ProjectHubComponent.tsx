@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProjects, ProjectInfo, JoinRequest } from '../../hooks/useProjects';
-import { useUserRegistry, InvitationInfo } from '../../hooks/useUserRegistry';
+import { useUserRegistry} from '../../hooks/useUserRegistry';
 import ProjectCreationHub from './ProjectCreationHub';
 import ProjectList from './ProjectList';
 import ProjectDetails from './ProjectDetails';

@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { ProjectDetails as ProjectDetailsType, useProjects } from '../../hooks/useProjects';
 import { useAuth } from '../../hooks/useAuth';
 import { useUserRegistry } from '../../hooks/useUserRegistry';
-import { UserInvitationDialog } from '../userregistry/UserInvitationDialog';
+import { UserInvitationDialog } from './UserInvitationDialog';
 import Project from '../../abis/Project.json';
 import { RPC_URL } from '../../config/contracts';
 
