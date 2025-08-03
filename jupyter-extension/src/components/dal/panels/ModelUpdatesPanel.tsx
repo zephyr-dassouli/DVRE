@@ -55,7 +55,7 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
               }}>
                 <div className="iteration-info">
                   <h4 style={{
-                    color: update.isFinalTraining ? '#3b82f6' : 'inherit',
+                    color: 'inherit',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px'
@@ -71,7 +71,7 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
                   fontSize: '14px',
                   fontWeight: 'bold'
                 }}>
-                  {`+${update.samplesAddedCount} samples`}
+                  {update.isFinalTraining ? `${update.samplesAddedCount} training samples` : `+${update.samplesAddedCount} samples`}
                 </div>
               </div>
               <div className="performance-metrics" style={{

@@ -449,6 +449,11 @@ export class ALEngineService {
               // Check if this is a final training round
               const isFinalTraining = performanceData.performance.final_training === true;
               
+              // For final training, use training_samples count; for regular iterations, use voting history count
+              const samplesCount = isFinalTraining 
+                ? (performanceData.performance.training_samples || 0)
+                : iterationRecords.length;
+              
               const modelUpdate: ModelUpdate = {
                 iterationNumber: iteration,
                 timestamp: new Date(performanceData.timestamp || Date.now()),
@@ -458,7 +463,7 @@ export class ALEngineService {
                   recall: performanceData.performance.recall || 0,
                   f1Score: performanceData.performance.f1_score || 0
                 },
-                samplesAddedCount: iterationRecords.length,
+                samplesAddedCount: samplesCount,
                 notes: isFinalTraining 
                   ? `Final Training Round: Model performance based on ${performanceData.performance.test_samples} test samples`
                   : `Iteration ${iteration}: Model performance based on ${performanceData.performance.test_samples} test samples`,

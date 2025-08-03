@@ -535,7 +535,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
               padding: '12px 24px',
               border: 'none',
               borderRadius: '6px',
-              backgroundColor: batchVotes[sampleId] === label ? '#3b82f6' : '#bfdbfe',
+              backgroundColor: batchVotes[sampleId] === label ? '#3b82f6' : '#93c5fd',
               color: 'white',
               fontSize: '16px',
               fontWeight: 'bold',

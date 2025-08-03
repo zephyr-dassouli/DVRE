@@ -60,7 +60,7 @@ def get_model(config):
         print(f"Warning: Unknown model_type '{model_type}'. Defaulting to RandomForestClassifier.")
         return RandomForestClassifier(**training_args)
 
-def evaluate_model_performance(learner, X_test, y_test, config):
+def evaluate_model_performance(learner, X_test, y_test, config, X_train=None, y_train=None):
     """
     Evaluate model performance on test set and return metrics
     """
@@ -81,12 +81,16 @@ def evaluate_model_performance(learner, X_test, y_test, config):
         # Get label space for context
         label_space = config.get('label_space', list(np.unique(y_test)))
         
+        # Calculate training samples count
+        training_samples = len(y_train) if y_train is not None else 0
+        
         performance_metrics = {
             'accuracy': float(accuracy),
             'precision': float(precision),
             'recall': float(recall),
             'f1_score': float(f1),
             'test_samples': len(y_test),
+            'training_samples': training_samples,  # Add training samples count
             'label_space': label_space,
             'average_strategy': average_strategy,
             'timestamp': time.time(),
@@ -407,8 +411,8 @@ def main():
             print("This is the first iteration, training on initial data.")
 
     # 7. **PERFORMANCE EVALUATION STEP**
-    print("\nEvaluating model performance...")
-    performance_metrics = evaluate_model_performance(learner, X_test, y_test, config)
+    print("\n📊 Evaluating model performance...")
+    performance_metrics = evaluate_model_performance(learner, X_test, y_test, config, X_train, y_train)
 
     # 8. Query for new samples to be labeled (SKIP for final training)
     if not args.final_training:

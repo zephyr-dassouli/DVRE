@@ -1,6 +1,5 @@
 /**
- * Refactored AL Contract Service - Using modular services while preserving all functionality
- * This orchestrates interactions between smart contracts, AL-Engine, and UI components
+ * AL Contract Service - orchestrates interactions between smart contracts, AL-Engine, and UI components
  */
 
 import { ethers } from 'ethers';
