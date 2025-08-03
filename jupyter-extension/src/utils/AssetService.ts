@@ -134,7 +134,10 @@ export class AssetService {
       console.log('AssetService: Viewers to add:', viewers);
       console.log('AssetService: Factory address:', this.assetFactoryAddress);
       
-      const tx = await factory.createAsset(name, assetType, ipfsHash, viewers);
+      // Ensure viewers array is mutable to avoid "read-only property" errors in ethers.js
+      const mutableViewers = [...viewers];
+      
+      const tx = await factory.createAsset(name, assetType, ipfsHash, mutableViewers);
       console.log('AssetService: Transaction sent:', tx.hash);
       console.log('AssetService: Waiting for confirmation...');
       

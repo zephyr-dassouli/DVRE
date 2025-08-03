@@ -370,12 +370,15 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
           console.log(' Retrieved participants:', participantsData.participantAddresses.length, 'participants');
           
           // Filter for contributors (exclude current user who is the asset owner)
-          contributors = participantsData.participantAddresses.filter((address, index) => {
+          const filteredContributors = participantsData.participantAddresses.filter((address, index) => {
             const role = participantsData.roles[index];
             const isNotCurrentUser = address.toLowerCase() !== currentUser.toLowerCase();
             const isContributor = role === 'contributor' || role === 'coordinator';
             return isNotCurrentUser && isContributor;
           });
+          
+          // Create mutable copy of contributors array to avoid "read-only property" error
+          contributors = [...filteredContributors];
           
           console.log(' Found', contributors.length, 'contributors to add as viewers');
           console.log(' Contributors:', contributors);

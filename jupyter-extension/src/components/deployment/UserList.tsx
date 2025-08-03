@@ -60,10 +60,10 @@ const UserList: React.FC<UserListProps> = ({ project, onUserAction }) => {
       console.error('Failed to load participants from contract:', error);
       // Fallback to basic owner info
       setMembers([{
-        address: project.owner || '',
-        role: 'Coordinator',
+      address: project.owner || '',
+      role: 'Coordinator',
         joinedAt: typeof project.created === 'number' ? project.created : Date.now() / 1000,
-        isOwner: true
+      isOwner: true
       }]);
     } finally {
       setLoading(false);

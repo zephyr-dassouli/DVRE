@@ -114,54 +114,54 @@ export const getAllParticipantsForProject = async (projectAddress: string): Prom
       console.warn('getAllParticipants() failed, falling back to individual calls:', contractError);
       
       // Fallback to manual iteration for backward compatibility
-      const participantAddresses: string[] = [];
-      const roles: string[] = [];
-      const weights: bigint[] = [];
-      const joinTimestamps: bigint[] = [];
-      
-      // Get participant count by calling participants array until we get an error
-      let participantCount = 0;
-      try {
-        while (true) {
-          try {
-            const addr = await projectContract.participants(participantCount);
-            participantAddresses.push(addr);
-            participantCount++;
-          } catch {
-            break; // End of array
-          }
-        }
-      } catch (error) {
-        console.log(' No participants found or error reading participants array');
-      }
-      
-      // Get individual participant data from mappings
-      for (const address of participantAddresses) {
+    const participantAddresses: string[] = [];
+    const roles: string[] = [];
+    const weights: bigint[] = [];
+    const joinTimestamps: bigint[] = [];
+    
+    // Get participant count by calling participants array until we get an error
+    let participantCount = 0;
+    try {
+      while (true) {
         try {
-          const role = await projectContract.participantRoles(address);
-          const weight = await projectContract.participantWeights(address);
-          const joinTime = await projectContract.joinedAt(address);
-          
-          roles.push(role);
-          weights.push(weight);
-          joinTimestamps.push(joinTime);
-        } catch (error) {
-          console.warn(`Failed to get data for participant ${address}:`, error);
-          // Use defaults if individual calls fail
-          roles.push('contributor');
-          weights.push(BigInt(1));
-          joinTimestamps.push(BigInt(0));
+          const addr = await projectContract.participants(participantCount);
+          participantAddresses.push(addr);
+          participantCount++;
+        } catch {
+          break; // End of array
         }
       }
-      
-      console.log(` Retrieved data for ${participantCount} participants through individual calls`);
-      
-      return {
-        participantAddresses,
-        roles,
-        weights,
-        joinTimestamps
-      };
+    } catch (error) {
+      console.log(' No participants found or error reading participants array');
+    }
+    
+    // Get individual participant data from mappings
+    for (const address of participantAddresses) {
+      try {
+        const role = await projectContract.participantRoles(address);
+        const weight = await projectContract.participantWeights(address);
+        const joinTime = await projectContract.joinedAt(address);
+        
+        roles.push(role);
+        weights.push(weight);
+        joinTimestamps.push(joinTime);
+      } catch (error) {
+        console.warn(`Failed to get data for participant ${address}:`, error);
+        // Use defaults if individual calls fail
+        roles.push('contributor');
+        weights.push(BigInt(1));
+        joinTimestamps.push(BigInt(0));
+      }
+    }
+    
+    console.log(` Retrieved data for ${participantCount} participants through individual calls`);
+    
+    return {
+      participantAddresses,
+      roles,
+      weights,
+      joinTimestamps
+    };
     }
   } catch (error) {
     console.error('Error getting all participants for project:', error);
@@ -301,8 +301,8 @@ export const useProjects = () => {
       } catch (err) {
         console.warn('Failed to get participants from contract, falling back to JSON data:', err);
         // Fallback to JSON data for backward compatibility
-        if (projectData.participants && Array.isArray(projectData.participants)) {
-          participants.push(...projectData.participants);
+      if (projectData.participants && Array.isArray(projectData.participants)) {
+        participants.push(...projectData.participants);
         }
       }
 
