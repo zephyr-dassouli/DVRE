@@ -159,48 +159,100 @@ class ALEngineEndpoints:
                 if not data:
                     return jsonify({'error': 'No JSON data provided'}), 400
                 
-                # Validate required fields
-                required_fields = ['iteration', 'labeled_samples']
-                for field in required_fields:
-                    if field not in data:
-                        return jsonify({'error': f'Missing required field: {field}'}), 400
-                
-                iteration = data.get('iteration')
-                labeled_samples = data.get('labeled_samples', [])
                 project_id = data.get('project_id', self.server.project_id)
+                labeled_samples = data.get('labeled_samples', [])
+                iteration = data.get('iteration')
+                
+                if not project_id:
+                    return jsonify({'error': 'project_id is required'}), 400
                 
                 if not labeled_samples:
-                    return jsonify({'error': 'No labeled samples provided'}), 400
+                    return jsonify({'error': 'labeled_samples is required'}), 400
                 
-                logger.info(f"Received {len(labeled_samples)} labeled samples for iteration {iteration}")
+                if not iteration:
+                    return jsonify({'error': 'iteration is required'}), 400
                 
-                # Process and store the labeled samples
-                result = self.server._process_labeled_samples(iteration, labeled_samples, project_id)
+                logger.info(f"Received {len(labeled_samples)} labeled samples for project {project_id}, iteration {iteration}")
+                
+                # Process labeled samples through AL-Engine
+                result = self.server._process_labeled_samples_sync(project_id, labeled_samples, iteration)
                 
                 if result.get('success'):
-                    logger.info(f"Successfully processed {len(labeled_samples)} labeled samples")
+                    logger.info(f"Labeled samples processed successfully for iteration {iteration}")
                     return jsonify({
                         'success': True,
                         'iteration': iteration,
                         'samples_processed': len(labeled_samples),
-                        'message': f'Successfully stored {len(labeled_samples)} labeled samples for iteration {iteration}',
-                        'next_iteration_ready': result.get('next_iteration_ready', False)
+                        'message': f'Processed {len(labeled_samples)} labeled samples for iteration {iteration}'
                     })
                 else:
                     logger.error(f"Failed to process labeled samples: {result.get('error')}")
                     return jsonify({
                         'success': False,
-                        'iteration': iteration,
                         'error': result.get('error'),
                         'message': 'Failed to process labeled samples'
                     }), 500
                     
             except Exception as e:
-                logger.error(f"API error in submit_labels: {e}")
+                logger.error(f"Error in submit_labels: {e}")
                 return jsonify({
                     'success': False,
                     'error': str(e),
                     'message': 'Internal server error while processing labeled samples'
+                }), 500
+
+        # Voting results endpoint - NEW
+        @app.route('/api/voting-results', methods=['POST'])
+        def save_voting_results():
+            """Save voting results to voting_results_round_X.json files for AL training"""
+            try:
+                data = request.get_json()
+                if not data:
+                    return jsonify({'error': 'No JSON data provided'}), 400
+                
+                project_id = data.get('project_id')
+                round_num = data.get('round')
+                voting_results = data.get('voting_results')
+                
+                if not project_id:
+                    return jsonify({'error': 'project_id is required'}), 400
+                
+                if round_num is None:
+                    return jsonify({'error': 'round is required'}), 400
+                
+                if not voting_results or not isinstance(voting_results, list):
+                    return jsonify({'error': 'voting_results must be a non-empty list'}), 400
+                
+                logger.info(f"Saving {len(voting_results)} voting results for project {project_id}, round {round_num}")
+                
+                # Create outputs directory if it doesn't exist
+                from pathlib import Path
+                outputs_dir = Path(f"../ro-crates/{project_id}/outputs")
+                outputs_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Save voting results to JSON file
+                voting_results_file = outputs_dir / f"voting_results_round_{round_num}.json"
+                
+                import json
+                with open(voting_results_file, 'w') as f:
+                    json.dump(voting_results, f, indent=2)
+                
+                logger.info(f"Voting results saved to: {voting_results_file}")
+                
+                return jsonify({
+                    'success': True,
+                    'file_path': str(voting_results_file),
+                    'round': round_num,
+                    'samples_count': len(voting_results),
+                    'message': f'Voting results for round {round_num} saved successfully'
+                })
+                
+            except Exception as e:
+                logger.error(f"Error saving voting results: {e}")
+                return jsonify({
+                    'success': False,
+                    'error': str(e),
+                    'message': 'Internal server error while saving voting results'
                 }), 500
 
         # Final training endpoint

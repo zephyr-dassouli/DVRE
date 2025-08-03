@@ -381,10 +381,28 @@ def main():
         )
         print(f"Data split: {len(X_train)} training, {len(X_test)} testing")
     else:
-        # For small datasets, use all data for training and testing (not ideal but necessary)
-        X_train, X_test = X_labeled, X_labeled
-        y_train, y_test = y_labeled, y_labeled
-        print(f"Small dataset: using all {len(X_labeled)} samples for both training and testing")
+        # For small datasets (≤10 samples), use leave-one-out or smaller test set
+        # to get more realistic performance estimates
+        if len(X_labeled) >= 6:
+            # Use at least 2 samples for testing if we have 6+ samples
+            test_size = max(2, int(len(X_labeled) * 0.3))  # 30% for test, minimum 2
+            try:
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X_labeled, y_labeled, test_size=test_size, random_state=42, stratify=y_labeled
+                )
+                print(f"Small dataset split: {len(X_train)} training, {len(X_test)} testing")
+            except ValueError:
+                # If stratify fails (not enough samples per class), try without stratify
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X_labeled, y_labeled, test_size=test_size, random_state=42
+                )
+                print(f"Small dataset split (unstratified): {len(X_train)} training, {len(X_test)} testing")
+        else:
+            # For very small datasets (< 6 samples), use all for training but add warning
+            X_train, X_test = X_labeled, X_labeled
+            y_train, y_test = y_labeled, y_labeled
+            print(f"  WARNING: Very small dataset ({len(X_labeled)} samples) - using all data for both training and testing")
+            print(f"  Performance metrics may be overly optimistic due to train/test data overlap")
 
     # 4. Initialize model
     model = get_model(config)
@@ -411,7 +429,7 @@ def main():
             print("This is the first iteration, training on initial data.")
 
     # 7. **PERFORMANCE EVALUATION STEP**
-    print("\n📊 Evaluating model performance...")
+    print("\n Evaluating model performance...")
     performance_metrics = evaluate_model_performance(learner, X_test, y_test, config, X_train, y_train)
 
     # 8. Query for new samples to be labeled (SKIP for final training)

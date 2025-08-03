@@ -43,7 +43,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       setError(null);
       
       // GUARD: Check if voting is currently active
-      console.log('🔍 Checking for active voting before starting new iteration...');
+      console.log('Checking for active voting before starting new iteration...');
       const { alContractService } = await import('./services/ALContractService');
       const votingStatus = await alContractService.isVotingActive(project.contractAddress);
       
@@ -60,7 +60,27 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       }
       
       console.log('No active voting detected - proceeding with iteration');
-      console.log('Starting next AL iteration via DAL Session bridge');
+      
+      // Export voting results from previous rounds to AL-Engine format
+      try {
+        const { votingResultsConnector } = await import('./services/VotingResultsConnector');
+        console.log('🔄 Exporting previous voting results to AL-Engine before starting iteration...');
+        
+        const exportedRounds = await votingResultsConnector.exportAllVotingResults(project.contractAddress);
+        
+        if (exportedRounds > 0) {
+          console.log(`✅ Exported voting results for ${exportedRounds} rounds - AL-Engine will use these for training`);
+        } else {
+          console.log('ℹ️ No previous voting results to export (first iteration)');
+        }
+        
+      } catch (exportError) {
+        console.warn('⚠️ Failed to export voting results before iteration:', exportError);
+        // Continue with iteration even if export fails
+      }
+      
+      // Start the next iteration via DAL Session
+      console.log('Starting next iteration via DAL Session bridge...');
       
       // Use the DAL Session bridge to orchestrate the complete workflow
       await dalSession.startIteration();
@@ -183,10 +203,31 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
   const handleRefreshData = async () => {
     console.log('Refreshing all project data from smart contracts...');
     
+    // Export voting results to AL-Engine format before refreshing
+    try {
+      const { votingResultsConnector } = await import('./services/VotingResultsConnector');
+      console.log('🔄 Exporting blockchain voting results to AL-Engine format...');
+      
+      const exportedRounds = await votingResultsConnector.exportAllVotingResults(project.contractAddress);
+      
+      if (exportedRounds > 0) {
+        console.log(`✅ Exported voting results for ${exportedRounds} rounds to AL-Engine`);
+      } else {
+        console.log('ℹ️ No voting results to export (no completed rounds yet)');
+      }
+      
+      // Get voting summary for debugging
+      const summary = await votingResultsConnector.getVotingResultsSummary(project.contractAddress);
+      console.log(summary);
+      
+    } catch (exportError) {
+      console.warn('⚠️ Failed to export voting results to AL-Engine:', exportError);
+    }
+    
     // Trigger data refresh - loading and error states handled by parent component
     triggerRefresh();
     
-    console.log(' Project data refresh triggered');
+    console.log('Project data refresh triggered with voting results export');
   };
 
   const handlePublishFinalResults = async () => {
