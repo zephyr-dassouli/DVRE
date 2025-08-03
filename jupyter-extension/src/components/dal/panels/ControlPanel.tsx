@@ -163,29 +163,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 {project.status.toUpperCase()}
               </span>
             </div>
-            
-            <div className="status-item">
-              <label style={{ 
-                display: 'block', 
-                fontSize: '12px', 
-                fontWeight: 'bold', 
-                color: '#6b7280', 
-                marginBottom: '4px' 
-              }}>
-                Active:
-              </label>
-              <span className={`status-value ${project.isActive ? 'active' : 'inactive'}`} style={{
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                backgroundColor: project.isActive ? '#dcfce7' : '#fee2e2',
-                color: project.isActive ? '#166534' : '#dc2626'
-              }}>
-                {project.isActive ? 'Yes' : 'No'}
-              </span>
-            </div>
-            
             <div className="status-item">
               <label style={{ 
                 display: 'block', 
@@ -531,29 +508,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               {project.status.toUpperCase()}
             </span>
           </div>
-          
-          <div className="status-item">
-            <label style={{ 
-              display: 'block', 
-              fontSize: '12px', 
-              fontWeight: 'bold', 
-              color: '#6b7280', 
-              marginBottom: '4px' 
-            }}>
-              Active:
-            </label>
-            <span className={`status-value ${project.isActive ? 'active' : 'inactive'}`} style={{
-              padding: '4px 8px',
-              borderRadius: '4px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              backgroundColor: project.isActive ? '#dcfce7' : '#fee2e2',
-              color: project.isActive ? '#166534' : '#dc2626'
-            }}>
-              {project.isActive ? 'Yes' : 'No'}
-            </span>
-          </div>
-          
           <div className="status-item">
             <label style={{ 
               display: 'block', 

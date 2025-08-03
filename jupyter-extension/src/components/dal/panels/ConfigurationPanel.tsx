@@ -178,7 +178,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         </div>
       ) : (
         <div style={{ padding: '40px', textAlign: 'center' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚙️</div>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>[CONFIG]</div>
           <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px' }}>
             No Configuration Available
           </div>

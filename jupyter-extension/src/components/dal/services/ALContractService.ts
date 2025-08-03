@@ -155,7 +155,7 @@ export class ALContractService {
       // Check if project has AL contracts
       const hasALContracts = await projectContract.hasALContracts();
       if (!hasALContracts) {
-        console.log('📝 Project has no AL contracts - no voting active');
+        console.log('[SAVED] Project has no AL contracts - no voting active');
         return {
           isActive: false,
           activeSamples: 0,
@@ -168,7 +168,7 @@ export class ALContractService {
       // Get voting contract address
       const votingContractAddress = await projectContract.votingContract();
       if (!votingContractAddress || votingContractAddress === ethers.ZeroAddress) {
-        console.log('📝 No voting contract found - no voting active');
+        console.log('[SAVED] No voting contract found - no voting active');
         return {
           isActive: false,
           activeSamples: 0,
@@ -186,7 +186,7 @@ export class ALContractService {
       const batchStatus = await votingContract.getBatchStatus(currentRound);
       
       if (!batchStatus.isActive) {
-        console.log(`📝 No active batch in round ${currentRound} - no voting active`);
+        console.log(`[SAVED] No active batch in round ${currentRound} - no voting active`);
         return {
           isActive: false,
           activeSamples: 0,
@@ -199,7 +199,7 @@ export class ALContractService {
       // Get active batch details
       const activeBatch = await this.getActiveBatch(alProjectAddress);
       if (!activeBatch || activeBatch.sampleIds.length === 0) {
-        console.log('📝 No active samples found - no voting active');
+        console.log('[SAVED] No active samples found - no voting active');
         return {
           isActive: false,
           activeSamples: 0,
@@ -219,14 +219,14 @@ export class ALContractService {
             activeSampleCount++;
           }
         } catch (error) {
-          console.warn(`⚠️ Could not check status for sample ${sampleId}:`, error);
+          console.warn(`[WARNING] Could not check status for sample ${sampleId}:`, error);
         }
       }
 
       const isVotingActive = activeSampleCount > 0;
       const timeRemaining = activeBatch.timeRemaining || 0;
 
-      console.log(`📊 Voting status check result:`, {
+      console.log(`[STATS] Voting status check result:`, {
         isActive: isVotingActive,
         activeSamples: activeSampleCount,
         totalSamples: activeBatch.sampleIds.length,
@@ -245,7 +245,7 @@ export class ALContractService {
       };
 
     } catch (error) {
-      console.error('❌ Error checking voting status:', error);
+      console.error('[ERROR] Error checking voting status:', error);
       return {
         isActive: false,
         activeSamples: 0,
@@ -844,7 +844,7 @@ export class ALContractService {
     labelSpace: string[];
   } | null> {
     try {
-      console.log(`⚙️ Fetching AL configuration from contract: ${projectAddress}`);
+      console.log(`[CONFIG] Fetching AL configuration from contract: ${projectAddress}`);
       
       // Resolve ALProject address
       const alProjectAddress = await resolveALProjectAddress(projectAddress);

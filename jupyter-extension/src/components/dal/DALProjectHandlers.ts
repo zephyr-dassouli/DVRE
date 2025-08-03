@@ -64,18 +64,18 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       // Export voting results from previous rounds to AL-Engine format
       try {
         const { votingResultsConnector } = await import('./services/VotingResultsConnector');
-        console.log('🔄 Exporting previous voting results to AL-Engine before starting iteration...');
+        console.log('[PROCESSING] Exporting previous voting results to AL-Engine before starting iteration...');
         
         const exportedRounds = await votingResultsConnector.exportAllVotingResults(project.contractAddress);
         
         if (exportedRounds > 0) {
-          console.log(`✅ Exported voting results for ${exportedRounds} rounds - AL-Engine will use these for training`);
+          console.log(`[SUCCESS] Exported voting results for ${exportedRounds} rounds - AL-Engine will use these for training`);
         } else {
-          console.log('ℹ️ No previous voting results to export (first iteration)');
+          console.log('[INFO] No previous voting results to export (first iteration)');
         }
         
       } catch (exportError) {
-        console.warn('⚠️ Failed to export voting results before iteration:', exportError);
+        console.warn('[WARNING] Failed to export voting results before iteration:', exportError);
         // Continue with iteration even if export fails
       }
       
@@ -206,14 +206,14 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
     // Export voting results to AL-Engine format before refreshing
     try {
       const { votingResultsConnector } = await import('./services/VotingResultsConnector');
-      console.log('🔄 Exporting blockchain voting results to AL-Engine format...');
+      console.log('[PROCESSING] Exporting blockchain voting results to AL-Engine format...');
       
       const exportedRounds = await votingResultsConnector.exportAllVotingResults(project.contractAddress);
       
       if (exportedRounds > 0) {
-        console.log(`✅ Exported voting results for ${exportedRounds} rounds to AL-Engine`);
+        console.log(`[SUCCESS] Exported voting results for ${exportedRounds} rounds to AL-Engine`);
       } else {
-        console.log('ℹ️ No voting results to export (no completed rounds yet)');
+        console.log('[INFO] No voting results to export (no completed rounds yet)');
       }
       
       // Get voting summary for debugging
@@ -221,7 +221,7 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
       console.log(summary);
       
     } catch (exportError) {
-      console.warn('⚠️ Failed to export voting results to AL-Engine:', exportError);
+      console.warn('[WARNING] Failed to export voting results to AL-Engine:', exportError);
     }
     
     // Trigger data refresh - loading and error states handled by parent component

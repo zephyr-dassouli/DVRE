@@ -111,18 +111,18 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
             // Check if user has already voted in this batch
             await checkCurrentVotingStatus(batch);
           } else {
-            console.log('❌ No active batch found');
+            console.log('[ERROR] No active batch found');
             setActiveBatch(null);
           }
         } else {
-          console.log('❌ Conditions not met for loading batch:', {
+          console.log('[ERROR] Conditions not met for loading batch:', {
             hasDalSession: !!dalSession,
             sessionPhase: sessionState?.phase,
             expectedPhase: 'voting'
           });
         }
       } catch (error) {
-        console.error('❌ Failed to load active batch:', error);
+        console.error('[ERROR] Failed to load active batch:', error);
         setActiveBatch(null);
       }
     };
@@ -134,7 +134,7 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
     // Set a retry timeout for cases where batch is slow to appear
     const retryTimeout = setTimeout(() => {
       if (sessionState?.phase === 'voting' && !activeBatch) {
-        console.log('🔄 Retrying active batch load after 2s timeout...');
+        console.log('[RETRY] Retrying active batch load after 2s timeout...');
         loadActiveBatch();
       }
     }, 2000);

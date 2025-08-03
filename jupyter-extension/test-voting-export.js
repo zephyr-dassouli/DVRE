@@ -52,7 +52,7 @@ function createMockVotingResults(projectId, round) {
 async function exportVotingResults() {
   const projectId = process.argv[2] || '0x3F23304F01F045F0e1389CC23FC0F09175146FC5';
   
-  console.log(`🧪 Testing voting results export for project: ${projectId}`);
+  console.log(`[TEST] Testing voting results export for project: ${projectId}`);
   
   // Create voting results for round 1
   const round1Results = createMockVotingResults(projectId, 1);
@@ -71,7 +71,7 @@ async function exportVotingResults() {
     // Write voting results
     fs.writeFileSync(outputPath, JSON.stringify(round1Results, null, 2));
     
-    console.log(`✅ Successfully created mock voting results:`);
+    console.log(`[SUCCESS] Successfully created mock voting results:`);
     console.log(`   File: ${outputPath}`);
     console.log(`   Samples: ${round1Results.length}`);
     console.log(`   Labels: ${round1Results.map(r => r.final_label).join(', ')}`);
@@ -86,18 +86,18 @@ async function exportVotingResults() {
         console.log(`   Sample ${index + 1}: index ${result.original_index} → label "${result.final_label}"`);
       });
       
-      console.log(`\n🔄 Next steps:`);
+      console.log(`\n[PROCESSING] Next steps:`);
       console.log(`   1. Restart AL-Engine to pick up the voting results`);
       console.log(`   2. Start iteration 2 in the frontend`);
       console.log(`   3. Check if training data grows from 10 to 12 samples`);
       console.log(`   4. Check if performance scores become more realistic`);
       
     } else {
-      console.error(`❌ Failed to create file: ${outputPath}`);
+      console.error(`[ERROR] Failed to create file: ${outputPath}`);
     }
     
   } catch (error) {
-    console.error(`❌ Error creating voting results:`, error);
+    console.error(`[ERROR] Error creating voting results:`, error);
   }
 }
 

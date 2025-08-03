@@ -177,17 +177,17 @@ def accumulate_newly_labeled_samples(project_id, iteration_number, unlabeled_dat
                         # Get the sample features from unlabeled data
                         if original_index < len(unlabeled_df):
                             sample_features = unlabeled_df.iloc[original_index].copy()
-                            # 🔄 FIX: Add label as string to avoid dtype issues
+                            # [PROCESSING] FIX: Add label as string to avoid dtype issues
                             sample_dict = sample_features.to_dict()
                             sample_dict['label'] = str(final_label)
                             newly_labeled_samples.append(sample_dict)
-                            print(f"✅ Added sample {original_index} with label {final_label}")
+                            print(f"[SUCCESS] Added sample {original_index} with label {final_label}")
                         else:
-                            print(f"⚠️ Original index {original_index} out of range")
+                            print(f"[WARNING] Original index {original_index} out of range")
                     else:
-                        print(f"⚠️ Invalid voting result: {sample_vote}")
+                        print(f"[WARNING] Invalid voting result: {sample_vote}")
             else:
-                print(f"📝 No voting results found for round {prev_iteration}")
+                print(f"[SAVED] No voting results found for round {prev_iteration}")
         
         # Add newly labeled samples to the training data
         if newly_labeled_samples:
@@ -215,7 +215,7 @@ def accumulate_newly_labeled_samples(project_id, iteration_number, unlabeled_dat
                     existing_features = {k: v for k, v in existing_sample.items() if k in feature_columns}
                     if new_features == existing_features:
                         is_duplicate = True
-                        print(f"📝 Skipping duplicate sample: {new_sample}")
+                        print(f"[SAVED] Skipping duplicate sample: {new_sample}")
                         break
                 
                 if not is_duplicate:

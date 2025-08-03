@@ -19,7 +19,7 @@ const TEST_CONFIG = {
  * Test AL-Engine API /api/voting-results endpoint
  */
 async function testALEngineVotingAPI() {
-  console.log('🧪 Testing AL-Engine voting results API...');
+  console.log('[TEST] Testing AL-Engine voting results API...');
   
   // Mock voting results data
   const mockVotingResults = [
@@ -62,7 +62,7 @@ async function testALEngineVotingAPI() {
 
   try {
     // Test AL-Engine health first
-    console.log('  📍 Checking AL-Engine health...');
+    console.log('  [INFO] Checking AL-Engine health...');
     const healthResponse = await fetch(`${TEST_CONFIG.alEngineUrl}/health`);
     
     if (!healthResponse.ok) {
@@ -70,10 +70,10 @@ async function testALEngineVotingAPI() {
     }
     
     const healthData = await healthResponse.json();
-    console.log('  ✅ AL-Engine is healthy:', healthData.status);
+    console.log('  [SUCCESS] AL-Engine is healthy:', healthData.status);
 
     // Test voting results API
-    console.log('  📍 Testing voting results API...');
+    console.log('  [INFO] Testing voting results API...');
     const response = await fetch(`${TEST_CONFIG.alEngineUrl}/api/voting-results`, {
       method: 'POST',
       headers: {
@@ -88,18 +88,18 @@ async function testALEngineVotingAPI() {
 
     if (response.ok) {
       const result = await response.json();
-      console.log('  ✅ AL-Engine API success:', result.message);
+      console.log('  [SUCCESS] AL-Engine API success:', result.message);
       console.log('  📁 File saved to:', result.file_path);
-      console.log('  📊 Samples count:', result.samples_count);
+      console.log('  [STATS] Samples count:', result.samples_count);
       return true;
     } else {
       const error = await response.json();
-      console.log('  ❌ AL-Engine API error:', error.error);
+      console.log('  [ERROR] AL-Engine API error:', error.error);
       return false;
     }
 
   } catch (error) {
-    console.log('  ❌ AL-Engine API test failed:', error.message);
+    console.log('  [ERROR] AL-Engine API test failed:', error.message);
     return false;
   }
 }
@@ -108,7 +108,7 @@ async function testALEngineVotingAPI() {
  * Test file server fallback (if available)
  */
 async function testFileServerFallback() {
-  console.log('🧪 Testing file server fallback...');
+  console.log('[TEST] Testing file server fallback...');
   
   try {
     const testContent = JSON.stringify([
@@ -134,15 +134,15 @@ async function testFileServerFallback() {
     });
 
     if (response.ok) {
-      console.log('  ✅ File server is available and working');
+      console.log('  [SUCCESS] File server is available and working');
       return true;
     } else {
-      console.log('  ⚠️ File server returned error:', response.status);
+      console.log('  [WARNING] File server returned error:', response.status);
       return false;
     }
 
   } catch (error) {
-    console.log('  ⚠️ File server not available:', error.message);
+    console.log('  [WARNING] File server not available:', error.message);
     return false;
   }
 }
@@ -151,7 +151,7 @@ async function testFileServerFallback() {
  * Test complete system integration
  */
 async function testSystemIntegration() {
-  console.log('🧪 Testing system integration...');
+  console.log('[TEST] Testing system integration...');
   
   // Check if the voting results file was actually created
   try {
@@ -164,8 +164,8 @@ async function testSystemIntegration() {
       const fileContent = fs.readFileSync(votingResultsFile, 'utf8');
       const votingData = JSON.parse(fileContent);
       
-      console.log('  ✅ Voting results file exists and is valid JSON');
-      console.log('  📊 File contains:', votingData.length, 'voting records');
+      console.log('  [SUCCESS] Voting results file exists and is valid JSON');
+      console.log('  [STATS] File contains:', votingData.length, 'voting records');
       console.log('  📁 File path:', votingResultsFile);
       
       // Verify file structure
@@ -175,20 +175,20 @@ async function testSystemIntegration() {
         const hasAllFields = requiredFields.every(field => field in sample);
         
         if (hasAllFields) {
-          console.log('  ✅ Voting results have correct structure');
+          console.log('  [SUCCESS] Voting results have correct structure');
           return true;
         } else {
-          console.log('  ❌ Voting results missing required fields');
+          console.log('  [ERROR] Voting results missing required fields');
           return false;
         }
       }
     } else {
-      console.log('  ❌ Voting results file not found:', votingResultsFile);
+      console.log('  [ERROR] Voting results file not found:', votingResultsFile);
       return false;
     }
 
   } catch (error) {
-    console.log('  ❌ Error checking file system:', error.message);
+    console.log('  [ERROR] Error checking file system:', error.message);
     return false;
   }
 }
@@ -197,16 +197,16 @@ async function testSystemIntegration() {
  * Test recommended configuration
  */
 function testRecommendedSetup() {
-  console.log('🧪 Testing recommended setup...');
+  console.log('[TEST] Testing recommended setup...');
   
-  console.log('  📋 Recommended setup checklist:');
-  console.log('    1. ✅ AL-Engine server running on localhost:5050');
-  console.log('    2. ⚠️ File server (optional) on localhost:3001');
-  console.log('    3. ✅ VotingResultsConnector service created');
-  console.log('    4. ✅ DAL handlers updated to use export functionality');
-  console.log('    5. ✅ AL-Engine API endpoint added');
+  console.log('  [DATA] Recommended setup checklist:');
+  console.log('    1. [SUCCESS] AL-Engine server running on localhost:5050');
+  console.log('    2. [WARNING] File server (optional) on localhost:3001');
+  console.log('    3. [SUCCESS] VotingResultsConnector service created');
+  console.log('    4. [SUCCESS] DAL handlers updated to use export functionality');
+  console.log('    5. [SUCCESS] AL-Engine API endpoint added');
   
-  console.log('  🚀 To start AL-Engine server:');
+  console.log('  [START] To start AL-Engine server:');
   console.log(`    cd al-engine`);
   console.log(`    python src/server.py --project_id ${TEST_CONFIG.projectAddress} --config ro-crates/${TEST_CONFIG.projectAddress}/config.json --server --port 5050`);
 }
@@ -215,7 +215,7 @@ function testRecommendedSetup() {
  * Main test runner
  */
 async function runCompleteTest() {
-  console.log('🎯 Voting Results Export System Test');
+  console.log('[TARGET] Voting Results Export System Test');
   console.log('=====================================');
   console.log(`Project: ${TEST_CONFIG.projectAddress}`);
   console.log(`AL-Engine: ${TEST_CONFIG.alEngineUrl}`);
@@ -244,26 +244,26 @@ async function runCompleteTest() {
   console.log('');
 
   // Summary
-  console.log('📊 Test Results Summary:');
+  console.log('[STATS] Test Results Summary:');
   console.log('========================');
-  console.log(`AL-Engine API:      ${results.alEngineAPI ? '✅ PASS' : '❌ FAIL'}`);
-  console.log(`File Server:        ${results.fileServer ? '✅ PASS' : '⚠️ OPTIONAL'}`);
-  console.log(`System Integration: ${results.systemIntegration ? '✅ PASS' : '❌ FAIL'}`);
+  console.log(`AL-Engine API:      ${results.alEngineAPI ? '[SUCCESS] PASS' : '[ERROR] FAIL'}`);
+  console.log(`File Server:        ${results.fileServer ? '[SUCCESS] PASS' : '[WARNING] OPTIONAL'}`);
+  console.log(`System Integration: ${results.systemIntegration ? '[SUCCESS] PASS' : '[ERROR] FAIL'}`);
   
   const overallPass = results.alEngineAPI && results.systemIntegration;
-  console.log(`\nOverall Status: ${overallPass ? '✅ SYSTEM READY' : '❌ NEEDS ATTENTION'}`);
+  console.log(`\nOverall Status: ${overallPass ? '[SUCCESS] SYSTEM READY' : '[ERROR] NEEDS ATTENTION'}`);
   
   if (overallPass) {
-    console.log('\n🎉 Voting results export system is working correctly!');
-    console.log('✅ Blockchain voting data can now be exported to AL-Engine');
-    console.log('✅ AL-Engine will use this data for realistic training progression');
+    console.log('\n[COMPLETE] Voting results export system is working correctly!');
+    console.log('[SUCCESS] Blockchain voting data can now be exported to AL-Engine');
+    console.log('[SUCCESS] AL-Engine will use this data for realistic training progression');
   } else {
-    console.log('\n🔧 System needs attention:');
+    console.log('\n[SETUP] System needs attention:');
     if (!results.alEngineAPI) {
-      console.log('❌ Start AL-Engine server with the command shown above');
+      console.log('[ERROR] Start AL-Engine server with the command shown above');
     }
     if (!results.systemIntegration) {
-      console.log('❌ Check file permissions and AL-Engine configuration');
+      console.log('[ERROR] Check file permissions and AL-Engine configuration');
     }
   }
 }

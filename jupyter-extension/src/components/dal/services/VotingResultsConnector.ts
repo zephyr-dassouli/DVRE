@@ -31,7 +31,7 @@ export class VotingResultsConnector {
     round: number
   ): Promise<boolean> {
     try {
-      console.log(`🔄 Exporting voting results for project ${projectAddress}, round ${round}`);
+      console.log(`[PROCESSING] Exporting voting results for project ${projectAddress}, round ${round}`);
       
       // Get all voting records from blockchain
       const votingHistory = await this.votingService.getVotingHistory(projectAddress);
@@ -40,7 +40,7 @@ export class VotingResultsConnector {
       const roundRecords = votingHistory.filter(record => record.iterationNumber === round);
       
       if (roundRecords.length === 0) {
-        console.log(`ℹ️ No voting results found for round ${round}`);
+        console.log(`[INFO] No voting results found for round ${round}`);
         return false;
       }
       
@@ -54,21 +54,21 @@ export class VotingResultsConnector {
         timestamp: record.timestamp.toISOString()
       }));
       
-      console.log(`📋 Converted ${alEngineResults.length} voting results for round ${round}`);
+      console.log(`[DATA] Converted ${alEngineResults.length} voting results for round ${round}`);
       
       // Send to AL-Engine API to write the file
       const success = await this.sendToALEngine(projectAddress, round, alEngineResults);
       
       if (success) {
-        console.log(`✅ Successfully exported voting results for round ${round} to AL-Engine`);
+        console.log(`[SUCCESS] Successfully exported voting results for round ${round} to AL-Engine`);
       } else {
-        console.warn(`⚠️ Failed to export voting results for round ${round} to AL-Engine`);
+        console.warn(`[WARNING] Failed to export voting results for round ${round} to AL-Engine`);
       }
       
       return success;
       
     } catch (error) {
-      console.error(`❌ Error exporting voting results for round ${round}:`, error);
+      console.error(`[ERROR] Error exporting voting results for round ${round}:`, error);
       return false;
     }
   }
@@ -78,13 +78,13 @@ export class VotingResultsConnector {
    */
   async exportAllVotingResults(projectAddress: string): Promise<number> {
     try {
-      console.log(`🔄 Exporting all voting results for project ${projectAddress}`);
+      console.log(`[PROCESSING] Exporting all voting results for project ${projectAddress}`);
       
       // Get all voting records from blockchain
       const votingHistory = await this.votingService.getVotingHistory(projectAddress);
       
       if (votingHistory.length === 0) {
-        console.log(`ℹ️ No voting results found for project ${projectAddress}`);
+        console.log(`[INFO] No voting results found for project ${projectAddress}`);
         return 0;
       }
       
@@ -98,7 +98,7 @@ export class VotingResultsConnector {
         roundGroups.get(round)!.push(record);
       });
       
-      console.log(`📊 Found voting results for ${roundGroups.size} rounds`);
+      console.log(`[STATS] Found voting results for ${roundGroups.size} rounds`);
       
       let exportedRounds = 0;
       
@@ -110,11 +110,11 @@ export class VotingResultsConnector {
         }
       }
       
-      console.log(`✅ Exported voting results for ${exportedRounds}/${roundGroups.size} rounds`);
+      console.log(`[SUCCESS] Exported voting results for ${exportedRounds}/${roundGroups.size} rounds`);
       return exportedRounds;
       
     } catch (error) {
-      console.error(`❌ Error exporting all voting results:`, error);
+      console.error(`[ERROR] Error exporting all voting results:`, error);
       return 0;
     }
   }
@@ -137,7 +137,7 @@ export class VotingResultsConnector {
           throw new Error('AL-Engine health check failed');
         }
       } catch (healthError) {
-        console.warn('⚠️ AL-Engine is not running, cannot export voting results');
+        console.warn('[WARNING] AL-Engine is not running, cannot export voting results');
         return false;
       }
       
@@ -156,15 +156,15 @@ export class VotingResultsConnector {
       
       if (response.ok) {
         const result = await response.json();
-        console.log(`📝 AL-Engine saved voting results to: ${result.file_path}`);
+        console.log(`[SAVED] AL-Engine saved voting results to: ${result.file_path}`);
         return true;
       } else {
-        console.error(`❌ AL-Engine API error: ${response.status} ${response.statusText}`);
+        console.error(`[ERROR] AL-Engine API error: ${response.status} ${response.statusText}`);
         return false;
       }
       
     } catch (error) {
-      console.error(`❌ Failed to send voting results to AL-Engine:`, error);
+      console.error(`[ERROR] Failed to send voting results to AL-Engine:`, error);
       
       // Fallback: Try local file server approach
       return await this.fallbackToFileServer(projectAddress, round, votingResults);
@@ -180,7 +180,7 @@ export class VotingResultsConnector {
     votingResults: ALEngineVotingResult[]
   ): Promise<boolean> {
     try {
-      console.log('🔄 Trying fallback file server approach...');
+      console.log('[PROCESSING] Trying fallback file server approach...');
       
       const fileContent = JSON.stringify(votingResults, null, 2);
       const filePath = `al-engine/ro-crates/${projectAddress}/outputs/voting_results_round_${round}.json`;
@@ -197,15 +197,15 @@ export class VotingResultsConnector {
       });
       
       if (response.ok) {
-        console.log(`📝 File server saved voting results to: ${filePath}`);
+        console.log(`[SAVED] File server saved voting results to: ${filePath}`);
         return true;
       } else {
-        console.warn(`⚠️ File server error: ${response.status}`);
+        console.warn(`[WARNING] File server error: ${response.status}`);
         return false;
       }
       
     } catch (error) {
-      console.warn('⚠️ File server not available:', error);
+      console.warn('[WARNING] File server not available:', error);
       return false;
     }
   }
@@ -232,7 +232,7 @@ export class VotingResultsConnector {
     }
     
     // Last resort: return 0
-    console.warn(`⚠️ Could not extract original index from sample ${sampleId}`);
+    console.warn(`[WARNING] Could not extract original index from sample ${sampleId}`);
     return 0;
   }
 
@@ -271,7 +271,7 @@ export class VotingResultsConnector {
       const votingHistory = await this.votingService.getVotingHistory(projectAddress);
       
       if (votingHistory.length === 0) {
-        return `📊 Voting Results Summary for ${projectAddress}:\n   No voting results found`;
+        return `[STATS] Voting Results Summary for ${projectAddress}:\n   No voting results found`;
       }
       
       // Group by round
@@ -284,7 +284,7 @@ export class VotingResultsConnector {
         roundGroups.get(round)!.push(record);
       });
       
-      let summary = `📊 Voting Results Summary for ${projectAddress}:\n`;
+      let summary = `[STATS] Voting Results Summary for ${projectAddress}:\n`;
       summary += `   Total voting records: ${votingHistory.length}\n`;
       summary += `   Rounds completed: ${roundGroups.size}\n\n`;
       
@@ -300,7 +300,7 @@ export class VotingResultsConnector {
       return summary;
       
     } catch (error) {
-      return `❌ Error getting voting results summary: ${error}`;
+      return `[ERROR] Error getting voting results summary: ${error}`;
     }
   }
 }

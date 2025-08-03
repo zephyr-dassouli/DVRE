@@ -214,7 +214,7 @@ const UserList: React.FC<UserListProps> = ({ project, onUserAction }) => {
                         onClick={() => member.address && copyToClipboard(member.address, 'Address copied!')}
                         title="Copy address"
                       >
-                        📋
+                        
                       </button>
                     </div>
                     <div 

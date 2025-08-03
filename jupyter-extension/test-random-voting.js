@@ -89,11 +89,11 @@ function updateProjectConfig(projectId) {
     config.label_space = ["0", "1", "2"]; // AL-Engine expects strings
     
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    console.log(`✅ Updated config.json with numeric labels: ${config.label_space}`);
+    console.log(`[SUCCESS] Updated config.json with numeric labels: ${config.label_space}`);
     
     return true;
   } catch (error) {
-    console.error(`❌ Failed to update config: ${error}`);
+    console.error(`[ERROR] Failed to update config: ${error}`);
     return false;
   }
 }
@@ -113,11 +113,11 @@ function updateLabeledSamples(projectId) {
     csvContent = csvContent.replace(/,c$/gm, ',2');
     
     fs.writeFileSync(labeledPath, csvContent);
-    console.log(`✅ Updated labeled_samples.csv with numeric labels (0,1,2)`);
+    console.log(`[SUCCESS] Updated labeled_samples.csv with numeric labels (0,1,2)`);
     
     return true;
   } catch (error) {
-    console.error(`❌ Failed to update labeled samples: ${error}`);
+    console.error(`[ERROR] Failed to update labeled samples: ${error}`);
     return false;
   }
 }
@@ -148,7 +148,7 @@ function createMultiRoundVotingResults(projectId, numRounds) {
       file: outputPath
     });
     
-    console.log(`📝 Round ${round}: ${roundResults.length} samples → labels [${roundResults.map(r => r.final_label).join(', ')}]`);
+    console.log(`[SAVED] Round ${round}: ${roundResults.length} samples → labels [${roundResults.map(r => r.final_label).join(', ')}]`);
   }
   
   return allResults;
@@ -160,7 +160,7 @@ function createMultiRoundVotingResults(projectId, numRounds) {
 function calculateTrainingProgression(initialSamples, roundResults) {
   let totalSamples = initialSamples;
   
-  console.log(`\n📊 Expected Training Progression:`);
+  console.log(`\n[STATS] Expected Training Progression:`);
   console.log(`   Initial: ${totalSamples} samples`);
   
   roundResults.forEach((round, index) => {
@@ -224,7 +224,7 @@ If scores remain 1.0:
 `;
 
   fs.writeFileSync(reportPath, report);
-  console.log(`\n📋 Test report saved: ${reportPath}`);
+  console.log(`\n[DATA] Test report saved: ${reportPath}`);
 }
 
 /**
@@ -234,27 +234,27 @@ async function runRandomVotingTest() {
   const projectId = process.argv[2] || '0x3F23304F01F045F0e1389CC23FC0F09175146FC5';
   const numRounds = parseInt(process.argv[3]) || TEST_CONFIG.rounds;
   
-  console.log(`🧪 Starting Random Voting Test`);
+  console.log(`[TEST] Starting Random Voting Test`);
   console.log(`   Project: ${projectId}`);
   console.log(`   Rounds: ${numRounds}`);
   console.log(`   Labels: ${TEST_CONFIG.labels.join(', ')} (${TEST_CONFIG.labelNames.join(', ')})\n`);
   
   // Step 1: Update project configuration
-  console.log(`⚙️  Step 1: Updating project configuration...`);
+  console.log(`[CONFIG]  Step 1: Updating project configuration...`);
   if (!updateProjectConfig(projectId)) {
-    console.error('❌ Failed to update config, aborting test');
+    console.error('[ERROR] Failed to update config, aborting test');
     return;
   }
   
   // Step 2: Update labeled samples
-  console.log(`⚙️  Step 2: Updating labeled samples...`);
+  console.log(`[CONFIG]  Step 2: Updating labeled samples...`);
   if (!updateLabeledSamples(projectId)) {
-    console.error('❌ Failed to update labeled samples, aborting test');
+    console.error('[ERROR] Failed to update labeled samples, aborting test');
     return;
   }
   
   // Step 3: Generate random voting results
-  console.log(`⚙️  Step 3: Generating random voting results...`);
+  console.log(`[CONFIG]  Step 3: Generating random voting results...`);
   const roundResults = createMultiRoundVotingResults(projectId, numRounds);
   
   // Step 4: Calculate expected progression
@@ -262,11 +262,11 @@ async function runRandomVotingTest() {
   calculateTrainingProgression(10, roundResults);
   
   // Step 5: Generate test report
-  console.log(`⚙️  Step 4: Generating test report...`);
+  console.log(`[CONFIG]  Step 4: Generating test report...`);
   generateTestReport(projectId, roundResults, expectedFinalSamples);
   
-  console.log(`\n✅ Random Voting Test Setup Complete!`);
-  console.log(`\n🚀 Next Steps:`);
+  console.log(`\n[SUCCESS] Random Voting Test Setup Complete!`);
+  console.log(`\n[START] Next Steps:`);
   console.log(`   1. Restart AL-Engine to pick up the new config and voting results`);
   console.log(`   2. Start iteration 2 in the frontend`);
   console.log(`   3. Watch for realistic performance scores (not 1.0)`);
@@ -274,7 +274,7 @@ async function runRandomVotingTest() {
   console.log(`   5. Check TEST_REPORT.md for detailed expectations`);
   
   // Show sample breakdown
-  console.log(`\n📊 Sample Distribution:`);
+  console.log(`\n[STATS] Sample Distribution:`);
   const labelDistribution = {};
   roundResults.forEach(round => {
     round.labels.forEach(label => {

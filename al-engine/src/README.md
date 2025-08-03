@@ -34,17 +34,17 @@ The refactored AL-Engine provides the following HTTP API endpoints:
 
 ## Key Improvements
 
-### 🔧 **Modular Architecture**
+### [MODULAR] **Modular Architecture**
 - **Separation of concerns**: API endpoints, business logic, and legacy support are now in separate files
 - **Easier maintenance**: Each file has a specific responsibility
 - **Better testability**: Individual components can be tested in isolation
 
-### 📊 **Real Performance Metrics** 
+### [PERFORMANCE] **Real Performance Metrics** 
 - Added `/model_performance/<iteration>` endpoint for retrieving actual ML model performance
 - Supports reading performance metrics from `performance_round_{iteration}.json` files
 - Replaces the mock data implementation in the frontend
 
-### 🚀 **Backwards Compatibility**
+### [COMPATIBILITY] **Backwards Compatibility**
 - Legacy ALEngine class preserved for existing scripts
 - All original functionality maintained
 - Same command line interface
