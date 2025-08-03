@@ -266,8 +266,8 @@ export const DALComponent: React.FC<DALComponentProps> = ({
       if (shouldDeploy) {
         // Use the widget opener utility for consistent experience
         try {
-          const { openCollaborationWidget } = require('../../utils/WidgetOpener');
-          openCollaborationWidget({
+          const { openProjectHubWidget } = require('../../utils/WidgetOpener');
+          openProjectHubWidget({
             title: 'Project Deployment',
             initialViewMode: 'main' // Could be enhanced to go directly to deployment
           });
@@ -437,7 +437,7 @@ export const DALComponent: React.FC<DALComponentProps> = ({
           <h4>No Active Learning Projects</h4>
           <p>Create a new Active Learning project to get started:</p>
           <ol style={{ textAlign: 'left', margin: '16px auto', maxWidth: '400px' }}>
-            <li>Go to <strong>Project Collaboration</strong></li>
+            <li>Go to <strong>Project Hub</strong></li>
             <li>Create a new project using the <strong>Active Learning template</strong></li>
             <li>Configure and deploy it in <strong>Project Deployment</strong></li>
           </ol>

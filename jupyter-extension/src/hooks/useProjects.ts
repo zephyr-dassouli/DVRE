@@ -682,7 +682,7 @@ export const useProjects = () => {
         console.log(' Project created at address:', projectAddress);
 
         // RO-Crate will be created later during project deployment phase
-        // No auto-creation during project collaboration creation
+        // No auto-creation during Project Hub creation
 
         return projectAddress;
       }
@@ -758,7 +758,7 @@ export const useProjects = () => {
         console.log(' Custom project created at address:', projectAddress);
 
         // RO-Crate will be created later during project deployment phase
-        // No auto-creation during project collaboration creation
+        // No auto-creation during Project Hub creation
 
         return projectAddress;
       }

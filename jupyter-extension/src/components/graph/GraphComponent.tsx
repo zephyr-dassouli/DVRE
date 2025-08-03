@@ -133,7 +133,7 @@ const GraphComponent: React.FC<GraphComponentProps> = ({ title }) => {
           <h3>No Projects Found</h3>
           <p>
             You don't have any projects registered on the blockchain yet. 
-            Create or join projects using the Project Collaboration tool to see connections here.
+            Create or join projects using the Project Hub tool to see connections here.
           </p>
           <button 
             onClick={handleRefresh}

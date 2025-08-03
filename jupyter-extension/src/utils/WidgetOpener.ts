@@ -5,7 +5,7 @@
  * Previously, when users clicked on widgets from different entry points (launcher, 
  * command palette, other components), they would always get a fresh widget starting 
  * in the default state. This created inconsistent user experiences where clicking 
- * on a "Project Details" link would open the main collaboration view instead of 
+ * on a "Project Details" link would open the main project hub view instead of 
  * the specific project details.
  * 
  * Additional Problem: Multiple identical widgets were being created every time 
@@ -27,28 +27,28 @@
  * Usage Examples:
  * - openProjectDetails('0x123...abc') // Opens directly to project details
  * - openProjectCreation() // Opens directly to project creation form
- * - openMainCollaboration() // Opens main collaboration view
+ * - openMainProjectHub() // Opens main project hub view
  */
 
-export interface CollaborationWidgetOptions {
+export interface ProjectHubWidgetOptions {
   title?: string;
   initialViewMode?: 'main' | 'create' | 'details' | 'join';
   initialProjectAddress?: string;
 }
 
 /**
- * Opens a collaboration widget with the specified options
+ * Opens a project hub widget with the specified options
  * This function can be called from anywhere in the application to ensure
- * consistent user experience when opening project collaboration views
+ * consistent user experience when opening project hub views
  */
-export const openCollaborationWidget = (options: CollaborationWidgetOptions = {}): void => {
+export const openProjectHubWidget = (options: ProjectHubWidgetOptions = {}): void => {
   // Check if the global opener function is available
   const app = (window as any).jupyterlab?.app || (window as any).jupyterApp;
   
   if (app && (app as any)._dvre_open_collaboration) {
     (app as any)._dvre_open_collaboration(options);
   } else {
-    console.warn('DVRE: Collaboration widget opener not available. Please ensure the extension is loaded.');
+    console.warn('DVRE: Project Hub widget opener not available. Please ensure the extension is loaded.');
     
     // Fallback: Try to execute the collaboration command
     if (app && app.commands) {
@@ -67,7 +67,7 @@ export const openCollaborationWidget = (options: CollaborationWidgetOptions = {}
  * Opens project details directly
  */
 export const openProjectDetails = (projectAddress: string, title?: string): void => {
-  openCollaborationWidget({
+  openProjectHubWidget({
     title: title || `Project Details - ${projectAddress.slice(0, 6)}...${projectAddress.slice(-4)}`,
     initialViewMode: 'details',
     initialProjectAddress: projectAddress
@@ -78,18 +78,18 @@ export const openProjectDetails = (projectAddress: string, title?: string): void
  * Opens project creation form
  */
 export const openProjectCreation = (): void => {
-  openCollaborationWidget({
+  openProjectHubWidget({
     title: 'Create New Project',
     initialViewMode: 'create'
   });
 };
 
 /**
- * Opens main collaboration view
+ * Opens main project hub view
  */
-export const openMainCollaboration = (): void => {
-  openCollaborationWidget({
-    title: 'Project Collaboration',
+export const openMainProjectHub = (): void => {
+  openProjectHubWidget({
+    title: 'Project Hub',
     initialViewMode: 'main'
   });
 }; 

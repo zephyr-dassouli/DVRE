@@ -9,14 +9,14 @@ import { UserInvitationsWidget } from '../userregistry/UserInvitationsWidget';
 
 type ViewMode = 'main' | 'create' | 'details' | 'join';
 
-interface CollaborationComponentProps {
+interface ProjectHubComponentProps {
   title?: string;
-  initialViewMode?: 'main' | 'create' | 'details' | 'join';
+  initialViewMode?: ViewMode;
   initialProjectAddress?: string;
 }
 
-export const CollaborationComponent: React.FC<CollaborationComponentProps> = ({ 
-  title = 'Project Collaboration',
+export const ProjectHubComponent: React.FC<ProjectHubComponentProps> = ({ 
+  title = 'Project Hub',
   initialViewMode = 'main',
   initialProjectAddress
 }) => {
@@ -131,12 +131,12 @@ export const CollaborationComponent: React.FC<CollaborationComponentProps> = ({
           color: 'var(--jp-ui-font-color1)',
           margin: '0 0 16px 0'
         }}        >
-          Project Collaboration
+          Project Hub
         </h1>
         <p style={{ 
           color: 'var(--jp-ui-font-color2)'
         }}>
-          Please connect your wallet to access project collaboration features.
+          Please connect your wallet to access project hub features.
         </p>
       </div>
     );
@@ -224,7 +224,7 @@ export const CollaborationComponent: React.FC<CollaborationComponentProps> = ({
           color: 'var(--jp-ui-font-color1)',
           margin: 0
         }}        >
-          Project Collaboration
+          Project Hub
         </h1>
         <div style={{ display: 'flex', gap: '12px' }}>
           <button
@@ -293,4 +293,4 @@ export const CollaborationComponent: React.FC<CollaborationComponentProps> = ({
   );
 };
 
-export default CollaborationComponent;
+export default ProjectHubComponent;

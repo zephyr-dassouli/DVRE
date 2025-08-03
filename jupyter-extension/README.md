@@ -4,13 +4,11 @@ A comprehensive JupyterLab extension for Decentralized Verifiable Research Envir
 
 ## Features
 
-- **Project Collaboration**: Create and manage collaborative research projects
-- **Decentralized Active Learning (DAL)**: Participate in active learning projects with voting mechanisms
-- **Authentication**: Web3 wallet integration for decentralized identity
-- **IPFS Integration**: Decentralized file storage and sharing
-- **Smart Contract Integration**: Ethereum-based project management
-- **Graph Visualization**: Project relationship and collaboration networks
-- **Federated Learning**: Distributed machine learning capabilities
+- **Authentication**: Connect to Web3 wallets and authenticate users
+- **Project Hub**: Create and manage collaborative research projects
+- **Project Graph View**: Visualize project connections and relationships
+- **IPFS Storage**: Manage and store files on the InterPlanetary File System
+- **Federated Learning**: Coordinate distributed machine learning projects
 
 ## Installation
 

@@ -1,19 +1,19 @@
 import { ReactWidget } from '@jupyterlab/ui-components';
 import React from 'react';
-import CollaborationComponent from './CollaborationComponent';
+import ProjectHubComponent from './ProjectHubComponent';
 
-export interface ICollaborationWidget {
+export interface IProjectHubWidget {
   title?: string;
   initialViewMode?: 'main' | 'create' | 'details' | 'join';
   initialProjectAddress?: string;
 }
 
-export class CollaborationWidget extends ReactWidget {
+export class ProjectHubWidget extends ReactWidget {
   private _title: string;
   private _initialViewMode: 'main' | 'create' | 'details' | 'join';
   private _initialProjectAddress?: string;
 
-  constructor(options: ICollaborationWidget | string = {}) {
+  constructor(options: IProjectHubWidget | string = {}) {
     super();
     
     // Handle backward compatibility - if string is passed, use it as title
@@ -22,7 +22,7 @@ export class CollaborationWidget extends ReactWidget {
       this._initialViewMode = 'main';
       this._initialProjectAddress = undefined;
     } else {
-      this._title = options.title || 'Project Collaboration';
+      this._title = options.title || 'Project Hub';
       this._initialViewMode = options.initialViewMode || 'main';
       this._initialProjectAddress = options.initialProjectAddress;
     }
@@ -34,7 +34,7 @@ export class CollaborationWidget extends ReactWidget {
 
   render(): JSX.Element {
     return (
-      <CollaborationComponent 
+      <ProjectHubComponent 
         title={this._title}
         initialViewMode={this._initialViewMode}
         initialProjectAddress={this._initialProjectAddress}
@@ -43,4 +43,4 @@ export class CollaborationWidget extends ReactWidget {
   }
 }
 
-export default CollaborationWidget;
+export default ProjectHubWidget;

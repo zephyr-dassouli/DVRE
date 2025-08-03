@@ -6,8 +6,14 @@ import {
 import { useAuth } from './useAuth';
 
 /**
- * Hook for managing project configuration
- * Integrates with existing project collaboration system
+ * Hook for managing project configuration in memory
+ * 
+ * This hook provides functionality to manage project configurations that are stored
+ * in memory for the current session. It's designed to work seamlessly with the 
+ * project deployment workflow and can be used to store temporary configurations
+ * before they are persisted to the blockchain or IPFS.
+ * 
+ * Integrates with existing Project Hub system
  */
 export function useProjectConfiguration(projectId?: string) {
   const { account } = useAuth(); // Get current user's wallet address

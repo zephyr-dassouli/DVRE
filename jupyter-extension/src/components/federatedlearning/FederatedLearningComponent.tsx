@@ -236,7 +236,7 @@ const FederatedLearningComponent: React.FC<FederatedLearningComponentProps> = ({
             No Federated Learning Projects
           </h3>
           <p style={{ margin: '0 0 16px 0', maxWidth: '400px', marginLeft: 'auto', marginRight: 'auto' }}>
-            You're not part of any federated learning projects yet. Create one using the Project Collaboration tool 
+            You're not part of any federated learning projects yet. Create one using the Project Hub tool
             with the "Federated Learning" template.
           </p>
         </div>

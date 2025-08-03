@@ -520,7 +520,7 @@ export const ProjectDeploymentComponent: React.FC<ProjectDeploymentComponentProp
           <h4>No Deployable Projects Found</h4>
           <p>Only project <strong>owners/creators</strong> can deploy projects.</p>
           <p>If you've joined projects as a contributor, those projects won't appear here - only the project creator can deploy them.</p>
-          <p>Create a new project in <strong>Project Collaboration</strong> to deploy your own project.</p>
+          <p>Create a new project in <strong>Project Hub</strong> to deploy your own project.</p>
         </div>
       ) : (
         <div className="projects-grid">

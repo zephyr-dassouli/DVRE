@@ -1,6 +1,7 @@
 // Export all available widgets  
 export { AuthWidget } from './auth/AuthWidget';
-export { CollaborationWidget } from './collaboration/CollaborationWidget';
+export { UserRegistryWidget } from './userregistry/UserRegistryWidget';
+export { ProjectHubWidget } from './projecthub/ProjectHubWidget';
 export { GraphWidget } from './graph/GraphWidget';
 export { FederatedLearningWidget } from './federatedlearning/FederatedLearningWidget';
 export { IPFSWidget } from './ipfs/IPFSWidget';

@@ -12,11 +12,13 @@ import { ILauncher } from '@jupyterlab/launcher';
 import { LabIcon } from '@jupyterlab/ui-components';
 
 // import { Widget } from '@lumino/widgets'; // DISABLED - no longer needed without ExtensionInfoWidget
-import { AuthWidget, CollaborationWidget, GraphWidget, FederatedLearningWidget, IPFSWidget, ProjectDeploymentWidget, DALWidget } from './components';
+import { AuthWidget, ProjectHubWidget, GraphWidget, FederatedLearningWidget, IPFSWidget, ProjectDeploymentWidget, DALWidget } from './components';
 import { UserRegistryReactWidget } from './widgets/UserRegistryWidget';
 
 // Export widget opening utilities for use by other components
-export { openCollaborationWidget, openProjectDetails, openProjectCreation, openMainCollaboration } from './utils/WidgetOpener';
+export { 
+  openProjectHubWidget, openProjectDetails, openProjectCreation, openMainProjectHub
+} from './utils/WidgetOpener';
 
 // Import CSS
 import '../style/index.css';
@@ -156,7 +158,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
     // Command for collaboration
     const collaborationCommand = 'my-extension:collaboration';
     app.commands.addCommand(collaborationCommand, {
-      label: 'Project Collaboration',
+      label: 'Project Hub',
       caption: 'Manage and collaborate on projects',
       icon: collaborationIcon,
       execute: () => {
@@ -175,7 +177,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
           return;
         }
         
-        const content = new CollaborationWidget('Project Collaboration');
+        const content = new ProjectHubWidget('Project Hub');
         const widget = new MainAreaWidget({ content });
         widget.id = `my-collaboration-${Date.now()}`;
         widget.title.closable = true;
@@ -186,14 +188,14 @@ const plugin: JupyterFrontEndPlugin<void> = {
       }
     });
 
-    // Helper function to open collaboration widget with initial state
-    const openCollaborationWidget = (options: { 
+    // Helper function to open project hub widget with initial state
+    const openProjectHubWidget = (options: { 
       title?: string, 
       initialViewMode?: 'main' | 'create' | 'details' | 'join',
       initialProjectAddress?: string 
     } = {}) => {
       const widgetOptions = {
-        title: options.title || 'Project Collaboration',
+        title: options.title || 'Project Hub',
         initialViewMode: options.initialViewMode || 'main',
         initialProjectAddress: options.initialProjectAddress
       };
@@ -219,7 +221,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
       }
       
       // Create new widget only if one doesn't exist
-      const content = new CollaborationWidget(widgetOptions);
+      const content = new ProjectHubWidget(widgetOptions);
       const widget = new MainAreaWidget({ content });
       
       // Use base ID with timestamp only for uniqueness if multiple instances are needed
@@ -245,20 +247,20 @@ const plugin: JupyterFrontEndPlugin<void> = {
       execute: (args: any) => {
         const projectAddress = args?.projectAddress;
         if (projectAddress) {
-          return openCollaborationWidget({
+          return openProjectHubWidget({
             title: `Project Details - ${projectAddress.slice(0, 6)}...${projectAddress.slice(-4)}`,
             initialViewMode: 'details',
             initialProjectAddress: projectAddress
           });
         } else {
-          // Fallback to main collaboration view
-          return openCollaborationWidget();
+          // Fallback to main project hub view
+          return openProjectHubWidget();
         }
       }
     });
 
     // Store the helper function in app context for other components to use
-    (app as any)._dvre_open_collaboration = openCollaborationWidget;
+    (app as any)._dvre_open_collaboration = openProjectHubWidget;
 
     // Command for graph view
     const graphCommand = 'my-extension:graph';
