@@ -1,11 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { useProjects, ProjectInfo } from '../../hooks/useProjects';
+import { useProjects, ProjectInfo, JoinRequest } from '../../hooks/useProjects';
+import { useUserRegistry, InvitationInfo } from '../../hooks/useUserRegistry';
 import ProjectCreationHub from './ProjectCreationHub';
 import ProjectList from './ProjectList';
 import ProjectDetails from './ProjectDetails';
 import JoinProjectDialog from './JoinProjectDialog';
-import { UserInvitationsWidget } from '../userregistry/UserInvitationsWidget';
+import InvitationsAndRequestsList from './InvitationsAndRequestsList';
+
+interface JoinRequestInfo extends JoinRequest {
+  projectAddress: string;
+  projectName: string;
+}
 
 type ViewMode = 'main' | 'create' | 'details' | 'join';
 
@@ -21,12 +27,118 @@ export const ProjectHubComponent: React.FC<ProjectHubComponentProps> = ({
   initialProjectAddress
 }) => {
   const { account } = useAuth();
-  const { projects, userProjects, loading, error, requestToJoinProject, getProjectRoles, loadProjects } = useProjects();
+  const { projects, userProjects, loading, error, requestToJoinProject, getProjectRoles, loadProjects, handleJoinRequest } = useProjects();
+  const { userInvitations, loading: invitationsLoading, loadUserInvitations, acceptInvitation, rejectInvitation } = useUserRegistry();
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   const [selectedProject, setSelectedProject] = useState<string | null>(initialProjectAddress || null);
   const [projectToJoin, setProjectToJoin] = useState<ProjectInfo | null>(null);
   const [availableRoles, setAvailableRoles] = useState<string[]>([]);
   const [joinLoading, setJoinLoading] = useState(false);
+  const [joinRequests, setJoinRequests] = useState<JoinRequestInfo[]>([]);
+  const [joinRequestsLoading, setJoinRequestsLoading] = useState(false);
+
+  // Load join requests for user's projects
+  const loadJoinRequests = useCallback(async () => {
+    if (!account || !userProjects.length) {
+      setJoinRequests([]);
+      return;
+    }
+
+    setJoinRequestsLoading(true);
+    try {
+      const allJoinRequests: JoinRequestInfo[] = [];
+      
+      for (const project of userProjects) {
+        if (project.isOwner && project.joinRequests.length > 0) {
+          for (const request of project.joinRequests) {
+            allJoinRequests.push({
+              ...request,
+              projectAddress: project.address,
+              projectName: project.objective || 'Unknown Project'
+            });
+          }
+        }
+      }
+      
+      setJoinRequests(allJoinRequests);
+    } catch (err) {
+      console.error('Failed to load join requests:', err);
+    } finally {
+      setJoinRequestsLoading(false);
+    }
+  }, [account, userProjects]);
+
+  // Load both invitations and join requests
+  const loadInvitationsAndRequests = useCallback(async () => {
+    if (!account) return;
+    
+    await Promise.all([
+      loadUserInvitations(),
+      loadJoinRequests()
+    ]);
+  }, [account, loadUserInvitations, loadJoinRequests]);
+
+  // Load invitations and requests when component mounts or userProjects change
+  useEffect(() => {
+    if (account) {
+      loadUserInvitations();
+    }
+  }, [account, loadUserInvitations]);
+
+  useEffect(() => {
+    if (account && userProjects.length > 0) {
+      loadJoinRequests();
+    }
+  }, [account, userProjects, loadJoinRequests]);
+
+  // Action handlers for invitations and join requests
+  const handleAcceptInvitation = async (projectAddress: string) => {
+    try {
+      const success = await acceptInvitation(projectAddress);
+      if (success) {
+        await loadInvitationsAndRequests();
+        alert('Invitation accepted successfully!');
+      }
+    } catch (err) {
+      console.error('Failed to accept invitation:', err);
+    }
+  };
+
+  const handleRejectInvitation = async (projectAddress: string) => {
+    try {
+      const success = await rejectInvitation(projectAddress);
+      if (success) {
+        await loadInvitationsAndRequests();
+        alert('Invitation rejected.');
+      }
+    } catch (err) {
+      console.error('Failed to reject invitation:', err);
+    }
+  };
+
+  const handleApproveJoinRequest = async (projectAddress: string, memberAddress: string) => {
+    try {
+      const success = await handleJoinRequest(projectAddress, memberAddress, true);
+      if (success) {
+        await loadInvitationsAndRequests();
+        alert('Join request approved successfully!');
+      }
+    } catch (err) {
+      console.error('Failed to approve join request:', err);
+    }
+  };
+
+  const handleRejectJoinRequest = async (projectAddress: string, memberAddress: string) => {
+    try {
+      const success = await handleJoinRequest(projectAddress, memberAddress, false);
+      if (success) {
+        await loadInvitationsAndRequests();
+        alert('Join request rejected.');
+      }
+    } catch (err) {
+      console.error('Failed to reject join request:', err);
+    }
+  };
 
   const handleSelectProject = async (project: ProjectInfo) => {
     if (project.isMember) {
@@ -111,7 +223,10 @@ export const ProjectHubComponent: React.FC<ProjectHubComponentProps> = ({
 
   const handleRefreshProjects = async () => {
     try {
-      await loadProjects();
+      await Promise.all([
+        loadProjects(),
+        loadInvitationsAndRequests()
+      ]);
     } catch (error) {
       console.error('Failed to refresh projects:', error);
     }
@@ -229,19 +344,19 @@ export const ProjectHubComponent: React.FC<ProjectHubComponentProps> = ({
         <div style={{ display: 'flex', gap: '12px' }}>
           <button
             onClick={handleRefreshProjects}
-            disabled={loading}
+            disabled={loading || invitationsLoading || joinRequestsLoading}
             style={{
               padding: '8px 16px',
               background: 'var(--jp-layout-color2)',
               border: '1px solid var(--jp-border-color1)',
               borderRadius: '3px',
-              cursor: loading ? 'not-allowed' : 'pointer',
+              cursor: (loading || invitationsLoading || joinRequestsLoading) ? 'not-allowed' : 'pointer',
               color: 'var(--jp-ui-font-color1)',
               fontSize: '13px',
-              opacity: loading ? 0.6 : 1
+              opacity: (loading || invitationsLoading || joinRequestsLoading) ? 0.6 : 1
             }}
           >
-            {loading ? 'Refreshing...' : 'Refresh'}
+            {(loading || invitationsLoading || joinRequestsLoading) ? 'Refreshing...' : 'Refresh'}
           </button>
           <button
             onClick={() => setViewMode('create')}
@@ -269,25 +384,26 @@ export const ProjectHubComponent: React.FC<ProjectHubComponentProps> = ({
           projects={userProjects}
           title="My Projects"
           onSelectProject={handleSelectProject}
-          loading={loading}
+          loading={loading || invitationsLoading || joinRequestsLoading}
         />
         
         <ProjectList
           projects={projects.filter(p => !p.isMember)}
           title="Available Projects"
           onSelectProject={handleSelectProject}
-          loading={loading}
+          loading={loading || invitationsLoading || joinRequestsLoading}
         />
 
-        {/* User Invitations Section */}
-        <div style={{
-          background: 'var(--jp-layout-color0)',
-          border: '1px solid var(--jp-border-color1)',
-          borderRadius: '4px',
-          minHeight: '200px'
-        }}>
-          <UserInvitationsWidget />
-        </div>
+        {/* Invitations and Join Requests Section */}
+        <InvitationsAndRequestsList 
+          userInvitations={userInvitations} 
+          joinRequests={joinRequests} 
+          onAcceptInvitation={handleAcceptInvitation}
+          onRejectInvitation={handleRejectInvitation}
+          onApproveJoinRequest={handleApproveJoinRequest}
+          onRejectJoinRequest={handleRejectJoinRequest}
+          loading={loading || invitationsLoading || joinRequestsLoading}
+        />
       </div>
     </div>
   );

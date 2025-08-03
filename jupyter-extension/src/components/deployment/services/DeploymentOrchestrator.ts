@@ -368,7 +368,7 @@ export class DeploymentOrchestrator {
         alScenario: dalConfig.alScenario || 'pool_based',
         maxIteration: dalConfig.maxIterations || 10,
         queryBatchSize: dalConfig.queryBatchSize || 5,
-        labelSpace: dalConfig.labelSpace || []
+        labelSpace: dalConfig.labelSpace ? [...dalConfig.labelSpace] : [] // Create mutable copy
       };
       
       // Prepare voting configuration struct
@@ -384,12 +384,15 @@ export class DeploymentOrchestrator {
           const { getAllParticipantsForProject } = await import('../../../hooks/useProjects');
           const participantsData = await getAllParticipantsForProject(config.contractAddress);
           
-          contributors = participantsData.participantAddresses.filter((address, index) => {
+          const filteredContributors = participantsData.participantAddresses.filter((address, index) => {
             const role = participantsData.roles[index];
             const isNotOwner = address.toLowerCase() !== userAddress.toLowerCase();
             const isContributor = role === 'contributor' || role === 'coordinator';
             return isNotOwner && isContributor;
           });
+          
+          // Create mutable copy of contributors array
+          contributors = [...filteredContributors];
           
           console.log(' Found', contributors.length, 'contributors for asset viewers');
         } catch (error) {
