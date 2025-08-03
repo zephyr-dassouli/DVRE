@@ -186,7 +186,7 @@ export const useUserRegistry = () => {
       const signer = await getSigner();
       const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
       
-      // Get invitation details first
+      // Verify invitation exists first
       console.log('Getting invitation details for account:', account);
       const invitation = await projectContract.getInvitation(account);
       console.log('Invitation details:', invitation);
@@ -195,51 +195,12 @@ export const useUserRegistry = () => {
         throw new Error('No invitation found');
       }
 
-      // Get current project data before accepting
-      console.log('Getting current project data...');
-      const projectDataString = await projectContract.getProjectData();
-      console.log('Current project data:', projectDataString);
-      const projectData = JSON.parse(projectDataString);
-
-      // Accept the invitation first
+      // SINGLE TRANSACTION: Contract automatically adds participant and removes invitation
       console.log('Accepting invitation...');
       const acceptTx = await projectContract.acceptInvitation();
       console.log('Accept transaction sent:', acceptTx.hash);
       await acceptTx.wait();
-      console.log('Accept transaction confirmed');
-
-      // Now update the project data to add the user as participant
-      // Initialize participants array if it doesn't exist
-      if (!projectData.participants) {
-        projectData.participants = [];
-      }
-
-      // Check if user is already a participant
-      const existingParticipant = projectData.participants.find(
-        (p: any) => p.address.toLowerCase() === account.toLowerCase()
-      );
-
-      if (!existingParticipant) {
-        console.log('Adding user to participants with role:', invitation.role);
-        // Add the user to participants
-        projectData.participants.push({
-          address: account,
-          role: invitation.role
-        });
-
-        // Update project data using the new function that allows invitation acceptors to update
-        const newProjectDataString = JSON.stringify(projectData);
-        console.log('Updating project data with new participant:', newProjectDataString);
-        
-        const updateTx = await projectContract.updateProjectDataAfterAcceptance(newProjectDataString);
-        console.log('Update transaction sent:', updateTx.hash);
-        await updateTx.wait();
-        console.log('Update transaction confirmed');
-
-        console.log('User successfully added to project participants');
-      } else {
-        console.log('User is already a participant in this project');
-      }
+      console.log('Accept transaction confirmed - participant automatically added to contract');
 
       console.log('Invitation accepted successfully');
       
@@ -258,7 +219,7 @@ export const useUserRegistry = () => {
       setError(`Failed to accept invitation: ${err.message}`);
       return false;
     }
-  }, [account]);
+  }, [account, loadUserInvitations]);
 
   // Add member to project (for project creators to update project data after invitation acceptance)
   const addMemberToProject = useCallback(async (
@@ -278,37 +239,18 @@ export const useUserRegistry = () => {
         throw new Error('Only project creator can add members');
       }
 
-      // Get current project data
-      const projectDataString = await projectContract.getProjectData();
-      const projectData = JSON.parse(projectDataString);
-
-      // Initialize participants array if it doesn't exist
-      if (!projectData.participants) {
-        projectData.participants = [];
-      }
-
-      // Check if user is already a participant
-      const existingParticipant = projectData.participants.find(
-        (p: any) => p.address.toLowerCase() === memberAddress.toLowerCase()
-      );
-
-      if (!existingParticipant) {
-        // Add the user to participants
-        projectData.participants.push({
-          address: memberAddress,
-          role: role
-        });
-
-        // Update project data
-        const newProjectDataString = JSON.stringify(projectData);
-        const updateTx = await projectContract.updateProjectData(newProjectDataString);
-        await updateTx.wait();
-
-        console.log('Member added to project successfully');
-      } else {
+      // Check if user is already a participant (using contract mapping)
+      const existingRole = await projectContract.participantRoles(memberAddress);
+      if (existingRole && existingRole.length > 0) {
         console.log('User is already a participant in this project');
+        return true;
       }
 
+      // SINGLE TRANSACTION: Add participant using contract function
+      const addTx = await projectContract.addParticipantWithRole(memberAddress, role, 1);
+      await addTx.wait();
+
+      console.log('Member added to project successfully using contract function');
       return true;
     } catch (err: any) {
       console.error('Failed to add member to project:', err);

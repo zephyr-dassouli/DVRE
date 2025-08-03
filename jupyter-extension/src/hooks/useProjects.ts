@@ -84,8 +84,7 @@ export const getJoinRequestForProject = async (projectAddress: string, requester
 };
 
 /**
- * Get all participants for a project (off-chain implementation)
- * Replaces the removed getAllParticipants() contract function
+ * Get all participants for a project using contract's getAllParticipants function
  */
 export const getAllParticipantsForProject = async (projectAddress: string): Promise<{
   participantAddresses: string[];
@@ -97,55 +96,73 @@ export const getAllParticipantsForProject = async (projectAddress: string): Prom
     const provider = new ethers.JsonRpcProvider(RPC_URL);
     const projectContract = new ethers.Contract(projectAddress, Project.abi, provider);
     
-    console.log(' Getting participant data through individual contract calls...');
-    const participantAddresses: string[] = [];
-    const roles: string[] = [];
-    const weights: bigint[] = [];
-    const joinTimestamps: bigint[] = [];
+    console.log(' Getting participant data using contract getAllParticipants()...');
     
-    // Get participant count by calling participants array until we get an error
-    let participantCount = 0;
     try {
-      while (true) {
+      // Use contract's built-in getAllParticipants function (most efficient)
+      const result = await projectContract.getAllParticipants();
+      
+      console.log(` Retrieved data for ${result.participantAddresses.length} participants using getAllParticipants()`);
+      
+      return {
+        participantAddresses: result.participantAddresses,
+        roles: result.roles,
+        weights: result.weights,
+        joinTimestamps: result.joinTimestamps
+      };
+    } catch (contractError) {
+      console.warn('getAllParticipants() failed, falling back to individual calls:', contractError);
+      
+      // Fallback to manual iteration for backward compatibility
+      const participantAddresses: string[] = [];
+      const roles: string[] = [];
+      const weights: bigint[] = [];
+      const joinTimestamps: bigint[] = [];
+      
+      // Get participant count by calling participants array until we get an error
+      let participantCount = 0;
+      try {
+        while (true) {
+          try {
+            const addr = await projectContract.participants(participantCount);
+            participantAddresses.push(addr);
+            participantCount++;
+          } catch {
+            break; // End of array
+          }
+        }
+      } catch (error) {
+        console.log(' No participants found or error reading participants array');
+      }
+      
+      // Get individual participant data from mappings
+      for (const address of participantAddresses) {
         try {
-          const addr = await projectContract.participants(participantCount);
-          participantAddresses.push(addr);
-          participantCount++;
-        } catch {
-          break; // End of array
+          const role = await projectContract.participantRoles(address);
+          const weight = await projectContract.participantWeights(address);
+          const joinTime = await projectContract.joinedAt(address);
+          
+          roles.push(role);
+          weights.push(weight);
+          joinTimestamps.push(joinTime);
+        } catch (error) {
+          console.warn(`Failed to get data for participant ${address}:`, error);
+          // Use defaults if individual calls fail
+          roles.push('contributor');
+          weights.push(BigInt(1));
+          joinTimestamps.push(BigInt(0));
         }
       }
-    } catch (error) {
-      console.log(' No participants found or error reading participants array');
+      
+      console.log(` Retrieved data for ${participantCount} participants through individual calls`);
+      
+      return {
+        participantAddresses,
+        roles,
+        weights,
+        joinTimestamps
+      };
     }
-    
-    // Get individual participant data from mappings
-    for (const address of participantAddresses) {
-      try {
-        const role = await projectContract.participantRoles(address);
-        const weight = await projectContract.participantWeights(address);
-        const joinTime = await projectContract.joinedAt(address);
-        
-        roles.push(role);
-        weights.push(weight);
-        joinTimestamps.push(joinTime);
-      } catch (error) {
-        console.warn(`Failed to get data for participant ${address}:`, error);
-        // Use defaults if individual calls fail
-        roles.push('contributor');
-        weights.push(BigInt(1));
-        joinTimestamps.push(BigInt(0));
-      }
-    }
-    
-    console.log(` Retrieved data for ${participantCount} participants through individual calls`);
-    
-    return {
-      participantAddresses,
-      roles,
-      weights,
-      joinTimestamps
-    };
   } catch (error) {
     console.error('Error getting all participants for project:', error);
     return {
@@ -270,10 +287,23 @@ export const useProjects = () => {
         lastModified: Number(projectStatus.modified)
       };
 
-      // Extract participants from project data (address and role)
+      // Get participants from contract (single source of truth)
       const participants: ProjectMember[] = [];
-      if (projectData.participants && Array.isArray(projectData.participants)) {
-        participants.push(...projectData.participants);
+      try {
+        const result = await projectContract.getAllParticipants();
+        for (let i = 0; i < result.participantAddresses.length; i++) {
+          participants.push({
+            address: result.participantAddresses[i],
+            role: result.roles[i]
+          });
+        }
+        console.log(`Loaded ${participants.length} participants from contract for project ${projectAddress}`);
+      } catch (err) {
+        console.warn('Failed to get participants from contract, falling back to JSON data:', err);
+        // Fallback to JSON data for backward compatibility
+        if (projectData.participants && Array.isArray(projectData.participants)) {
+          participants.push(...projectData.participants);
+        }
       }
 
       // Get join requests from contract (using utility functions)
@@ -499,42 +529,25 @@ export const useProjects = () => {
       const projectContract = new ethers.Contract(projectAddress, Project.abi, signer);
 
       if (approve) {
-        // Get the join request details first
+        // Verify the join request exists
         const request = await projectContract.getJoinRequest(memberAddress);
         if (!request.exists) {
           throw new Error('Join request not found');
         }
 
-        // Get current project data
-        const projectDataString = await projectContract.getProjectData();
-        const projectData = JSON.parse(projectDataString);
-
-        // Initialize participants array if it doesn't exist
-        if (!projectData.participants) {
-          projectData.participants = [];
-        }
-
-        // Add the new member to participants
-        projectData.participants.push({
-          address: memberAddress,
-          role: request.role
-        });
-
-        // Update project data
-        const newProjectDataString = JSON.stringify(projectData);
-        const updateTx = await projectContract.updateProjectData(newProjectDataString);
-        await updateTx.wait();
-
-        // Approve the join request (this removes it from the contract)
+        // SINGLE TRANSACTION: Contract automatically adds participant and removes request
         const approveTx = await projectContract.approveJoinRequest(memberAddress);
         await approveTx.wait();
+        
+        console.log(`Join request approved for ${memberAddress} - participant automatically added to contract`);
       } else {
         // Just reject the join request (this removes it from the contract)
         const rejectTx = await projectContract.rejectJoinRequest(memberAddress);
         await rejectTx.wait();
+        
+        console.log(`Join request rejected for ${memberAddress}`);
       }
 
-      console.log(`Join request ${approve ? 'approved' : 'rejected'} for ${memberAddress}`);
       return true;
     } catch (err: any) {
       console.error('Failed to handle join request:', err);
@@ -634,28 +647,13 @@ export const useProjects = () => {
         }
       });
 
-      // Ensure participants array exists
-      if (!enhancedProjectData.participants) {
-        enhancedProjectData.participants = [];
-      }
-
       // Ensure roles array exists with default roles if not provided
       if (!enhancedProjectData.roles || !Array.isArray(enhancedProjectData.roles) || enhancedProjectData.roles.length === 0) {
         enhancedProjectData.roles = ['Member'];
       }
 
-      if (account) {
-        // Remove creator from participants if accidentally included
-        enhancedProjectData.participants = enhancedProjectData.participants.filter(
-          (p: ProjectMember) => p.address && p.address.toLowerCase() !== account.toLowerCase()
-        );
-
-        // Add the creator to participants with a role (commonly "Owner")
-        enhancedProjectData.participants.push({
-          address: account,
-          role: "Owner" // Can be configured based on project needs
-        });
-      }
+      // Note: No need to manage participants in JSON - contract constructor automatically adds creator
+      // The contract constructor calls: participants.push(_creator) and participantRoles[_creator] = "creator"
 
       //  FIXED: Pass enhanced data to smart contract
       const projectDataString = JSON.stringify(enhancedProjectData);
@@ -709,11 +707,6 @@ export const useProjects = () => {
         throw new Error("ProjectFactory not found");
       }
 
-      // Ensure participants array exists
-      if (!projectData.participants) {
-        projectData.participants = [];
-      }
-
       // For custom projects, only add default roles if roles field is completely undefined
       // If roles is an empty array, it likely means user didn't define roles, so use default
       if (projectData.roles === undefined || 
@@ -723,18 +716,8 @@ export const useProjects = () => {
         projectData.roles = ['Member'];
       }
 
-      if (account) {
-        // Remove creator from participants if accidentally included
-        projectData.participants = projectData.participants.filter(
-          (p: ProjectMember) => p.address && p.address.toLowerCase() !== account.toLowerCase()
-        );
-
-        // Add the creator to participants with a role (commonly "Owner")
-        projectData.participants.push({
-          address: account,
-          role: "Owner" // Can be configured based on project needs
-        });
-      }
+      // Note: No need to manage participants in JSON - contract constructor automatically adds creator
+      // The contract constructor calls: participants.push(_creator) and participantRoles[_creator] = "creator"
 
       const projectDataString = JSON.stringify(projectData);
       const tx = await factoryContract.createCustomProject(projectDataString);
