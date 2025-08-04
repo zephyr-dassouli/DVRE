@@ -185,6 +185,15 @@ export class VotingService {
       const baseProjectContract = new ethers.Contract(baseProjectAddress, Project.abi, this.provider);
       const projectCreator = await baseProjectContract.creator();
       
+      // Get all participants from the base Project contract to get join timestamps
+      const [participantAddresses, , , joinTimestamps] = await baseProjectContract.getAllParticipants();
+
+      // Create a mapping from address to join timestamp
+      const joinTimeMap = new Map<string, Date>();
+      for (let i = 0; i < participantAddresses.length; i++) {
+        joinTimeMap.set(participantAddresses[i].toLowerCase(), new Date(Number(joinTimestamps[i]) * 1000));
+      }
+
       // Get all voters from the voting contract
       const voterList = await votingContract.getVoterList();
       console.log(` Found ${voterList.length} registered voters`);
@@ -213,8 +222,6 @@ export class VotingService {
 
           // Calculate real voting statistics
           let totalVotes = 0;
-          let firstVoteTime: Date | null = null;
-          let lastVoteTime: Date | null = null;
 
           // Iterate through all rounds and samples to count this voter's contributions
           for (let round = 1; round <= currentRound; round++) {
@@ -230,15 +237,6 @@ export class VotingService {
                   for (const vote of votes) {
                     if (vote.voter.toLowerCase() === voterAddress.toLowerCase()) {
                       totalVotes++;
-                      const voteTime = new Date(Number(vote.timestamp) * 1000);
-                      
-                      if (!firstVoteTime || voteTime < firstVoteTime) {
-                        firstVoteTime = voteTime;
-                      }
-                      if (!lastVoteTime || voteTime > lastVoteTime) {
-                        lastVoteTime = voteTime;
-                      }
-
                       break; // Only count once per sample
                     }
                   }
@@ -251,16 +249,14 @@ export class VotingService {
             }
           }
 
-          // Use real timestamps or reasonable defaults
-          const joinedAt = firstVoteTime || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago as fallback
-          const lastActivity = lastVoteTime || joinedAt;
+          // Use real join timestamp or a fallback
+          const joinedAt = joinTimeMap.get(voterAddress.toLowerCase()) || new Date();
 
           const contribution: UserContribution = {
             address: voterAddress,
             role: role as 'coordinator' | 'contributor',
             votesCount: totalVotes,
-            joinedAt,
-            lastActivity
+            joinedAt
           };
 
           contributions.push(contribution);

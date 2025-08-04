@@ -91,7 +91,6 @@ export interface UserContribution {
   role: 'coordinator' | 'contributor';
   votesCount: number;
   joinedAt: Date;
-  lastActivity: Date;
 }
 
 export interface ProjectStats {

@@ -120,7 +120,7 @@ export const UserDashboardPanel: React.FC<UserDashboardPanelProps> = ({
           <>
             <div className="table-header" style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 100px 80px 100px 100px',
+              gridTemplateColumns: '1fr 100px 80px 100px',
               gap: '12px',
               padding: '12px',
               backgroundColor: '#f9fafb',
@@ -134,12 +134,11 @@ export const UserDashboardPanel: React.FC<UserDashboardPanelProps> = ({
               <div>Role</div>
               <div>Votes</div>
               <div>Joined</div>
-              <div>Last Activity</div>
             </div>
             {userContributions.map(user => (
               <div key={user.address} className="table-row" style={{
                 display: 'grid',
-                gridTemplateColumns: '1fr 100px 80px 100px 100px',
+                gridTemplateColumns: '1fr 100px 80px 100px',
                 gap: '12px',
                 padding: '12px',
                 border: '1px solid #e5e7eb',
@@ -182,9 +181,6 @@ export const UserDashboardPanel: React.FC<UserDashboardPanelProps> = ({
                 }}>{user.votesCount}</div>
                 <div className="col-joined" style={{ fontSize: '14px', color: '#666' }}>
                   {formatTimeAgo(user.joinedAt)}
-                </div>
-                <div className="col-activity" style={{ fontSize: '14px', color: '#666' }}>
-                  {formatTimeAgo(user.lastActivity)}
                 </div>
               </div>
             ))}
