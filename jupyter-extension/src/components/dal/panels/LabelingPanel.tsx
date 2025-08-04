@@ -721,24 +721,6 @@ export const LabelingPanel: React.FC<LabelingPanelProps> = ({
                 padding: '16px',
                 backgroundColor: '#f8fafc'
               }}>
-                <h4 style={{ marginBottom: '12px' }}> Live Voting Distribution</h4>
-                <div className="vote-distribution" style={{ 
-                  display: 'flex', 
-                  gap: '16px', 
-                  marginBottom: '12px' 
-                }}>
-                  {Object.entries(project.activeVoting?.currentVotes || {}).map(([label, count]) => (
-                    <div key={label} className="vote-item" style={{
-                      padding: '8px 12px',
-                      backgroundColor: '#e5e7eb',
-                      borderRadius: '4px',
-                      fontSize: '14px'
-                    }}>
-                      <span className="vote-label" style={{ fontWeight: 'bold' }}>{label}:</span>
-                      <span className="vote-count" style={{ marginLeft: '4px' }}>{count as number}</span>
-                    </div>
-                  ))}
-                </div>
                 <div className="time-remaining" style={{ fontSize: '14px', color: '#666' }}>
                    Time remaining: {formatTimeRemaining(timeRemaining)}
                 </div>
