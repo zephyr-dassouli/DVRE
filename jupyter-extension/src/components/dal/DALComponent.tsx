@@ -28,6 +28,10 @@ export const DALComponent: React.FC<DALComponentProps> = ({
 
   // Enrich project with AL-specific data (borrowed from useDALProject)
   const enrichProjectWithALData = useCallback(async (project: any) => {
+    // Declare variables at function level for proper scope
+    let currentRound = 1; // Default value
+    let finalTraining = false; // Track final training status
+    
     try {
       // Check deployment status from smart contract
       let isDeployed = false;
@@ -51,6 +55,22 @@ export const DALComponent: React.FC<DALComponentProps> = ({
         if (hasALContracts) {
           isDeployed = true;
           deploymentStatus = 'deployed';
+          
+          // Get the actual current round from the smart contract
+          try {
+            currentRound = Number(await projectContract.currentRound());
+          } catch (roundError) {
+            console.warn('Could not get current round:', roundError);
+            currentRound = 1; // Fallback
+          }
+          
+          // Get final training status
+          try {
+            finalTraining = await projectContract.finalTraining();
+          } catch (finalTrainingError) {
+            console.warn('Could not get final training status:', finalTrainingError);
+            finalTraining = false;
+          }
         } else {
           isDeployed = false;
           deploymentStatus = 'pending';
@@ -169,7 +189,7 @@ export const DALComponent: React.FC<DALComponentProps> = ({
         contractAddress: project.address,
         status: project.isActive ? 'active' : 'inactive',
         participants: project.participants?.length || 0,
-        currentRound: 1, // Default for non-AL projects
+        currentRound: currentRound, // Use the actual current round
         totalRounds: alConfiguration?.maxIterations || 10,
         lastUpdated: new Date(project.lastModified * 1000),
         workflowConfigured: true,
@@ -181,7 +201,8 @@ export const DALComponent: React.FC<DALComponentProps> = ({
         userRole: isOwner ? 'coordinator' : 'contributor',
         totalSamplesLabeled: 0,
         isDeployed,
-        deploymentStatus: deploymentStatus as any
+        deploymentStatus: deploymentStatus as any,
+        finalTraining: finalTraining
       } as DALProject;
     } catch (err) {
       console.error(`Failed to enrich project ${project.address} with AL data:`, err);
@@ -195,16 +216,16 @@ export const DALComponent: React.FC<DALComponentProps> = ({
         contractAddress: project.address,
         status: project.isActive ? 'active' : 'inactive',
         participants: project.participants?.length || 0,
-        currentRound: 1,
+        currentRound: currentRound, // Use the actual current round instead of hardcoded 1
         totalRounds: 10,
         lastUpdated: new Date(project.lastModified * 1000),
-      workflowConfigured: true,
+        workflowConfigured: true,
         creator: project.creator,
         isActive: project.isActive,
         alConfiguration: undefined,
         modelPerformance: undefined,
         activeVoting: undefined,
-      userRole: isOwner ? 'coordinator' : 'contributor',
+        userRole: isOwner ? 'coordinator' : 'contributor',
         totalSamplesLabeled: 0,
         isDeployed: false,
         deploymentStatus: 'pending'
@@ -518,12 +539,6 @@ export const DALComponent: React.FC<DALComponentProps> = ({
                 </div>
                 {project.isDeployed && (
                   <>
-                    {project.totalSamplesLabeled !== undefined && (
-                      <div className="stat">
-                        <span className="label">Samples Labeled:</span>
-                        <span className="value">{project.totalSamplesLabeled}</span>
-                      </div>
-                    )}
                     {project.modelPerformance?.accuracy && (
                       <div className="stat">
                         <span className="label">Accuracy:</span>
