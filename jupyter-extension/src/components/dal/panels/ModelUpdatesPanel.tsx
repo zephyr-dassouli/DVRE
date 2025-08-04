@@ -71,7 +71,7 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
                   fontSize: '14px',
                   fontWeight: 'bold'
                 }}>
-                  {update.isFinalTraining ? `${update.samplesAddedCount} training samples` : `+${update.samplesAddedCount} samples`}
+                  {update.isFinalTraining ? `${update.totalTrainingSamples} training samples` : `${update.totalTrainingSamples} training samples`}
                 </div>
               </div>
               <div className="performance-metrics" style={{
