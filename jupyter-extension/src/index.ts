@@ -31,12 +31,18 @@ const authIcon = new LabIcon({
 
 const dalIcon = new LabIcon({
   name: 'my-extension:dal',
-  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="3" cy="4" r="1.5" fill="currentColor"/><circle cx="8" cy="2" r="1.5" fill="currentColor"/><circle cx="13" cy="4" r="1.5" fill="currentColor"/><circle cx="2" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="14" cy="8" r="1.5" fill="currentColor"/><circle cx="3" cy="12" r="1.5" fill="currentColor"/><circle cx="8" cy="14" r="1.5" fill="currentColor"/><circle cx="13" cy="12" r="1.5" fill="currentColor"/><path d="M3 5.5L8 3.5M8 3.5L13 5.5M2 9.5L8 9.5M8 9.5L14 9.5M3 10.5L8 12.5M8 12.5L13 10.5" stroke="currentColor" stroke-width="0.8" fill="none" opacity="0.7"/></svg>'
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="3" r="1.2" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="12.4" cy="5.5" r="1.2" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="12.4" cy="10.5" r="1.2" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="8" cy="13" r="1.2" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="3.6" cy="10.5" r="1.2" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="3.6" cy="5.5" r="1.2" fill="none" stroke="currentColor" stroke-width="1"/></svg>'
 });
+
+// project hub icon
+// const collaborationIcon = new LabIcon({
+//   name: 'my-extension:collaboration',
+//   svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M5.216 14A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216z"/><path d="M4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg>'
+// });
 
 const collaborationIcon = new LabIcon({
   name: 'my-extension:collaboration',
-  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M5.216 14A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216z"/><path d="M4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg>'
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><circle cx="8" cy="8" r="1.8" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="2.5" r="1" fill="currentColor"/><circle cx="13.5" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="13.5" r="1" fill="currentColor"/><circle cx="2.5" cy="8" r="1" fill="currentColor"/><circle cx="11.7" cy="4.3" r="1" fill="currentColor"/><circle cx="11.7" cy="11.7" r="1" fill="currentColor"/><circle cx="4.3" cy="11.7" r="1" fill="currentColor"/><circle cx="4.3" cy="4.3" r="1" fill="currentColor"/><line x1="8" y1="6.2" x2="8" y2="3.5" stroke="currentColor" stroke-width="1.2"/><line x1="9.8" y1="8" x2="12.5" y2="8" stroke="currentColor" stroke-width="1.2"/><line x1="8" y1="9.8" x2="8" y2="12.5" stroke="currentColor" stroke-width="1.2"/><line x1="6.2" y1="8" x2="3.5" y2="8" stroke="currentColor" stroke-width="1.2"/><line x1="9.4" y1="6.6" x2="10.7" y2="5.3" stroke="currentColor" stroke-width="1.2"/><line x1="9.4" y1="9.4" x2="10.7" y2="10.7" stroke="currentColor" stroke-width="1.2"/><line x1="6.6" y1="9.4" x2="5.3" y2="10.7" stroke="currentColor" stroke-width="1.2"/><line x1="6.6" y1="6.6" x2="5.3" y2="5.3" stroke="currentColor" stroke-width="1.2"/></svg>'
 });
 
 const graphIcon = new LabIcon({
@@ -44,70 +50,29 @@ const graphIcon = new LabIcon({
   svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="3" cy="3" r="2" fill="currentColor"/><circle cx="13" cy="3" r="2" fill="currentColor"/><circle cx="8" cy="13" r="2" fill="currentColor"/><path d="M5 3h6M11 5l-3 6M5 5l3 6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>'
 });
 
+// const federatedLearningIcon = new LabIcon({
+//   name: 'my-extension:federated-learning',
+//   svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="4" r="1" fill="currentColor"/><circle cx="4" cy="8" r="1" fill="currentColor"/><circle cx="12" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="12" r="1" fill="currentColor"/><path d="M8 5v2M6 8h2M8 10v2M10 8h2" stroke="currentColor" stroke-width="1"/></svg>'
+// });
+
 const federatedLearningIcon = new LabIcon({
   name: 'my-extension:federated-learning',
-  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="4" r="1" fill="currentColor"/><circle cx="4" cy="8" r="1" fill="currentColor"/><circle cx="12" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="12" r="1" fill="currentColor"/><path d="M8 5v2M6 8h2M8 10v2M10 8h2" stroke="currentColor" stroke-width="1"/></svg>'
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="4" r="1" fill="currentColor"/><circle cx="4" cy="8" r="1" fill="currentColor"/><circle cx="12" cy="8" r="1" fill="currentColor"/><circle cx="8" cy="12" r="1" fill="currentColor"/><path d="M8 6v4M6 8h4" stroke="currentColor" stroke-width="1.2"/></svg>'
 });
 
 const ipfsIcon = new LabIcon({
   name: 'my-extension:ipfs',
-  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="4" r="1.5" fill="currentColor"/><circle cx="4" cy="10" r="1.5" fill="currentColor"/><circle cx="12" cy="10" r="1.5" fill="currentColor"/><path d="M8 5.5L6.5 9.5M8 5.5L9.5 9.5M6.5 9.5L9.5 9.5" stroke="currentColor" stroke-width="1" fill="none"/></svg>'
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><ellipse cx="8" cy="3.5" rx="4" ry="1" fill="currentColor"/><path d="M4 3.5v1.8c0 .5 1.8 1 4 1s4-.5 4-1V3.5" fill="none" stroke="currentColor" stroke-width="1"/><ellipse cx="8" cy="8" rx="4" ry="1" fill="currentColor"/><path d="M4 8v1.8c0 .5 1.8 1 4 1s4-.5 4-1V8" fill="none" stroke="currentColor" stroke-width="1"/><ellipse cx="8" cy="12.5" rx="4" ry="1" fill="currentColor"/><path d="M4 12.5v1.8c0 .5 1.8 1 4 1s4-.5 4-1V12.5" fill="none" stroke="currentColor" stroke-width="1"/></svg>'
 });
 
 const deploymentIcon = new LabIcon({
   name: 'my-extension:deployment',
-  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M8 1.5L13 6v3L8 14.5L3 9V6l5-4.5z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 1.5L8 6M8 6L6 8M8 6L10 8" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8" cy="9" r="1" fill="currentColor"/><path d="M5 12L11 12" stroke="currentColor" stroke-width="1.2"/></svg>'
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/><path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/></svg>'
 });
-
-/*
-// Dynamic icon for discovered extensions - DISABLED
-const createExtensionIcon = (name: string) => new LabIcon({
-  name: `dvre-extension:${name}`,
-  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4v8M4 8h8" stroke="currentColor" stroke-width="1.5"/><path d="M6 6l4 4M10 6l-4 4" stroke="currentColor" stroke-width="1" opacity="0.7"/></svg>'
-});
-
-// Extension Info Widget class - DISABLED
-class ExtensionInfoWidget extends Widget {
-  constructor(extensionInfo: any) {
-    super();
-    this.addClass('dvre-extension-info');
-    
-    const div = document.createElement('div');
-    div.style.padding = '20px';
-    div.style.fontFamily = 'var(--jp-ui-font-family)';
-    
-    div.innerHTML = `
-      <h2>${extensionInfo.manifest.displayName}</h2>
-      <p><strong>Version:</strong> ${extensionInfo.manifest.version}</p>
-      <p><strong>Category:</strong> ${extensionInfo.manifest.category || 'General'}</p>
-      <p><strong>Description:</strong> ${extensionInfo.manifest.description}</p>
-      <p><strong>Author:</strong> ${extensionInfo.manifest.author}</p>
-      
-      <h3>Capabilities</h3>
-      <ul>
-        ${extensionInfo.manifest.compute?.capabilities?.map(cap => `<li>${cap}</li>`).join('') || '<li>No capabilities listed</li>'}
-      </ul>
-      
-      <h3>Permissions</h3>
-      <ul>
-        ${extensionInfo.manifest.permissions.map(perm => `<li>${perm}</li>`).join('')}
-      </ul>
-      
-      <div style="margin-top: 20px; padding: 15px; background: var(--jp-warn-color3); border-radius: 4px;">
-        <strong>Note:</strong> This is a placeholder. The actual extension functionality would be loaded here.
-        <br><br>
-        <strong>To enable full functionality:</strong> Install the separate ${extensionInfo.name} extension package.
-      </div>
-    `;
-    
-    this.node.appendChild(div);
-  }
-}
-*/
 
 const userRegistryIcon = new LabIcon({
   name: 'my-extension:user-registry',
-  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4 0 .667.333 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>'
+  svgstr: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path d="M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1h8zm-7.978-1A.261.261 0 0 1 7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002a.274.274 0 0 1-.014.002H7.022zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6.936 9.28a5.88 5.88 0 0 0-1.23-.247A7.35 7.35 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216A2.238 2.238 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816zM4.92 10A5.493 5.493 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275zM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>'
 });
 
 const plugin: JupyterFrontEndPlugin<void> = {

@@ -12,7 +12,7 @@ export class DALWidget extends ReactWidget {
     this.addClass('jp-DALWidget');
     this.title.label = 'Active Learning';
     this.title.caption = 'Decentralized Active Learning Projects';
-    this.title.iconClass = 'jp-MaterialIcon jp-MLIcon';
+    // Icon is set in the main command definition (index.ts) using dalIcon
   }
 
   render(): JSX.Element {

@@ -18,6 +18,7 @@ export class ProjectDeploymentWidget extends ReactWidget {
     this.addClass('project-deployment-widget');
     this.title.label = this._title;
     this.title.closable = true;
+    // Icon is set in the main command definition (index.ts) using deploymentIcon
   }
 
   protected render(): JSX.Element {

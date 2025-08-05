@@ -230,27 +230,27 @@ export class DeploymentOrchestrator {
           result.steps.assetContractStorage = 'failed';
           // Continue - asset storage is not critical
         }
-      }
+        }
 
       // Step 3: Local RO-Crate Save (for local computation mode)
-      if (computationMode === 'local') {
+        if (computationMode === 'local') {
         console.log('Step 3: Saving RO-Crate locally for AL-Engine...');
-        try {
-          const { localROCrateService } = await import('./LocalROCrateService');
-          const { roCrateService } = await import('./ROCrateService');
-          
-          const roCrateData = roCrateService.generateROCrateJSON(config);
-          const localSaveResult = await localROCrateService.saveROCrateLocally(
-            projectId, 
-            roCrateData, 
-            config
-          );
-          
-          if (localSaveResult.success) {
-            result.steps.localROCrateSave = 'success';
-            result.localROCratePath = localSaveResult.projectPath;
+          try {
+            const { localROCrateService } = await import('./LocalROCrateService');
+            const { roCrateService } = await import('./ROCrateService');
+            
+            const roCrateData = roCrateService.generateROCrateJSON(config);
+            const localSaveResult = await localROCrateService.saveROCrateLocally(
+              projectId, 
+              roCrateData, 
+              config
+            );
+            
+            if (localSaveResult.success) {
+              result.steps.localROCrateSave = 'success';
+              result.localROCratePath = localSaveResult.projectPath;
             console.log(' RO-Crate saved locally:', localSaveResult.projectPath);
-          } else {
+            } else {
             result.steps.localROCrateSave = 'failed';
             console.warn(' Local RO-Crate save failed:', localSaveResult.error);
           }
@@ -266,27 +266,27 @@ export class DeploymentOrchestrator {
       if (computationMode === 'remote') {
         console.log(' Step 4: Deploying to orchestration server...');
         try {
-          const { workflowService } = await import('./WorkflowService');
-          
-          const workflowConfig = {
-            projectId,
-            workflowType: this.getWorkflowType(config),
+            const { workflowService } = await import('./WorkflowService');
+            
+            const workflowConfig = {
+              projectId,
+              workflowType: this.getWorkflowType(config),
             orchestratorEndpoint: workflowService.getOrchestratorEndpoint(),
-            configuration: {
+              configuration: {
               roCrateHash: result.roCrateHash,
-              projectData: config.projectData,
-              extensions: config.extensions,
-              contractAddress: config.contractAddress
-            }
-          };
+                projectData: config.projectData,
+                extensions: config.extensions,
+                contractAddress: config.contractAddress
+              }
+            };
 
-          const workflowResult = await workflowService.submitWorkflowToOrchestrator(workflowConfig);
-          
-          if (workflowResult.success) {
-            result.steps.orchestrationDeploy = 'success';
-            result.orchestrationWorkflowId = workflowResult.workflowId;
+            const workflowResult = await workflowService.submitWorkflowToOrchestrator(workflowConfig);
+            
+            if (workflowResult.success) {
+              result.steps.orchestrationDeploy = 'success';
+              result.orchestrationWorkflowId = workflowResult.workflowId;
             console.log(' Orchestration deployment successful');
-          } else {
+            } else {
             result.steps.orchestrationDeploy = 'failed';
             console.error(' Orchestration deployment failed:', workflowResult.error);
           }
@@ -326,7 +326,7 @@ export class DeploymentOrchestrator {
     roCrateHash: string
   ): Promise<{ success: boolean; votingContract?: string; storageContract?: string; alProject?: string; error?: string }> {
     console.log(' Starting AL deployment with ALProjectDeployer');
-
+    
     try {
       // Get blockchain connection
       const provider = new ethers.BrowserProvider((window as any).ethereum);
