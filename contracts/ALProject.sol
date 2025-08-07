@@ -14,7 +14,7 @@ interface IProject {
     function getParticipantRole(address _participant) external view returns (string memory);
     function addParticipantWithRole(address _participant, string memory _role, uint256 _weight) external;
     function updateParticipant(address _participant, string memory _role, uint256 _weight) external;
-    function updateROCrateHash(string memory _rocrateHash) external;
+    function updateROCrateAsset(address _rocrateAsset) external;  // Changed from updateROCrateHash
 }
 
 // AL Contract Interfaces

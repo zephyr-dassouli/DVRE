@@ -10,13 +10,13 @@ interface IALProject {
         uint256 maxIteration,
         uint256 queryBatchSize,
         string[] memory labelSpace,
-        string memory rocrateHash
+        string memory rocrateHash      // Keep hash for AL project internal storage
     ) external;
 }
 
 interface IProject {
     function setALExtension(address _alExtension) external;
-    function updateROCrateHash(string memory _rocrateHash) external;
+    function updateROCrateAsset(address _rocrateAsset) external;  // Changed from updateROCrateHash
     function creator() external view returns (address);
 }
 
@@ -37,7 +37,7 @@ contract ALProjectLinker {
     event ALProjectSetupStarted(address indexed alProject);
     event ALProjectSetupCompleted(address indexed alProject);
     event ALExtensionLinked(address indexed baseProject, address indexed alProject);
-    event ROCrateHashUpdated(address indexed baseProject, string rocrateHash);
+    event ROCrateAssetUpdated(address indexed baseProject, address rocrateAsset);  // Changed event
     
     /**
      * @dev Setup ALProject only (called by ALProjectDeployer)
@@ -79,7 +79,7 @@ contract ALProjectLinker {
      * @param maxIteration Maximum iterations
      * @param queryBatchSize Batch size
      * @param labelSpace Label space array
-     * @param rocrateHash RO-Crate hash
+     * @param rocrateAsset RO-Crate asset address
      */
     function linkALProject(
         address baseProject,
@@ -91,7 +91,7 @@ contract ALProjectLinker {
         uint256 maxIteration,
         uint256 queryBatchSize,
         string[] calldata labelSpace,
-        string calldata rocrateHash
+        address rocrateAsset                    // Changed parameter type from string to address
     ) external {
         // Setup AL project with voting and storage contracts
         emit ALProjectSetupStarted(alProject);
@@ -103,7 +103,7 @@ contract ALProjectLinker {
             maxIteration,
             queryBatchSize,
             labelSpace,
-            rocrateHash
+            ""  // Pass empty string for hash since we're now using asset address
         );
         emit ALProjectSetupCompleted(alProject);
         
@@ -111,9 +111,9 @@ contract ALProjectLinker {
         IProject(baseProject).setALExtension(alProject);
         emit ALExtensionLinked(baseProject, alProject);
         
-        // Update RO-Crate hash on base project
-        IProject(baseProject).updateROCrateHash(rocrateHash);
-        emit ROCrateHashUpdated(baseProject, rocrateHash);
+        // Update RO-Crate asset address on base project
+        IProject(baseProject).updateROCrateAsset(rocrateAsset);   // Changed from updateROCrateHash
+        emit ROCrateAssetUpdated(baseProject, rocrateAsset);      // Changed event emission
         
         emit ALProjectLinked(baseProject, alProject, votingContract, storageContract);
     }

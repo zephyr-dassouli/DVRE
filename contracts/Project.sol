@@ -13,8 +13,8 @@ contract Project {
     string public title;
     string public description;
     string public projectType;
-    string public rocrateHash;
-    string public rocrateHashFinal; // Final RO-Crate hash for published results
+    address public rocrateAsset;          // Changed from string rocrateHash to address rocrateAsset
+    address public rocrateAssetFinal;     // Changed from string rocrateHashFinal to address rocrateAssetFinal
     uint256 public startTime;
     uint256 public endTime;
     
@@ -63,7 +63,7 @@ contract Project {
     // Common Project Events
     event ProjectCreated(address indexed creator, uint256 timestamp);
     event ProjectUpdated(address indexed updater, uint256 timestamp);
-    event FinalROCrateHashUpdated(address indexed updater, string rocrateHashFinal, uint256 timestamp);
+    event FinalROCrateAssetUpdated(address indexed updater, address rocrateAssetFinal, uint256 timestamp);  // Changed event
     event ProjectDeactivated(address indexed creator, uint256 timestamp);
     event ProjectReactivated(address indexed creator, uint256 timestamp);
     event ParticipantAutoAdded(address indexed participant, string role, uint256 weight);
@@ -112,25 +112,25 @@ contract Project {
         string memory _title,
         string memory _description,
         string memory _projectType,
-        string memory _rocrateHash
+        address _rocrateAsset                // Changed parameter type
     ) external onlyCreator {
         title = _title;
         description = _description;
         projectType = _projectType;
-        rocrateHash = _rocrateHash;
+        rocrateAsset = _rocrateAsset;        // Changed assignment
         lastModified = block.timestamp;
     }
     
-    function setFinalROCrateHash(string memory _rocrateHashFinal) external onlyCreator {
-        require(bytes(_rocrateHashFinal).length > 0, "Final RO-Crate hash cannot be empty");
-        rocrateHashFinal = _rocrateHashFinal;
+    function setFinalROCrateAsset(address _rocrateAssetFinal) external onlyCreator {  // Changed function name and parameter
+        require(_rocrateAssetFinal != address(0), "Final RO-Crate asset cannot be zero address");
+        rocrateAssetFinal = _rocrateAssetFinal;
         lastModified = block.timestamp;
-        emit FinalROCrateHashUpdated(msg.sender, _rocrateHashFinal, block.timestamp);
+        emit FinalROCrateAssetUpdated(msg.sender, _rocrateAssetFinal, block.timestamp);
     }
     
-    function updateROCrateHash(string memory _rocrateHash) external virtual onlyCreatorOrDelegate {
-        require(bytes(_rocrateHash).length > 0, "RO-Crate hash cannot be empty");
-        rocrateHash = _rocrateHash;
+    function updateROCrateAsset(address _rocrateAsset) external virtual onlyCreatorOrDelegate {  // Changed function name and parameter
+        require(_rocrateAsset != address(0), "RO-Crate asset cannot be zero address");
+        rocrateAsset = _rocrateAsset;
         lastModified = block.timestamp;
         emit ProjectUpdated(msg.sender, block.timestamp);
     }
@@ -380,8 +380,8 @@ contract Project {
         return creator;
     }
     
-    function getFinalROCrateHash() external view returns (string memory) {
-        return rocrateHashFinal;
+    function getFinalROCrateAsset() external view returns (address) {        // Changed function name and return type
+        return rocrateAssetFinal;
     }
     
     function getProjectData() external view returns (string memory) {
@@ -406,11 +406,11 @@ contract Project {
         string memory _description,
         address _owner,
         string memory _projectType,
-        string memory _rocrateHash,
+        address _rocrateAsset,               // Changed return type
         uint256 _start,
         uint256 _end
     ) {
-        return (title, description, creator, projectType, rocrateHash, startTime, endTime);
+        return (title, description, creator, projectType, rocrateAsset, startTime, endTime);  // Changed return value
     }
     
     // --- AL Extension Management ---

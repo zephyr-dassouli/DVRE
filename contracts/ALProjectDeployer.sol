@@ -15,7 +15,7 @@ interface IAssetFactory {
 }
 
 interface IProject {
-    function updateROCrateHash(string memory _rocrateHash) external;
+    function updateROCrateAsset(address _rocrateAsset) external;  // Changed from updateROCrateHash
     function creator() external view returns (address);
     function setALExtension(address _alProject) external;
     function approveDelegate(address _delegate) external;
@@ -169,7 +169,7 @@ contract ALProjectDeployer {
         // NOTE: The user must have pre-approved this deployer as a delegate
         // by calling project.approveDelegate(ALProjectDeployerAddress) before deployment
         IProject(baseProject).setALExtension(alProject);
-        IProject(baseProject).updateROCrateHash(rocrateHash);
+        IProject(baseProject).updateROCrateAsset(roCrateAsset);  // Changed from updateROCrateHash to updateROCrateAsset
         
         emit LinkingCompleted(baseProject, alProject);
         
