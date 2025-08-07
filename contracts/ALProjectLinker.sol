@@ -10,7 +10,7 @@ interface IALProject {
         uint256 maxIteration,
         uint256 queryBatchSize,
         string[] memory labelSpace,
-        string memory rocrateHash      // Keep hash for AL project internal storage
+        address rocrateAsset      // Keep hash for AL project internal storage
     ) external;
 }
 
@@ -63,7 +63,7 @@ contract ALProjectLinker {
             maxIteration,
             queryBatchSize,
             labelSpace,
-            "" // empty rocrateHash since ALProjectDeployer handles it
+            address(0) // empty rocrateHash since ALProjectDeployer handles it
         );
         emit ALProjectSetupCompleted(alProject);
     }
@@ -103,7 +103,7 @@ contract ALProjectLinker {
             maxIteration,
             queryBatchSize,
             labelSpace,
-            ""  // Pass empty string for hash since we're now using asset address
+            address(0)  // Pass empty address for hash since we're now using asset address
         );
         emit ALProjectSetupCompleted(alProject);
         

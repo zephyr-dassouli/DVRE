@@ -23,6 +23,7 @@ export interface DeploymentResults {
     localFileDownload: 'success' | 'failed' | 'skipped';
   };
   roCrateHash?: string;
+  roCrateAssetAddress?: string;           // Added RO-Crate asset address
   assetContractAddress?: string;
   orchestrationWorkflowId?: string;
   localROCratePath?: string;
@@ -161,10 +162,11 @@ export class DeploymentOrchestrator {
               voting: alContractResult.votingContract!,
               storage: alContractResult.storageContract!
             };
-            result.steps.smartContractUpdate = 'success';
+            result.steps.smartContractUpdate = 'success';  // ALProjectDeployer handles Project contract updates
             result.steps.assetContractStorage = 'success'; // ALProjectDeployer creates the asset
+            result.roCrateAssetAddress = alContractResult.roCrateAsset;  // Store the RO-Crate asset address
             console.log(' AL contracts deployed successfully:', result.alContractAddresses);
-            console.log(' RO-Crate asset and linking handled by ALProjectDeployer');
+            console.log(' RO-Crate asset created and linked by ALProjectDeployer:', result.roCrateAssetAddress);
           } else {
             throw new Error(alContractResult.error || 'AL contract deployment failed');
           }
@@ -173,64 +175,14 @@ export class DeploymentOrchestrator {
           throw new Error(`AL contract deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       } else {
-        // Step 2.1: For non-AL projects, update RO-Crate hash and create asset manually
-        console.log(' Step 2.1: Updating RO-Crate hash on Project contract...');
-        try {
-          const provider = new ethers.BrowserProvider((window as any).ethereum);
-          const signer = await provider.getSigner();
-          const projectContract = new ethers.Contract(config.contractAddress!, Project.abi, signer);
-          
-          const updateHashTx = await projectContract.updateROCrateHash(result.roCrateHash);
-          await updateHashTx.wait();
-          
-          result.steps.smartContractUpdate = 'success';
-          console.log(' RO-Crate hash updated on Project contract');
-        } catch (error) {
-          console.warn(' Failed to update RO-Crate hash on Project contract:', error);
-          result.steps.smartContractUpdate = 'failed';
-        }
-
-        // Step 2.2: Create RO-Crate asset for non-AL projects
-        console.log(' Step 2.2: Creating RO-Crate as blockchain asset...');
-        try {
-          const AssetService = (await import('../../../utils/AssetService')).AssetService;
-          const assetService = new AssetService();
-          
-          // Get project contributors for asset viewers
-          let contributors: string[] = [];
-          if (config.contractAddress) {
-            try {
-              const { getAllParticipantsForProject } = await import('../../../hooks/useProjects');
-              const participantsData = await getAllParticipantsForProject(config.contractAddress);
-              
-              contributors = participantsData.participantAddresses.filter((address, index) => {
-                const role = participantsData.roles[index];
-                const isNotOwner = address.toLowerCase() !== userAddress.toLowerCase();
-                const isContributor = role === 'contributor' || role === 'coordinator';
-                return isNotOwner && isContributor;
-              });
-            } catch (error) {
-              console.warn(' Failed to get contributors:', error);
-            }
-          }
-          
-          const assetName = `ro-crate-${projectId}-initial`;
-          const assetContractAddress = await assetService.createAsset(
-            assetName,
-            'ro-crate',
-            result.roCrateHash,
-            contributors
-          );
-          
-          result.assetContractAddress = assetContractAddress;
-          result.steps.assetContractStorage = 'success';
-          console.log(' RO-Crate asset created:', assetContractAddress);
-        } catch (error) {
-          console.error(' Asset contract storage failed:', error);
-          result.steps.assetContractStorage = 'failed';
-          // Continue - asset storage is not critical
-        }
-        }
+        // Step 2: For non-AL projects, skip redundant asset creation
+        // The IPFS hash is sufficient for non-AL projects
+        // Asset creation can be handled separately if/when needed
+        console.log(' Step 2: Non-AL project - skipping asset contract creation');
+        console.log(' RO-Crate hash available via IPFS:', result.roCrateHash);
+        result.steps.assetContractStorage = 'skipped';
+        result.steps.smartContractUpdate = 'skipped';
+      }
 
       // Step 3: Local RO-Crate Save (for local computation mode)
         if (computationMode === 'local') {
@@ -274,6 +226,7 @@ export class DeploymentOrchestrator {
             orchestratorEndpoint: workflowService.getOrchestratorEndpoint(),
               configuration: {
               roCrateHash: result.roCrateHash,
+              roCrateAssetAddress: result.roCrateAssetAddress,  // Include asset address in workflow config
                 projectData: config.projectData,
                 extensions: config.extensions,
                 contractAddress: config.contractAddress
@@ -324,7 +277,7 @@ export class DeploymentOrchestrator {
     config: DVREProjectConfiguration, 
     userAddress: string,
     roCrateHash: string
-  ): Promise<{ success: boolean; votingContract?: string; storageContract?: string; alProject?: string; error?: string }> {
+  ): Promise<{ success: boolean; votingContract?: string; storageContract?: string; alProject?: string; roCrateAsset?: string; error?: string }> {
     console.log(' Starting AL deployment with ALProjectDeployer');
     
     try {
@@ -511,21 +464,24 @@ export class DeploymentOrchestrator {
       console.log('Storage contract:', storageContract);
       console.log('RO-Crate asset:', roCrateAsset, '(owned by user)');
       
-      // Verify the AL extension was linked
+      // Verify the AL extension was linked and asset address was stored
       try {
         const ProjectABI = (await import('../../../abis/Project.json')).default;
         const projectContract = new ethers.Contract(config.contractAddress!, ProjectABI.abi, signer);
         const linkedALExtension = await projectContract.getALExtension();
+        const storedAssetAddress = await projectContract.rocrateAsset();  // Get the stored asset address
         console.log('Verification - AL extension linked:', linkedALExtension === alProject);
+        console.log('Verification - RO-Crate asset stored:', storedAssetAddress === roCrateAsset);
       } catch (verifyError) {
-        console.warn('Could not verify AL extension linking:', verifyError);
+        console.warn('Could not verify AL extension linking or asset storage:', verifyError);
       }
 
       return {
         success: true,
         alProject: alProject,
         votingContract: votingContract,
-        storageContract: storageContract
+        storageContract: storageContract,
+        roCrateAsset: roCrateAsset  // Return the RO-Crate asset address
       };
       
     } catch (error) {

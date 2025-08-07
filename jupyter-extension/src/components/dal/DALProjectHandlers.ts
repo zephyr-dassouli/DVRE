@@ -433,17 +433,17 @@ export const createProjectHandlers = (deps: HandlerDependencies): ProjectHandler
         console.log(' Final results asset created with viewers at:', assetContractAddress);
         console.log(` Added ${contributors.length} contributors as viewers to final results asset`);
         
-        // Step 5b: Update Project contract with final RO-Crate hash
-        console.log(' Updating Project contract with final RO-Crate hash...');
+        // Step 5b: Update Project contract with final RO-Crate asset address
+        console.log(' Updating Project contract with final RO-Crate asset address...');
         
-        // Get the base Project contract (setFinalROCrateHash is on base Project, not ALProject)
+        // Get the base Project contract (setFinalROCrateAsset is on base Project, not ALProject)
         const Project = (await import('../../abis/Project.json')).default;
         const projectContract = new ethers.Contract(baseProjectAddress, Project.abi, signer);
         
-        // Use the setFinalROCrateHash function on base Project contract
-        const setFinalHashTx = await projectContract.setFinalROCrateHash(ipfsResults.hash);
-        await setFinalHashTx.wait();
-        console.log(' Project contract updated with final RO-Crate hash');
+        // Use the setFinalROCrateAsset function on base Project contract with asset address
+        const setFinalAssetTx = await projectContract.setFinalROCrateAsset(assetContractAddress);
+        await setFinalAssetTx.wait();
+        console.log(' Project contract updated with final RO-Crate asset address');
         
       } catch (contractError) {
         console.warn(' Failed to create asset or update smart contract (continuing anyway):', contractError);

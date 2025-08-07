@@ -129,7 +129,7 @@ contract ALProject {
         uint256 _maxIteration,
         uint256 _queryBatchSize,
         string[] memory _labelSpace,
-        string memory _rocrateHash
+        address _rocrateAsset
     ) external {
         // During initial setup, allow any caller (ALProjectLinker)
         // After setup, only allow creator
