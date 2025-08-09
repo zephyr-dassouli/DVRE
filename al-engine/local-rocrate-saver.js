@@ -22,7 +22,7 @@ class LocalROCrateSaver {
   }
 
   async saveROCrateBundle(projectId, bundleData) {
-    console.log(`📁 Saving RO-Crate for project ${projectId}...`);
+    console.log(`Saving RO-Crate for project ${projectId}...`);
     
     try {
       // Create project directory
@@ -43,7 +43,7 @@ class LocalROCrateSaver {
         await fs.writeFile(filePath, file.content, 'utf8');
         savedFiles.push(file.name);
         
-        console.log(`💾 Saved: ${file.name} (${file.content.length} bytes)`);
+        console.log(`Saved: ${file.name} (${file.content.length} bytes)`);
       }
 
       // Create project manifest
@@ -60,9 +60,9 @@ class LocalROCrateSaver {
       await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
       savedFiles.push('project-manifest.json');
       
-      console.log(`✅ Successfully saved RO-Crate for project ${projectId}`);
-      console.log(`📂 Location: ${projectDir}`);
-      console.log(`📄 Files saved: ${savedFiles.length}`);
+      console.log(`Successfully saved RO-Crate for project ${projectId}`);
+      console.log(`Location: ${projectDir}`);
+      console.log(`Files saved: ${savedFiles.length}`);
 
       return {
         success: true,
@@ -72,7 +72,7 @@ class LocalROCrateSaver {
       };
 
     } catch (error) {
-      console.error(`❌ Failed to save RO-Crate for project ${projectId}:`, error);
+      console.error(`Failed to save RO-Crate for project ${projectId}:`, error);
       return {
         success: false,
         error: error.message
@@ -87,7 +87,7 @@ class LocalROCrateSaver {
         .filter(entry => entry.isDirectory())
         .map(entry => entry.name);
       
-      console.log(`📋 Found ${projects.length} local projects:`, projects);
+      console.log(`Found ${projects.length} local projects:`, projects);
       return projects;
     } catch (error) {
       console.error('Failed to list local projects:', error);
@@ -109,7 +109,7 @@ class LocalROCrateSaver {
     try {
       const projectDir = path.join(this.projectFilesDir, projectId);
       await fs.rm(projectDir, { recursive: true, force: true });
-      console.log(`🗑️ Removed project ${projectId}`);
+      console.log(`Removed project ${projectId}`);
       return true;
     } catch (error) {
       console.error(`Failed to remove project ${projectId}:`, error);
@@ -182,7 +182,7 @@ class LocalROCrateSaver {
               return;
             }
 
-            console.log(`📁 Reading file: ${filePath}`);
+            console.log(`Reading file: ${filePath}`);
 
             // Security check: only allow reading from al-engine/ro-crates directory
             if (!filePath.includes('al-engine/ro-crates/') || filePath.includes('..')) {
@@ -224,8 +224,8 @@ class LocalROCrateSaver {
     });
 
     server.listen(this.port, 'localhost', () => {
-      console.log(`🚀 Local RO-Crate Saver running on http://localhost:${this.port}`);
-      console.log(`📂 Project files directory: ${this.projectFilesDir}`);
+      console.log(`Local RO-Crate Saver running on http://localhost:${this.port}`);
+      console.log(`Project files directory: ${this.projectFilesDir}`);
       console.log('Available endpoints:');
       console.log('  POST /save-rocrate - Save RO-Crate bundle');
       console.log('  GET /projects - List all projects');
