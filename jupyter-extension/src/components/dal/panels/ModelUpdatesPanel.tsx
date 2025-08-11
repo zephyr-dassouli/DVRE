@@ -1,10 +1,33 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ModelUpdatesPanelProps } from './PanelTypes';
 
 export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
+  project,
+  currentUser,
+  isCoordinator,
   modelUpdates,
-  isCoordinator
+  onRefresh,
+  onRefreshModelUpdates,
+  onError
 }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      // Use targeted refresh if available, otherwise fall back to general refresh
+      if (onRefreshModelUpdates) {
+        await onRefreshModelUpdates();
+      } else {
+        await onRefresh();
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Failed to refresh model updates');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   if (!isCoordinator) {
     return (
       <div className="model-updates-panel">
@@ -33,9 +56,38 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
 
   return (
     <div className="model-updates-panel">
-      <div className="panel-header">
-        <h3>Model Updates History</h3>
-        <p>Performance statistics for each iteration (latest on top)</p>
+      <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3>Model Updates History</h3>
+          <p>Performance statistics for each iteration (latest on top)</p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          style={{
+            backgroundColor: isRefreshing ? '#f3f4f6' : '#3b82f6',
+            color: isRefreshing ? '#6b7280' : 'white',
+            border: 'none',
+            borderRadius: '6px',
+            padding: '8px 16px',
+            fontSize: '14px',
+            fontWeight: '500',
+            cursor: isRefreshing ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.2s'
+          }}
+        >
+          <span style={{
+            display: 'inline-block',
+            animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+            transformOrigin: 'center'
+          }}>
+            ↻
+          </span>
+          {isRefreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
       </div>
       <div className="updates-list">
         {modelUpdates.length > 0 ? (
@@ -127,10 +179,35 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
             </div>
             <div style={{ color: '#666', fontSize: '14px' }}>
               Model performance data will appear here after active learning iterations begin.
+              <br />
+              <button
+                onClick={handleRefresh}
+                style={{
+                  marginTop: '12px',
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                Check for Updates
+              </button>
             </div>
           </div>
         )}
       </div>
+      
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </div>
   );
 };

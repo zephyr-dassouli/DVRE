@@ -85,6 +85,20 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
     setRefreshTrigger(prev => prev + 1);
   };
 
+  // Targeted refresh function for model updates only
+  const refreshModelUpdatesOnly = async () => {
+    try {
+      console.log('[MODEL_UPDATES] Refreshing model updates only...');
+      const { alContractService } = await import('./services/ALContractService');
+      const updates = await alContractService.getModelUpdates(project.contractAddress);
+      setModelUpdates(updates);
+      console.log(`[MODEL_UPDATES] ✅ Refreshed ${updates.length} model updates`);
+    } catch (error) {
+      console.error('[MODEL_UPDATES] ❌ Failed to refresh model updates:', error);
+      throw error; // Re-throw to be handled by the panel
+    }
+  };
+
   // Create data loader
   const dataLoader = createDataLoader({
     project,
@@ -519,6 +533,7 @@ export const DALProjectPage: React.FC<DALProjectPageProps> = ({ project, onBack 
             modelUpdates={modelUpdates}
             onRefresh={handlers.handleRefreshData}
             onError={setError}
+            onRefreshModelUpdates={refreshModelUpdatesOnly}
           />
         )}
 

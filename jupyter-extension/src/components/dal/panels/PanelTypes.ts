@@ -45,6 +45,7 @@ export interface ControlPanelProps extends BasePanelProps {
 
 export interface ModelUpdatesPanelProps extends BasePanelProps {
   modelUpdates: ModelUpdate[];
+  onRefreshModelUpdates?: () => Promise<void>; // Optional targeted refresh for model updates only
 }
 
 export interface UserDashboardPanelProps extends BasePanelProps {
