@@ -374,15 +374,17 @@ export class ALContractService {
             if (response.ok) {
               const ipfsData = await response.json();
               
-              // Extract the actual sample data from the IPFS structure
-              if (ipfsData.data) {
-                sampleData.push(ipfsData.data);
-                console.log(` Loaded sample data from IPFS for ${sampleId}`);
+              // The uploaded data is the raw sample data (not wrapped in .data)
+              // Since DALProjectSession uploads JSON.stringify(sampleData) directly
+              if (ipfsData && typeof ipfsData === 'object') {
+                sampleData.push(ipfsData);
+                console.log(`✅ Loaded sample data from IPFS for ${sampleId}`);
               } else {
+                console.warn(`❌ Invalid IPFS data structure for ${sampleId}:`, ipfsData);
                 sampleData.push({ sampleId, data: 'Sample failed to load from IPFS' });
               }
             } else {
-              console.warn(` Failed to fetch sample ${sampleId} from IPFS: ${response.status}`);
+              console.warn(`❌ Failed to fetch sample ${sampleId} from IPFS: ${response.status}`);
               sampleData.push({ sampleId, data: 'Sample failed to load from IPFS' });
             }
           } catch (ipfsError) {
