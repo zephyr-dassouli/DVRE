@@ -41,9 +41,9 @@
           "type": "string[]"
         },
         {
-          "internalType": "string",
-          "name": "rocrateHash",
-          "type": "string"
+          "internalType": "address",
+          "name": "rocrateAsset",
+          "type": "address"
         }
       ],
       "name": "setupALProject",

@@ -9,12 +9,13 @@ contract ALProjectStorage {
         string label;
         uint256 round;
         uint256 timestamp;
+        uint256 originalIndex; // NEW: Store original dataset index
     }
     
     // sampleId => FinalLabel
     mapping(string => FinalLabel) public finalLabels;
     
-    event LabelFinalized(string sampleId, string label, uint256 round, uint256 timestamp);
+    event LabelFinalized(string sampleId, string label, uint256 round, uint256 timestamp, uint256 originalIndex);
     
     modifier onlyProject() {
         require(msg.sender == project, "Only main project can call");
@@ -29,9 +30,10 @@ contract ALProjectStorage {
     function storeFinalLabel(
         string memory sampleId,
         string memory label,
-        uint256 round
+        uint256 round,
+        uint256 originalIndex
     ) external onlyProject {
-        _storeFinalLabelInternal(sampleId, label, round);
+        _storeFinalLabelInternal(sampleId, label, round, originalIndex);
     }
     
     /**
@@ -40,7 +42,8 @@ contract ALProjectStorage {
     function _storeFinalLabelInternal(
         string memory sampleId,
         string memory label,
-        uint256 round
+        uint256 round,
+        uint256 originalIndex
     ) internal {
         require(bytes(sampleId).length > 0, "Sample ID cannot be empty");
         require(bytes(label).length > 0, "Label cannot be empty");
@@ -49,21 +52,23 @@ contract ALProjectStorage {
             sampleId: sampleId,
             label: label,
             round: round,
-            timestamp: block.timestamp
+            timestamp: block.timestamp,
+            originalIndex: originalIndex
         });
         
         finalLabels[sampleId] = f;
         
-        emit LabelFinalized(sampleId, label, round, block.timestamp);
+        emit LabelFinalized(sampleId, label, round, block.timestamp, originalIndex);
     }
     
     function getFinalLabel(string memory sampleId) external view returns (
         string memory label,
         uint256 round,
-        uint256 timestamp
+        uint256 timestamp,
+        uint256 originalIndex
     ) {
         FinalLabel memory f = finalLabels[sampleId];
-        return (f.label, f.round, f.timestamp);
+        return (f.label, f.round, f.timestamp, f.originalIndex);
     }
     
     function getLabel(string memory sampleId) external view returns (string memory) {

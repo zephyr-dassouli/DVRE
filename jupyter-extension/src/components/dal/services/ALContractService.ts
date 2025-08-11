@@ -38,24 +38,8 @@ export class ALContractService {
   }
 
   // =====================================================================
-  // AL-ENGINE SAMPLE MANAGEMENT (delegated to ALEngineService)
+  // PROJECT STATUS AND CONFIGURATION
   // =====================================================================
-
-  storeALSamplesForLabeling(projectAddress: string, sampleIds: string[], queriedSamples: any[]): void {
-    this.alEngineService.storeALSamplesForLabeling(projectAddress, sampleIds, queriedSamples);
-  }
-
-  clearStoredALSamples(projectAddress: string): void {
-    this.alEngineService.clearStoredALSamples(projectAddress);
-  }
-
-  getStoredALSamples(projectAddress: string): any[] | null {
-    return this.alEngineService.getStoredALSamples(projectAddress);
-  }
-
-  public getSampleDataById(sampleId: string): any | null {
-    return this.alEngineService.getSampleDataById(sampleId);
-  }
 
   // =====================================================================
   // VOTING OPERATIONS (delegated to VotingService)
@@ -90,10 +74,6 @@ export class ALContractService {
     return this.alEngineService.getModelUpdates(projectAddress, votingHistory);
   }
 
-  async triggerPythonALEngine(projectId: string, iteration: number, alConfig: any) {
-    return this.alEngineService.triggerPythonALEngine(projectId, iteration, alConfig);
-  }
-
   // =====================================================================
   // PROJECT STATUS & SMART CONTRACT OPERATIONS
   // =====================================================================
@@ -118,7 +98,7 @@ export class ALContractService {
 
       // For batch voting, return the first active sample as representative
       const sampleId = activeBatch.sampleIds[0];
-      const sampleData = this.getSampleDataById(sampleId) || { sampleId, data: 'Sample data' };
+      const sampleData = activeBatch.sampleData[0] || { sampleId, data: 'Sample data' };
         
       return {
         sampleId,
@@ -307,234 +287,9 @@ export class ALContractService {
     }
   }
 
-  async startNextIteration(projectAddress: string, userAddress: string): Promise<boolean> {
-    try {
-      console.log(` Starting next AL iteration for project ${projectAddress}`);
-      
-      // Resolve ALProject address and get project contract
-      const alProjectAddress = await resolveALProjectAddress(projectAddress);
-      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, this.provider);
-      const currentRound = await projectContract.currentRound();
-      const iterationNumber = Number(currentRound) + 1;
-
-      console.log(`🔬 Current round: ${currentRound}, starting iteration: ${iterationNumber}`);
-
-      // Trigger AL-Engine with sample generation - pass projectContract instead of metadata
-      const alResult = await this.triggerALEngineWithSampleGeneration(
-        alProjectAddress,  // Use resolved ALProject address 
-        iterationNumber, 
-        projectContract
-      );
-
-      if (!alResult.success) {
-        console.error(' AL-Engine execution failed:', alResult.error);
-        return false;
-      }
-
-      console.log(' AL iteration started successfully');
-      return true;
-    } catch (error) {
-      console.error(' Failed to start next iteration:', error);
-      return false;
-    }
-  }
-
-  private async triggerALEngineWithSampleGeneration(
-    projectAddress: string, 
-    iterationNumber: number, 
-    projectContract: ethers.Contract
-  ): Promise<{success: boolean, sampleIds?: string[], queriedSamples?: any[], error?: string}> {
-    try {
-      // Get real AL configuration from the ALProject contract
-      console.log(' Getting real AL configuration from ALProject contract...');
-      const realALConfig = await this.getALConfiguration(projectAddress);
-      
-      if (!realALConfig) {
-        console.error(' Could not get AL configuration from contract');
-        return { success: false, error: 'Could not get AL configuration from contract' };
-      }
-      
-      console.log(' Real AL configuration from contract:', realALConfig);
-      
-      // IMPORTANT: Get the base Project address for AL-Engine operations
-      // AL-Engine expects the base Project address for its directory structure
-      const baseProjectAddress = await projectContract.baseProject();
-      console.log(` Using base Project address for AL-Engine: ${baseProjectAddress} (ALProject: ${projectAddress})`);
-      
-      // Trigger Python AL-Engine with real configuration
-      const alConfig = {
-        nQueries: Number(realALConfig.queryBatchSize) || 2,
-        queryStrategy: realALConfig.queryStrategy || 'uncertainty_sampling',  
-        labelSpace: realALConfig.labelSpace || []
-      };
-      
-      console.log(' AL-Engine config being sent:', alConfig);
-
-      // Use baseProjectAddress for AL-Engine operations (not ALProject address)
-      const pythonResult = await this.triggerPythonALEngine(baseProjectAddress, iterationNumber, alConfig);
-      
-      if (!pythonResult.success) {
-        console.error(' Python AL-Engine failed:', pythonResult.error);
-        return { success: false, error: pythonResult.error };
-      }
-
-      console.log(' Python AL-Engine completed successfully');
-
-      // Read actual samples from generated file using base Project address
-      const realSamples = await this.alEngineService.readQuerySamplesFromFile(baseProjectAddress, iterationNumber);
-      
-      if (realSamples.length === 0) {
-        return { success: false, error: 'No samples generated by AL-Engine' };
-      }
-
-      // Generate sample IDs
-      const timestamp = Date.now();
-      const sampleIds = realSamples.map((_: any, index: number) => 
-        `sample_${iterationNumber}_${index + 1}_${timestamp}`
-      );
-
-      console.log(` Generated ${sampleIds.length} samples for iteration ${iterationNumber}`);
-
-      // NEW: Upload each sample individually to IPFS
-      console.log(' Uploading individual samples to IPFS...');
-      const sampleDataHashes: string[] = [];
-      
-      try {
-        const { IPFSService } = await import('../../deployment/services/IPFSService');
-        const ipfsService = IPFSService.getInstance();
-        
-        // Upload each sample individually
-        for (let i = 0; i < realSamples.length; i++) {
-          const sampleId = sampleIds[i];
-          const sampleData = realSamples[i];
-          
-          console.log(` Uploading sample ${i + 1}/${realSamples.length}: ${sampleId}`);
-          
-          // Create individual sample JSON
-          const sampleContent = JSON.stringify({
-            sampleId,
-            projectAddress: baseProjectAddress, // Use base Project address for consistency
-            iterationNumber,
-            timestamp,
-            index: i,
-            data: sampleData
-          }, null, 2);
-          
-          // Upload individual sample to IPFS
-          const ipfsResult = await ipfsService.uploadFile({
-            name: `sample_${sampleId}.json`,
-            content: sampleContent,
-            type: 'application/json'
-          });
-          
-          sampleDataHashes.push(ipfsResult.hash);
-          console.log(` Sample ${sampleId} uploaded to IPFS: ${ipfsResult.hash}`);
-        }
-        
-        console.log(` All ${sampleDataHashes.length} samples uploaded to IPFS individually`);
-        
-      } catch (ipfsError) {
-        console.warn(' Failed to upload samples to IPFS:', ipfsError);
-        console.log(' Continuing with local storage fallback...');
-        // Fill with empty hashes as fallback
-        for (let i = 0; i < realSamples.length; i++) {
-          sampleDataHashes.push('');
-        }
-      }
-
-      // Store samples for labeling (fallback for immediate coordinator access)
-      // Use original projectAddress (ALProject) for local storage since that's what UI expects
-      this.storeALSamplesForLabeling(projectAddress, sampleIds, realSamples);
-
-      // Setup event listeners and start batch voting
-      this.setupProjectEventListeners(projectAddress, iterationNumber, sampleIds);
-
-      // Start batch voting in smart contract with individual IPFS hashes
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
-      const signerProjectContract = new ethers.Contract(projectAddress, ALProject.abi, signer);
-      
-      console.log(` Starting batch voting with ${sampleDataHashes.length} individual IPFS hashes`);
-      console.log(' Sample hashes:', sampleDataHashes);
-      const tx = await signerProjectContract.startBatchVoting(sampleIds, sampleDataHashes);
-      await tx.wait();
-
-      console.log(' Batch voting started on blockchain with individual sample IPFS data');
-
-      return { 
-        success: true, 
-        sampleIds, 
-        queriedSamples: realSamples 
-      };
-    } catch (error) {
-      console.error(' Error in AL-Engine sample generation:', error);
-      return { success: false, error: String(error) };
-    }
-  }
-
-  private setupProjectEventListeners(projectAddress: string, round: number, sampleIds: string[]): void {
-    try {
-      const projectContract = new ethers.Contract(projectAddress, ALProject.abi, this.provider);
-
-      const votingSessionEndedFilter = projectContract.filters.VotingSessionEnded();
-      const batchCompletedFilter = projectContract.filters.ALBatchCompleted();
-
-      console.log(` Setting up event listeners for project ${projectAddress}, round ${round}`);
-
-      // Listen for individual voting session completions
-      projectContract.on(votingSessionEndedFilter, (sampleId, finalLabel, currentRound, timestamp) => {
-        if (Number(currentRound) === round) {
-          console.log(` Project: Voting session ended for sample ${sampleId} with label ${finalLabel}`);
-          
-          // Trigger custom event for UI updates
-          const event = new CustomEvent('dal-sample-completed', {
-            detail: { projectAddress, sampleId, finalLabel, round: Number(currentRound) }
-          });
-          window.dispatchEvent(event);
-        }
-      });
-
-      // Listen for complete batch completion
-      projectContract.on(batchCompletedFilter, (completedRound, completedSamples, timestamp) => {
-        if (Number(completedRound) === round) {
-          console.log(` Project: Batch ${completedRound} completed with ${completedSamples} samples`);
-          
-          // Trigger custom event for UI updates
-          const event = new CustomEvent('dal-iteration-completed', {
-            detail: { projectAddress, round: Number(completedRound), completedSamples: Number(completedSamples) }
-          });
-          window.dispatchEvent(event);
-        }
-      });
-
-      // Listen for project end triggers (NEW) - with error handling
-      try {
-        const projectEndTriggeredFilter = projectContract.filters.ProjectEndTriggered();
-        projectContract.on(projectEndTriggeredFilter, (trigger, reason, currentRound, timestamp, event) => {
-          console.log(` Project end triggered by ${trigger}: ${reason} (Round ${currentRound})`);
-          console.log(' Event details:', { trigger, reason, currentRound: Number(currentRound), timestamp: Number(timestamp) });
-          
-          // Trigger custom event for UI updates
-          const customEvent = new CustomEvent('dal-project-end-triggered', {
-            detail: { 
-              projectAddress,
-              trigger: String(trigger),
-              reason: String(reason),
-              currentRound: Number(currentRound),
-              timestamp: Number(timestamp)
-            }
-          });
-          window.dispatchEvent(customEvent);
-        });
-        console.log(' ProjectEndTriggered event listener set up successfully');
-      } catch (projectEndError) {
-        console.warn(' ProjectEndTriggered event not available in contract ABI, skipping listener setup:', projectEndError);
-      }
-
-    } catch (error) {
-      console.error(' Error setting up event listeners:', error);
-    }
-  }
+  // =====================================================================
+  // PROJECT MANAGEMENT
+  // =====================================================================
 
   async endProject(projectAddress: string, userAddress: string): Promise<boolean> {
     try {
@@ -565,8 +320,7 @@ export class ALContractService {
   }
 
   private async notifyProjectEnd(projectAddress: string): Promise<void> {
-    // Clear stored samples
-    this.clearStoredALSamples(projectAddress);
+    // ✅ No cache cleanup needed - using pure blockchain + IPFS
     
     // Trigger custom event for UI cleanup
     const event = new CustomEvent('dal-project-ended', {
@@ -774,7 +528,7 @@ export class ALContractService {
         const activeBatch = await this.getActiveBatch(alProjectAddress);
         if (activeBatch && activeBatch.sampleIds.length > 0) {
           const sampleId = activeBatch.sampleIds[0];
-          const sampleData = this.getSampleDataById(sampleId) || { sampleId, data: 'Sample data' };
+          const sampleData = activeBatch.sampleData[0] || { sampleId, data: 'Sample data' };
           
           activeVoting = {
             sampleId,

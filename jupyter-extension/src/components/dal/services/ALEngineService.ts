@@ -21,55 +21,50 @@ export interface ModelUpdate {
 
 export class ALEngineService {
   private currentALSamples: Map<string, any[]> = new Map(); // Store AL samples by project address
-  private sampleIdToDataMap: Map<string, any> = new Map(); // Map sample IDs to sample data
+  // REMOVED: sampleIdToDataMap - AL-Engine gets original_index directly from blockchain
 
   /**
-   * Store AL samples for labeling interface and map to project
+   * Store AL samples for labeling interface (for UI display)
    */
   storeALSamplesForLabeling(projectAddress: string, sampleIds: string[], queriedSamples: any[]): void {
-    console.log(` Storing ${queriedSamples.length} AL samples for project ${projectAddress}`);
+    console.log(`[AL_ENGINE_SERVICE] Storing ${queriedSamples.length} AL samples for project ${projectAddress}`);
     
-    // Store samples by project address
+    // Store samples by project address (for UI display)
     this.currentALSamples.set(projectAddress, queriedSamples);
     
-    // Map sample IDs to their data for quick lookup
-    for (let i = 0; i < sampleIds.length; i++) {
-      if (queriedSamples[i]) {
-        this.sampleIdToDataMap.set(sampleIds[i], queriedSamples[i]);
-        console.log(` Mapped sample ${sampleIds[i]} to dataset index ${queriedSamples[i]?.original_index || i}`);
-      }
+    // Also create a temporary mapping for current batch (for immediate UI access)
+    // This is NOT persistent - just for the current voting session
+    const tempMapping = new Map<string, any>();
+    for (let i = 0; i < sampleIds.length && i < queriedSamples.length; i++) {
+      tempMapping.set(sampleIds[i], queriedSamples[i]);
     }
     
-    console.log(` Stored ${queriedSamples.length} samples and ${sampleIds.length} sample mappings for labeling`);
+    // Store with project address for cleanup
+    (this as any).currentBatchMapping = tempMapping;
+    (this as any).currentBatchProject = projectAddress;
+    
+    console.log(`[AL_ENGINE_SERVICE] Stored ${queriedSamples.length} samples for labeling UI`);
   }
 
   /**
    * Clear stored AL samples for a project (called when voting sessions end)
    */
   clearStoredALSamples(projectAddress: string): void {
-    console.log(` Clearing stored AL samples for project ${projectAddress}`);
+    console.log(`[AL_ENGINE_SERVICE] Clearing samples for project ${projectAddress}`);
     
     // Clear stored samples for this project
     const samples = this.currentALSamples.get(projectAddress);
     if (samples) {
-      console.log(` Removed ${samples.length} stored samples`);
+      console.log(`[AL_ENGINE_SERVICE] Removed ${samples.length} stored sample objects`);
       this.currentALSamples.delete(projectAddress);
     }
     
-    // Clear related sample mappings (optional - they'll be overwritten next time)
-    let clearedMappings = 0;
-    for (const [sampleId] of this.sampleIdToDataMap.entries()) {
-      if (sampleId.includes(projectAddress.slice(-8))) { // Basic project matching
-        this.sampleIdToDataMap.delete(sampleId);
-        clearedMappings++;
-      }
+    // Clear temporary mapping if it's for this project
+    if ((this as any).currentBatchProject === projectAddress) {
+      (this as any).currentBatchMapping = null;
+      (this as any).currentBatchProject = null;
+      console.log(`[AL_ENGINE_SERVICE] Cleared temporary mapping for project`);
     }
-    
-    if (clearedMappings > 0) {
-      console.log(` Cleared ${clearedMappings} sample ID mappings`);
-    }
-    
-    console.log(` Cleared all stored data for project ${projectAddress}`);
   }
 
   /**
@@ -81,9 +76,28 @@ export class ALEngineService {
 
   /**
    * Get specific sample data by sample ID
+   * For immediate UI display during active voting
    */
   getSampleDataById(sampleId: string): any | null {
-    return this.sampleIdToDataMap.get(sampleId) || null;
+    // Check temporary mapping first (current batch)
+    const tempMapping = (this as any).currentBatchMapping as Map<string, any> | null;
+    if (tempMapping && tempMapping.has(sampleId)) {
+      const sample = tempMapping.get(sampleId);
+      console.log(`[AL_ENGINE_SERVICE] Found sample ${sampleId} in current batch mapping`);
+      return sample;
+    }
+    
+    // Check current samples across all projects (lightweight check)
+    for (const [projectAddress, samples] of this.currentALSamples.entries()) {
+      const sample = samples.find(s => s.sample_id === sampleId || s.sampleId === sampleId);
+      if (sample) {
+        console.log(`[AL_ENGINE_SERVICE] Found sample ${sampleId} in current batch for ${projectAddress}`);
+        return sample;
+      }
+    }
+    
+    console.log(`[AL_ENGINE_SERVICE] Sample ${sampleId} not found in current batches`);
+    return null;
   }
 
   /**
@@ -385,51 +399,84 @@ export class ALEngineService {
 
   /**
    * Get model updates from AL-Engine API (real performance metrics)
+   * OPTIMIZED: Single API call instead of N individual calls
    */
   async getModelUpdates(projectAddress: string, votingHistory: any[]): Promise<ModelUpdate[]> {
     try {
-      console.log(` Fetching real model performance from AL-Engine for project: ${projectAddress}`);
+      console.log(`[MODEL_UPDATES] Fetching performance history for project: ${projectAddress}`);
       
-      // Get all iterations from voting history
-      const iterations = new Set(votingHistory.map(r => r.iterationNumber));
-      
-      // Also check for final training round (might not be in voting history)
-      // Final training is typically the next iteration after the last voting round
-      if (iterations.size > 0) {
-        const maxIteration = Math.max(...Array.from(iterations));
-        const finalTrainingIteration = maxIteration + 1;
-        
-        // Check if final training performance data exists
-        try {
-          const finalResponse = await fetch(
-            `${config.alEngine.apiUrl}/model_performance/${finalTrainingIteration}?project_id=${projectAddress}`,
-            {
-              method: 'GET',
-              headers: { 'Content-Type': 'application/json' }
-            }
-          );
-          
-          if (finalResponse.ok) {
-            const finalPerformanceData = await finalResponse.json();
-            if (finalPerformanceData.performance && finalPerformanceData.performance.final_training === true) {
-              iterations.add(finalTrainingIteration);
-              console.log(` Found final training data for iteration ${finalTrainingIteration}`);
-            }
-          }
-        } catch (finalError) {
-          console.log(` No final training data found yet`);
+      // NEW: Use single consolidated performance history endpoint
+      const response = await fetch(
+        `${config.alEngine.apiUrl}/performance_history?project_id=${projectAddress}`,
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
         }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Performance history API failed: ${response.status}`);
       }
       
-      if (iterations.size === 0) {
-        console.log(' No voting iterations found');
+      const historyData = await response.json();
+      
+      if (!historyData.performance_history || !Array.isArray(historyData.performance_history)) {
+        console.log('[MODEL_UPDATES] No performance history found');
         return [];
       }
       
-      const modelUpdates: ModelUpdate[] = [];
+      console.log(`[MODEL_UPDATES] ✅ Retrieved ${historyData.total_iterations} iterations in single API call`);
       
-      // Fetch performance for each iteration from AL-Engine API
-      for (const iteration of Array.from(iterations).sort((a, b) => a - b)) {
+      // Convert AL-Engine format to ModelUpdate format
+      const modelUpdates: ModelUpdate[] = historyData.performance_history.map((entry: any) => {
+        const performance = entry.performance || {};
+        const isFinalTraining = performance.final_training === true;
+        
+        return {
+          iterationNumber: entry.iteration,
+          timestamp: new Date(entry.updated_at || Date.now()),
+          performance: {
+            accuracy: performance.accuracy || 0,
+            precision: performance.precision || 0,
+            recall: performance.recall || 0,
+            f1Score: performance.f1_score || 0
+          },
+          totalTrainingSamples: performance.training_samples || 0,
+          notes: isFinalTraining 
+            ? `Final Training: ${performance.test_samples || 0} test samples`
+            : `Iteration ${entry.iteration}: ${performance.test_samples || 0} test samples`,
+          isFinalTraining: isFinalTraining
+        };
+      });
+      
+      // Sort by iteration number (newest first)
+      modelUpdates.sort((a, b) => b.iterationNumber - a.iterationNumber);
+      
+      console.log(`[MODEL_UPDATES] ✅ Converted ${modelUpdates.length} performance records`);
+      return modelUpdates;
+      
+    } catch (error) {
+      console.error('[MODEL_UPDATES] ❌ Failed to get performance history:', error);
+      
+      // Fallback: If the new endpoint fails, try the old individual approach (rare case)
+      console.log('[MODEL_UPDATES] Falling back to individual API calls...');
+      return this.getModelUpdatesLegacy(projectAddress, votingHistory);
+    }
+  }
+
+  /**
+   * Legacy method for backward compatibility (fallback only)
+   */
+  private async getModelUpdatesLegacy(projectAddress: string, votingHistory: any[]): Promise<ModelUpdate[]> {
+    try {
+      const iterations = new Set(votingHistory.map(r => r.iterationNumber));
+      
+      if (iterations.size === 0) {
+        return [];
+      }
+      
+      // Simplified fallback - only check existing voting iterations
+      const fetchPromises = Array.from(iterations).map(async (iteration): Promise<ModelUpdate | null> => {
         try {
           const response = await fetch(
             `${config.alEngine.apiUrl}/model_performance/${iteration}?project_id=${projectAddress}`,
@@ -443,13 +490,9 @@ export class ALEngineService {
             const performanceData = await response.json();
             
             if (performanceData.performance) {
-              // Check if this is a final training round
               const isFinalTraining = performanceData.performance.final_training === true;
               
-              // Always use training_samples from AL-Engine response for accurate total training set size
-              const totalTrainingSamples = performanceData.performance.training_samples || 0;
-              
-              const modelUpdate: ModelUpdate = {
+              return {
                 iterationNumber: iteration,
                 timestamp: new Date(performanceData.timestamp || Date.now()),
                 performance: {
@@ -458,36 +501,30 @@ export class ALEngineService {
                   recall: performanceData.performance.recall || 0,
                   f1Score: performanceData.performance.f1_score || 0
                 },
-                totalTrainingSamples: totalTrainingSamples,
+                totalTrainingSamples: performanceData.performance.training_samples || 0,
                 notes: isFinalTraining 
-                  ? `Final Training Round: Model performance based on ${performanceData.performance.test_samples} test samples`
-                  : `Iteration ${iteration}: Model performance based on ${performanceData.performance.test_samples} test samples`,
-                isFinalTraining: isFinalTraining // Add flag for UI detection
-              };
-              
-              modelUpdates.push(modelUpdate);
-              console.log(` Retrieved real performance for ${isFinalTraining ? 'final training' : `iteration ${iteration}`}: ${(modelUpdate.performance.accuracy * 100).toFixed(1)}% accuracy`);
-            } else {
-              console.log(` No performance data available for iteration ${iteration}`);
+                  ? `Final Training: ${performanceData.performance.test_samples} test samples`
+                  : `Iteration ${iteration}: ${performanceData.performance.test_samples} test samples`,
+                isFinalTraining: isFinalTraining
+              } as ModelUpdate;
             }
-          } else {
-            console.log(` AL-Engine API error for iteration ${iteration}: ${response.status}`);
           }
-        } catch (apiError) {
-          console.warn(` Failed to fetch performance for iteration ${iteration}:`, apiError);
+          return null;
+        } catch (error) {
+          return null;
         }
-      }
+      });
       
-      if (modelUpdates.length === 0) {
-        console.log(' No performance data available from AL-Engine yet');
-        return [];
-      }
+      const results = await Promise.all(fetchPromises);
+      const modelUpdates = results
+        .filter((update): update is ModelUpdate => update !== null)
+        .sort((a, b) => b.iterationNumber - a.iterationNumber);
       
-      console.log(` Retrieved ${modelUpdates.length} real model performance records from AL-Engine`);
-      return modelUpdates.sort((a, b) => b.iterationNumber - a.iterationNumber);
+      console.log(`[MODEL_UPDATES] Legacy fallback retrieved ${modelUpdates.length} records`);
+      return modelUpdates;
       
     } catch (error) {
-      console.error(' Failed to get model updates from AL-Engine:', error);
+      console.error('[MODEL_UPDATES] ❌ Legacy fallback failed:', error);
       return [];
     }
   }

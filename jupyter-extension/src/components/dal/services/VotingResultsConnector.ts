@@ -4,16 +4,12 @@
  */
 
 import { VotingService } from './VotingService';
-import { alEngineService } from './ALEngineService';
 import { config } from '../../../config';
 
 export interface ALEngineVotingResult {
   original_index: number;
   final_label: string;
-  sample_data: any;
-  votes: { [voterAddress: string]: string };
-  consensus: boolean;
-  timestamp: string;
+  // Removed: sample_data, votes, consensus, timestamp (AL-Engine only needs these two fields)
 }
 
 export class VotingResultsConnector {
@@ -24,71 +20,22 @@ export class VotingResultsConnector {
   }
 
   /**
-   * Export voting results for a specific round to AL-Engine format
-   */
-  async exportVotingResultsForRound(
-    projectAddress: string, 
-    round: number
-  ): Promise<boolean> {
-    try {
-      console.log(`[PROCESSING] Exporting voting results for project ${projectAddress}, round ${round}`);
-      
-      // Get all voting records from blockchain
-      const votingHistory = await this.votingService.getVotingHistory(projectAddress);
-      
-      // Filter for specific round
-      const roundRecords = votingHistory.filter(record => record.iterationNumber === round);
-      
-      if (roundRecords.length === 0) {
-        console.log(`[INFO] No voting results found for round ${round}`);
-        return false;
-      }
-      
-      // Convert to AL-Engine format
-      const alEngineResults: ALEngineVotingResult[] = roundRecords.map(record => ({
-        original_index: this.extractOriginalIndex(record.sampleId, record.sampleData),
-        final_label: record.finalLabel,
-        sample_data: this.formatSampleData(record.sampleData, record.sampleId),
-        votes: record.votes,
-        consensus: record.consensusReached,
-        timestamp: record.timestamp.toISOString()
-      }));
-      
-      console.log(`[DATA] Converted ${alEngineResults.length} voting results for round ${round}`);
-      
-      // Send to AL-Engine API to write the file
-      const success = await this.sendToALEngine(projectAddress, round, alEngineResults);
-      
-      if (success) {
-        console.log(`[SUCCESS] Successfully exported voting results for round ${round} to AL-Engine`);
-      } else {
-        console.warn(`[WARNING] Failed to export voting results for round ${round} to AL-Engine`);
-      }
-      
-      return success;
-      
-    } catch (error) {
-      console.error(`[ERROR] Error exporting voting results for round ${round}:`, error);
-      return false;
-    }
-  }
-
-  /**
    * Export all voting results to AL-Engine
+   * OPTIMIZED: Fetch voting history once and process all rounds together
    */
   async exportAllVotingResults(projectAddress: string): Promise<number> {
     try {
-      console.log(`[PROCESSING] Exporting all voting results for project ${projectAddress}`);
+      console.log(`[EXPORT] Exporting all voting results for project ${projectAddress}`);
       
-      // Get all voting records from blockchain
+      // OPTIMIZATION: Fetch voting history only once for all rounds
       const votingHistory = await this.votingService.getVotingHistory(projectAddress);
       
       if (votingHistory.length === 0) {
-        console.log(`[INFO] No voting results found for project ${projectAddress}`);
+        console.log(`[EXPORT] No voting results found for project`);
         return 0;
       }
       
-      // Group by round
+      // Group voting records by round
       const roundGroups = new Map<number, any[]>();
       votingHistory.forEach(record => {
         const round = record.iterationNumber;
@@ -98,23 +45,56 @@ export class VotingResultsConnector {
         roundGroups.get(round)!.push(record);
       });
       
-      console.log(`[STATS] Found voting results for ${roundGroups.size} rounds`);
+      console.log(`[EXPORT] Processing ${roundGroups.size} rounds with ${votingHistory.length} total records`);
       
-      let exportedRounds = 0;
+      let successfulExports = 0;
       
-      // Export each round
-      for (const [round] of roundGroups.entries()) {
-        const success = await this.exportVotingResultsForRound(projectAddress, round);
-        if (success) {
-          exportedRounds++;
+      // Process all rounds in parallel for better performance
+      const exportPromises = Array.from(roundGroups.entries()).map(async ([round, roundRecords]) => {
+        try {
+          // Convert to AL-Engine format
+          const alEngineResults: ALEngineVotingResult[] = [];
+          
+          // Process all records in this round in parallel
+          const conversionPromises = roundRecords.map(async (record) => {
+            const original_index = await this.extractOriginalIndex(record.sampleId, record.sampleData, projectAddress);
+            return {
+              original_index,
+              final_label: record.finalLabel,
+            };
+          });
+          
+          const convertedResults = await Promise.all(conversionPromises);
+          alEngineResults.push(...convertedResults);
+          
+          console.log(`[EXPORT] Converted ${alEngineResults.length} voting results for round ${round}`);
+          
+          // Send to AL-Engine API to write the file
+          const success = await this.sendToALEngine(projectAddress, round, alEngineResults);
+          
+          if (success) {
+            console.log(`[EXPORT] ✅ Successfully exported round ${round} to AL-Engine`);
+            return 1;
+          } else {
+            console.warn(`[EXPORT] ❌ Failed to export round ${round} to AL-Engine`);
+            return 0;
+          }
+          
+        } catch (roundError) {
+          console.error(`[EXPORT] Error exporting round ${round}:`, roundError);
+          return 0;
         }
-      }
+      });
       
-      console.log(`[SUCCESS] Exported voting results for ${exportedRounds}/${roundGroups.size} rounds`);
-      return exportedRounds;
+      // Wait for all rounds to complete
+      const results = await Promise.all(exportPromises);
+      successfulExports = results.reduce((sum: number, result: number) => sum + result, 0);
+      
+      console.log(`[EXPORT] ✅ Successfully exported ${successfulExports}/${roundGroups.size} rounds to AL-Engine`);
+      return successfulExports;
       
     } catch (error) {
-      console.error(`[ERROR] Error exporting all voting results:`, error);
+      console.error(`[EXPORT] Error exporting all voting results:`, error);
       return 0;
     }
   }
@@ -137,7 +117,7 @@ export class VotingResultsConnector {
           throw new Error('AL-Engine health check failed');
         }
       } catch (healthError) {
-        console.warn('[WARNING] AL-Engine is not running, cannot export voting results');
+        console.warn('[AL-ENGINE] Not running, cannot export voting results');
         return false;
       }
       
@@ -156,154 +136,116 @@ export class VotingResultsConnector {
       
       if (response.ok) {
         const result = await response.json();
-        console.log(`[SAVED] AL-Engine saved voting results to: ${result.file_path}`);
+        console.log(`[AL-ENGINE] ✅ Saved to: ${result.file_path}`);
         return true;
       } else {
-        console.error(`[ERROR] AL-Engine API error: ${response.status} ${response.statusText}`);
+        console.error(`[AL-ENGINE] ❌ API error: ${response.status}`);
         return false;
       }
       
     } catch (error) {
-      console.error(`[ERROR] Failed to send voting results to AL-Engine:`, error);
-      
-      // Fallback: Try local file server approach
-      return await this.fallbackToFileServer(projectAddress, round, votingResults);
-    }
-  }
-
-  /**
-   * Fallback: Use local file server to write voting results
-   */
-  private async fallbackToFileServer(
-    projectAddress: string, 
-    round: number, 
-    votingResults: ALEngineVotingResult[]
-  ): Promise<boolean> {
-    try {
-      console.log('[PROCESSING] Trying fallback file server approach...');
-      
-      const fileContent = JSON.stringify(votingResults, null, 2);
-      const filePath = `al-engine/ro-crates/${projectAddress}/outputs/voting_results_round_${round}.json`;
-      
-      const response = await fetch('http://localhost:3001/write-file', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          path: filePath,
-          content: fileContent
-        })
-      });
-      
-      if (response.ok) {
-        console.log(`[SAVED] File server saved voting results to: ${filePath}`);
-        return true;
-      } else {
-        console.warn(`[WARNING] File server error: ${response.status}`);
-        return false;
-      }
-      
-    } catch (error) {
-      console.warn('[WARNING] File server not available:', error);
+      console.error(`[AL-ENGINE] ❌ Failed to send voting results:`, error);
       return false;
     }
   }
 
   /**
-   * Extract original dataset index from sample ID or data
+   * Extract original dataset index from blockchain storage
+   * SIMPLIFIED: Only use blockchain data - no fallbacks needed
    */
-  private extractOriginalIndex(sampleId: string, sampleData: any): number {
-    // Try to get original index from sample data first
-    if (sampleData && typeof sampleData.original_index === 'number') {
-      return sampleData.original_index;
+  private async extractOriginalIndex(sampleId: string, sampleData: any, projectAddress: string): Promise<number> {
+    try {
+      // Import required modules
+      const { ethers } = await import('ethers');
+      const { RPC_URL } = await import('../../../config/contracts');
+      const { resolveALProjectAddress } = await import('../utils/AddressResolver');
+      const ALProject = (await import('../../../abis/ALProject.json')).default;
+      const ALProjectVoting = (await import('../../../abis/ALProjectVoting.json')).default;
+      
+      // Set up provider and contracts
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      const alProjectAddress = await resolveALProjectAddress(projectAddress, provider);
+      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, provider);
+      
+      // Check if project has AL contracts
+      const hasALContracts = await projectContract.hasALContracts();
+      if (!hasALContracts) {
+        console.log(`[BLOCKCHAIN] Project has no AL contracts`);
+        return 0;
+      }
+      
+      // Get voting contract address and query original index
+      const votingContractAddress = await projectContract.votingContract();
+      const votingContract = new ethers.Contract(votingContractAddress, ALProjectVoting.abi, provider);
+      
+      // Get original index directly from blockchain - this is the single source of truth
+      const originalIndex = await votingContract.getSampleOriginalIndex(sampleId);
+      console.log(`[BLOCKCHAIN] ✅ Got original_index ${originalIndex} for ${sampleId}`);
+      
+      return Number(originalIndex);
+      
+    } catch (error) {
+      console.error(`[BLOCKCHAIN] Failed to read original_index for ${sampleId}:`, error);
+      
+      // If blockchain fails, we cannot reliably determine original_index
+      // Return 0 as fallback (AL-Engine will handle this gracefully)
+      console.warn(`[ERROR] ❌ Could not extract original_index for ${sampleId}, returning 0`);
+      return 0;
     }
-    
-    // Try to extract from sampleId format (e.g., "sample_66_round1")
-    const indexMatch = sampleId.match(/sample_(\d+)/);
-    if (indexMatch) {
-      return parseInt(indexMatch[1]);
-    }
-    
-    // Fallback: extract number from end of sampleId
-    const numberMatch = sampleId.match(/(\d+)$/);
-    if (numberMatch) {
-      return parseInt(numberMatch[1]);
-    }
-    
-    // Last resort: return 0
-    console.warn(`[WARNING] Could not extract original index from sample ${sampleId}`);
-    return 0;
   }
 
   /**
-   * Format sample data for AL-Engine
+   * Create a minimal summary for a single voting record
    */
-  private formatSampleData(sampleData: any, sampleId: string): any {
-    if (sampleData && typeof sampleData === 'object') {
+  private async createSampleSummary(record: any): Promise<any> {
+    if (record.sampleId && record.finalLabel) {
+      const original_index = await this.extractOriginalIndex(record.sampleId, null, 'PROJECT_ID_PLACEHOLDER'); // Pass a dummy project address
       return {
-        ...sampleData,
-        sample_id: sampleId // Ensure sample_id is included
+        sample_id: record.sampleId,
+        original_index
       };
     }
     
-    // Get stored sample data from ALEngineService if available
-    const storedData = alEngineService.getSampleDataById(sampleId);
-    if (storedData) {
-      return {
-        ...storedData,
-        sample_id: sampleId
-      };
-    }
-    
-    // Fallback: create minimal sample data
+    console.warn('[SUMMARY] Invalid voting record:', record);
     return {
-      sample_id: sampleId,
-      original_index: this.extractOriginalIndex(sampleId, null)
+      sample_id: 'unknown',
+      original_index: 0
     };
   }
 
   /**
-   * Get summary of voting results (for debugging)
+   * Get voting results summary
    */
   async getVotingResultsSummary(projectAddress: string): Promise<string> {
     try {
       const votingHistory = await this.votingService.getVotingHistory(projectAddress);
       
-      if (votingHistory.length === 0) {
-        return `[STATS] Voting Results Summary for ${projectAddress}:\n   No voting results found`;
+      // Create summaries async
+      const samples = [];
+      for (const record of votingHistory) {
+        const sampleSummary = await this.createSampleSummary(record);
+        samples.push(sampleSummary);
       }
+      
+      const summary = {
+        totalVotes: votingHistory.length,
+        byRound: {} as { [round: number]: number },
+        samples
+      };
       
       // Group by round
-      const roundGroups = new Map<number, any[]>();
       votingHistory.forEach(record => {
         const round = record.iterationNumber;
-        if (!roundGroups.has(round)) {
-          roundGroups.set(round, []);
-        }
-        roundGroups.get(round)!.push(record);
+        summary.byRound[round] = (summary.byRound[round] || 0) + 1;
       });
       
-      let summary = `[STATS] Voting Results Summary for ${projectAddress}:\n`;
-      summary += `   Total voting records: ${votingHistory.length}\n`;
-      summary += `   Rounds completed: ${roundGroups.size}\n\n`;
-      
-      // Round details
-      for (const [round, records] of Array.from(roundGroups.entries()).sort(([a], [b]) => a - b)) {
-        const consensusCount = records.filter(r => r.consensusReached).length;
-        const labels = records.map(r => r.finalLabel);
-        const uniqueLabels = [...new Set(labels)];
-        
-        summary += `   Round ${round}: ${records.length} samples, ${consensusCount} consensus, labels [${uniqueLabels.join(', ')}]\n`;
-      }
-      
-      return summary;
-      
+      return JSON.stringify(summary, null, 2);
     } catch (error) {
-      return `[ERROR] Error getting voting results summary: ${error}`;
+      console.error('Error generating voting results summary:', error);
+      return `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
 }
 
 // Export singleton instance
-export const votingResultsConnector = new VotingResultsConnector(); 
+export const votingResultsConnector = new VotingResultsConnector();

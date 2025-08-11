@@ -2,6 +2,10 @@
 
 The AL-Engine has been refactored into smaller, modular files for better maintainability and organization.
 
+## Documentation
+
+- **[Class Imbalance Handling](../CLASS_IMBALANCE_HANDLING.md)** - Comprehensive guide on how the AL-Engine handles class imbalance scenarios, small datasets, and performance evaluation strategies
+
 ## File Structure
 
 ### Core Files

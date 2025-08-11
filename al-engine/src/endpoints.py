@@ -345,6 +345,74 @@ class ALEngineEndpoints:
                 logger.error(f"Error getting performance for iteration {iteration}: {e}")
                 return jsonify({'error': str(e)}), 500
 
+        # Performance history endpoint - Get all iterations in one call (OPTIMIZATION)
+        @app.route('/performance_history', methods=['GET'])
+        def get_performance_history():
+            """Get consolidated performance history for all iterations (single API call)"""
+            try:
+                project_id = request.args.get('project_id', self.server.project_id)
+                if not project_id:
+                    return jsonify({'error': 'No project_id provided'}), 400
+                
+                # Look for consolidated performance history file
+                outputs_dir = Path(f"../ro-crates/{project_id}/outputs")
+                history_file = outputs_dir / "performance_history.json"
+                
+                if history_file.exists():
+                    with open(history_file, 'r') as f:
+                        history_data = json.load(f)
+                        logger.info(f"Loaded performance history for {len(history_data)} iterations")
+                        return jsonify({
+                            'project_id': project_id,
+                            'total_iterations': len(history_data),
+                            'performance_history': history_data,
+                            'timestamp': time.time()
+                        })
+                else:
+                    # Fallback: Try to collect individual performance files
+                    logger.info(f"No consolidated history found, collecting individual files...")
+                    history_data = []
+                    
+                    # Look for individual performance files
+                    for perf_file in outputs_dir.glob("performance_round_*.json"):
+                        try:
+                            iteration_match = perf_file.stem.replace("performance_round_", "")
+                            iteration = int(iteration_match)
+                            
+                            with open(perf_file, 'r') as f:
+                                performance_data = json.load(f)
+                                history_data.append({
+                                    "iteration": iteration,
+                                    "performance": performance_data,
+                                    "updated_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(perf_file.stat().st_mtime))
+                                })
+                        except (ValueError, json.JSONDecodeError) as e:
+                            logger.warning(f"Skipping invalid performance file {perf_file}: {e}")
+                    
+                    # Sort by iteration
+                    history_data.sort(key=lambda x: x["iteration"])
+                    
+                    if history_data:
+                        logger.info(f"Collected {len(history_data)} individual performance files")
+                        return jsonify({
+                            'project_id': project_id,
+                            'total_iterations': len(history_data),
+                            'performance_history': history_data,
+                            'source': 'individual_files',
+                            'timestamp': time.time()
+                        })
+                    else:
+                        return jsonify({
+                            'project_id': project_id,
+                            'total_iterations': 0,
+                            'performance_history': [],
+                            'message': 'No performance data found'
+                        })
+                
+            except Exception as e:
+                logger.error(f"Error getting performance history: {e}")
+                return jsonify({'error': str(e)}), 500
+
         # Project RO-Crate collection endpoint - Get complete AL project results
         @app.route('/api/project/<project_id>/ro-crate', methods=['GET'])
         def get_project_ro_crate(project_id):

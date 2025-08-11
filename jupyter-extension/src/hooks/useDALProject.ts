@@ -326,24 +326,21 @@ export const useDALProject = (projectAddress?: string) => {
       setLoading(true);
       setError(null);
       
-      console.log(' Triggering next AL iteration from useDALProject');
+      console.log('🚀 Triggering next AL iteration from useDALProject via DALProjectSession');
       
-      // Import ALContractService
-      const { alContractService } = await import('../components/dal/services/ALContractService');
+      // Use DALProjectSession instead of ALContractService to avoid stale sample caching
+      const { createDALProjectSession } = await import('../components/dal/services/DALProjectSession');
+      const dalSession = createDALProjectSession(projectAddress, account);
       
-      // Start iteration using the contract service
-      const success = await alContractService.startNextIteration(projectAddress, account);
+      // Start iteration using the DAL session (this will handle AL-Engine + blockchain properly)
+      await dalSession.startIteration();
       
-      if (success) {
-        // Reload project data to reflect changes
-        await loadProjectDetails(projectAddress);
-        console.log(' AL iteration started successfully');
-      } else {
-        throw new Error('Failed to start AL iteration');
-      }
+      // Reload project data to reflect changes
+      await loadProjectDetails(projectAddress);
+      console.log('✅ AL iteration started successfully via DALProjectSession');
       
     } catch (err) {
-      console.error(' Failed to start next iteration:', err);
+      console.error('❌ Failed to start next iteration:', err);
       setError(err instanceof Error ? err.message : 'Failed to start next iteration');
       throw err;
     } finally {

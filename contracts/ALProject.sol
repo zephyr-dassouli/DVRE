@@ -19,7 +19,7 @@ interface IProject {
 
 // AL Contract Interfaces
 interface IALProjectVoting {
-    function startBatchVoting(string[] memory sampleIds, uint256 round, string[] memory sampleDataHashes) external;
+    function startBatchVoting(string[] memory sampleIds, uint256 round, string[] memory sampleDataHashes, uint256[] memory originalIndices) external;
     function endBatchVoting(uint256 round) external;
     function setVoters(address[] memory _voters, uint256[] memory _weights) external;
     function submitBatchVoteOnBehalf(string[] memory sampleIds, string[] memory labels, address voter) external;
@@ -34,6 +34,7 @@ interface IALProjectVoting {
         string memory finalLabel
     );
     function getFinalLabel(string memory sampleId) external view returns (string memory);
+    function getSampleOriginalIndex(string memory sampleId) external view returns (uint256);
     function isVotingActive(string memory sampleId) external view returns (bool);
     function voterWeights(address voter) external view returns (uint256);
 }
@@ -42,14 +43,16 @@ interface IALProjectStorage {
     function storeFinalLabel(
         string memory sampleId,
         string memory label,
-        uint256 round
+        uint256 round,
+        uint256 originalIndex
     ) external;
     function getLabel(string memory sampleId) external view returns (string memory);
     function projectContract() external view returns (address);
     function getFinalLabel(string memory sampleId) external view returns (
         string memory label,
         uint256 round,
-        uint256 timestamp
+        uint256 timestamp,
+        uint256 originalIndex
     );
 }
 
@@ -289,9 +292,10 @@ contract ALProject {
      * Always use this method (even for single samples) for consistent event handling
      * Voters are automatically managed when project membership changes
      */
-    function startBatchVoting(string[] memory sampleIds, string[] memory sampleDataHashes) external onlyCreator {
+    function startBatchVoting(string[] memory sampleIds, string[] memory sampleDataHashes, uint256[] memory originalIndices) external onlyCreator {
         require(votingContract != address(0), "Voting contract not set");
         require(sampleIds.length > 0, "Empty sample batch");
+        require(sampleIds.length == originalIndices.length, "Sample IDs and original indices length mismatch");
         
         // Increment round for new batch
         currentRound += 1;
@@ -300,7 +304,7 @@ contract ALProject {
         _checkProjectEndConditions();
         
         // Start the batch voting session (voters already set from membership)
-        IALProjectVoting(votingContract).startBatchVoting(sampleIds, currentRound, sampleDataHashes);
+        IALProjectVoting(votingContract).startBatchVoting(sampleIds, currentRound, sampleDataHashes, originalIndices);
         
         emit ALBatchStarted(currentRound, sampleIds.length, block.timestamp);
     }
@@ -327,7 +331,7 @@ contract ALProject {
         require(storageContract != address(0), "Storage contract not set");
         
         // Call via interface
-        IALProjectStorage(storageContract).storeFinalLabel(sampleId, label, round);
+        IALProjectStorage(storageContract).storeFinalLabel(sampleId, label, round, 0); // Placeholder for originalIndex
     }
     
     /**
@@ -340,11 +344,15 @@ contract ALProject {
     ) external onlyVotingContract {
         require(storageContract != address(0), "Storage contract not set");
         
-        // Store the finalized label using current round
+        // Get original index from voting contract
+        uint256 originalIndex = IALProjectVoting(votingContract).getSampleOriginalIndex(sampleId);
+        
+        // Store the finalized label using current round and original index
         IALProjectStorage(storageContract).storeFinalLabel(
             sampleId, 
             label, 
-            currentRound
+            currentRound,
+            originalIndex
         );
         
         // Emit event for tracking automatic label storage

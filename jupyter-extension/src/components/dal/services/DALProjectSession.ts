@@ -439,86 +439,45 @@ export class DALProjectSession extends EventEmitter {
 
   private async loadQuerySamplesFile(filePath: string): Promise<QuerySample[]> {
     try {
-      console.log(' Loading query samples directly from file:', filePath);
+      console.log('📂 Loading fresh query samples from AL-Engine file:', filePath);
       
       // Extract the relative path from the full path returned by AL-Engine
       // filePath looks like: "../ro-crates/0xProject.../outputs/query_samples_round_1.json"
       const relativePath = filePath.replace('../', 'al-engine/');
-      console.log(' Reading file via read-file endpoint:', relativePath);
+      console.log('📂 Reading AL-Engine file via read-file endpoint:', relativePath);
       
-      try {
-        // Read the file content via local file server
-        const fileResponse = await fetch(`http://localhost:3001/read-file?path=${encodeURIComponent(relativePath)}`);
-        
-        if (fileResponse.ok) {
-          const responseData = await fileResponse.json();
-          if (responseData.success && responseData.content) {
-            const samplesData = JSON.parse(responseData.content);
-            console.log(` Successfully read ${samplesData.length} samples from file`);
-            console.log(' First sample from file:', samplesData[0]);
-            
-            // Convert AL-Engine iris format to QuerySample format
-            const querySamples: QuerySample[] = samplesData.map((sample: any) => ({
-              sepal_length: sample['sepal length (cm)'],
-              sepal_width: sample['sepal width (cm)'],
-              petal_length: sample['petal length (cm)'],
-              petal_width: sample['petal width (cm)'],
-              original_index: sample.original_index
-            }));
-            
-            console.log(' Converted to QuerySample format:', querySamples[0]);
-            return querySamples;
-          }
-        } else {
-          console.warn(' Failed to read file via read-file endpoint:', fileResponse.statusText);
-        }
-      } catch (fileError) {
-        console.warn(' Local file server not available:', fileError);
+      // Read the file content via local file server
+      const fileResponse = await fetch(`http://localhost:3001/read-file?path=${encodeURIComponent(relativePath)}`);
+      
+      if (!fileResponse.ok) {
+        throw new Error(`Failed to read AL-Engine file: ${fileResponse.statusText}`);
       }
-      
-      // Fallback: Try to get samples from ALContractService if they were stored
-      console.log(' Fallback: trying to get stored samples from ALContractService...');
-      const storedSamples = alContractService.getStoredALSamples(this.state.projectId);
-      
-      if (storedSamples && storedSamples.length > 0) {
-        console.log(` Found ${storedSamples.length} stored samples from ALContractService`);
-        
-        // Convert AL-Engine iris format to QuerySample format
-        const querySamples: QuerySample[] = storedSamples.map((sample: any) => ({
-          sepal_length: sample['sepal length (cm)'],
-          sepal_width: sample['sepal width (cm)'],
-          petal_length: sample['petal length (cm)'],
-          petal_width: sample['petal width (cm)'],
-          original_index: sample.original_index
-        }));
-        
-        return querySamples;
+
+      const responseData = await fileResponse.json();
+      if (!responseData.success || !responseData.content) {
+        throw new Error('Invalid response from file server');
       }
+
+      const samplesData = JSON.parse(responseData.content);
+      console.log(`✅ Successfully read ${samplesData.length} fresh samples from AL-Engine`);
+      console.log('📊 First sample:', samplesData[0]);
       
-      console.warn(' No samples found via file or stored samples, using mock data');
+      // Convert AL-Engine iris format to QuerySample format
+      const querySamples: QuerySample[] = samplesData.map((sample: any) => ({
+        sepal_length: sample['sepal length (cm)'],
+        sepal_width: sample['sepal width (cm)'],
+        petal_length: sample['petal length (cm)'],
+        petal_width: sample['petal width (cm)'],
+        original_index: sample.original_index
+      }));
       
-      // Last fallback to mock data
-      const mockSamples: QuerySample[] = [
-        {
-          sepal_length: 6.83,
-          sepal_width: 2.84,
-          petal_length: 4.92,
-          petal_width: 1.55,
-          original_index: 12
-        },
-        {
-          sepal_length: 6.86,
-          sepal_width: 2.57,
-          petal_length: 5.43,
-          petal_width: 1.74,
-          original_index: 6
-        }
-      ];
+      console.log('✅ Converted to QuerySample format');
+      console.log(`✅ Fresh original indices: [${querySamples.map(s => s.original_index).join(', ')}]`);
       
-      return mockSamples;
+      return querySamples;
       
     } catch (error) {
-      console.error(' Failed to load query samples:', error);
+      console.error('❌ Failed to load query samples from AL-Engine file:', error);
       throw error;
     }
   }
@@ -576,15 +535,91 @@ export class DALProjectSession extends EventEmitter {
 
   private async startBatchVoting(samples: QuerySample[]): Promise<void> {
     try {
-      console.log(` Starting batch voting for ${samples.length} samples`);
+      console.log(`📡 Starting batch voting for ${samples.length} samples on blockchain`);
+      console.log('📊 Input samples original indices:', samples.map(s => s.original_index));
       
-      // Start batch voting using ALContractService
-      await alContractService.startNextIteration(this.state.projectId, this.userAddress);
+      // Get current iteration to create unique sample IDs
+      const projectStatus = await alContractService.getEnhancedProjectStatus(this.state.projectId);
+      const currentIteration = projectStatus.currentIteration + 1;
       
-      console.log(` Batch voting started successfully`);
+      // Extract sample information for blockchain transaction with UNIQUE sample IDs
+      const sampleIds = samples.map((sample, index) => {
+        // Use original_index if available for true uniqueness, otherwise use iteration+index
+        const originalIndex = sample.original_index !== undefined ? sample.original_index : index;
+        return sample.sample_id || sample.sampleId || `round_${currentIteration}_sample_${originalIndex}`;
+      });
+      
+      const sampleDataHashes: string[] = [];
+      const originalIndices: number[] = [];
+      
+      console.log(`📡 Generated unique sample IDs for iteration ${currentIteration}:`, sampleIds);
+      console.log('📊 Corresponding original indices:', samples.map(s => s.original_index));
+      
+      // Upload samples to IPFS and extract original indices
+      try {
+        const { IPFSService } = await import('../../deployment/services/IPFSService');
+        const ipfsService = IPFSService.getInstance();
+        
+        for (let i = 0; i < samples.length; i++) {
+          const sampleData = samples[i];
+          const sampleId = sampleIds[i];
+          
+          // Upload individual sample to IPFS
+          const sampleIPFSResult = await ipfsService.uploadFile({
+            name: `sample_${sampleId}.json`,
+            content: JSON.stringify(sampleData),
+            type: 'application/json'
+          });
+          sampleDataHashes.push(sampleIPFSResult.hash);
+          
+          // Extract original index from sample data
+          const originalIndex = sampleData.original_index || i;
+          originalIndices.push(originalIndex);
+        }
+        
+        console.log(`📡 Uploaded ${sampleDataHashes.length} samples to IPFS with ${originalIndices.length} original indices`);
+        console.log('📊 Final original indices for blockchain:', originalIndices);
+      } catch (ipfsError) {
+        console.error('📡 IPFS upload failed:', ipfsError);
+        throw new Error(`IPFS upload failed: ${ipfsError}`);
+      }
+      
+      // Perform blockchain transaction to start batch voting
+      console.log(`📡 Starting batch voting transaction with ${originalIndices.length} original indices`);
+      
+      // Get signer for transaction
+      const { ethers } = await import('ethers');
+      const provider = new ethers.BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      
+      // Get project contract with signer
+      const ALProject = (await import('../../../abis/ALProject.json')).default;
+      const { resolveALProjectAddress } = await import('../utils/AddressResolver');
+      const alProjectAddress = await resolveALProjectAddress(this.state.projectId);
+      const projectContract = new ethers.Contract(alProjectAddress, ALProject.abi, signer);
+      
+      // Execute blockchain transaction
+      console.log('📡 BLOCKCHAIN TRANSACTION DEBUG:');
+      console.log('  📊 Sample IDs to send:', sampleIds);
+      console.log('  📊 Original indices to send:', originalIndices);
+      console.log('  📊 IPFS hashes to send:', sampleDataHashes);
+      console.log('  📊 Current iteration from contract:', currentIteration);
+      
+      const tx = await projectContract.startBatchVoting(sampleIds, sampleDataHashes, originalIndices);
+      console.log('📡 Batch voting transaction submitted:', tx.hash);
+      
+      // Wait for confirmation
+      const receipt = await tx.wait();
+      console.log(`📡 Batch voting confirmed in block:`, receipt.blockNumber);
+      
+      // ✅ PURE BLOCKCHAIN + IPFS: No caching needed
+      // UI will load data directly from blockchain + IPFS via getActiveBatch()
+      console.log('✅ Sample data stored on blockchain + IPFS. UI will load via blockchain + IPFS only.');
+      
+      console.log(`📡 Batch voting started successfully for ${samples.length} samples`);
       
     } catch (error) {
-      console.error(' Failed to start batch voting:', error);
+      console.error('📡 Failed to start batch voting:', error);
       throw error;
     }
   }

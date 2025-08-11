@@ -46,7 +46,8 @@ contract ALProjectVoting {
         uint256 completedCount;
         bool isActive;
         uint256 startTime;
-        mapping(string => string) sampleDataHashes; // NEW: Map each sampleId to its IPFS hash
+        mapping(string => string) sampleDataHashes; // Map each sampleId to its IPFS hash
+        mapping(string => uint256) sampleOriginalIndices; // NEW: Map each sampleId to its original dataset index
     }
     
     mapping(address => uint256) public voterWeights;
@@ -148,9 +149,10 @@ contract ALProjectVoting {
         return (voters, eligibleWeights);
     }
     
-    function startBatchVoting(string[] memory sampleIds, uint256 round, string[] memory sampleDataHashes) external onlyProject {
+    function startBatchVoting(string[] memory sampleIds, uint256 round, string[] memory sampleDataHashes, uint256[] memory originalIndices) external onlyProject {
         require(sampleIds.length > 0, "Empty sample batch");
         require(sampleIds.length == sampleDataHashes.length, "Sample IDs and hashes length mismatch");
+        require(sampleIds.length == originalIndices.length, "Sample IDs and original indices length mismatch");
         require(!batches[round].isActive, "Batch already active for this round");
         
         // Initialize batch
@@ -160,9 +162,10 @@ contract ALProjectVoting {
         batches[round].isActive = true;
         batches[round].startTime = block.timestamp;
         
-        // Store individual IPFS hashes for each sample
+        // Store individual IPFS hashes and original indices for each sample
         for (uint256 i = 0; i < sampleIds.length; i++) {
             batches[round].sampleDataHashes[sampleIds[i]] = sampleDataHashes[i];
+            batches[round].sampleOriginalIndices[sampleIds[i]] = originalIndices[i];
         }
         
         currentRound = round;
@@ -670,15 +673,33 @@ contract ALProjectVoting {
         uint256 totalSamples,
         uint256 completedSamples,
         uint256 remainingSamples,
-        uint256 startTime
+        uint256 startTime,
+        string[] memory sampleIds,
+        string[] memory sampleDataHashes,
+        uint256[] memory sampleOriginalIndices
     ) {
         BatchInfo storage batch = batches[round];
+        uint256 sampleCount = batch.sampleIds.length;
+        
+        // Prepare arrays for sample data
+        string[] memory dataHashes = new string[](sampleCount);
+        uint256[] memory originalIndices = new uint256[](sampleCount);
+        
+        for (uint256 i = 0; i < sampleCount; i++) {
+            string memory sampleId = batch.sampleIds[i];
+            dataHashes[i] = batch.sampleDataHashes[sampleId];
+            originalIndices[i] = batch.sampleOriginalIndices[sampleId];
+        }
+        
         return (
             batch.isActive,
-            batch.sampleIds.length,
+            sampleCount,
             batch.completedCount,
-            batch.sampleIds.length - batch.completedCount,
-            batch.startTime
+            sampleCount - batch.completedCount,
+            batch.startTime,
+            batch.sampleIds,
+            dataHashes,
+            originalIndices
         );
     }
     
@@ -893,5 +914,18 @@ contract ALProjectVoting {
         } catch {
             // Continue even if notification fails
         }
+    }
+
+    function getSampleOriginalIndex(string memory sampleId) external view returns (uint256) {
+        // Find which round this sample belongs to
+        for (uint256 round = 1; round <= currentRound; round++) {
+            string[] memory sampleIds = batches[round].sampleIds;
+            for (uint256 i = 0; i < sampleIds.length; i++) {
+                if (keccak256(bytes(sampleIds[i])) == keccak256(bytes(sampleId))) {
+                    return batches[round].sampleOriginalIndices[sampleId];
+                }
+            }
+        }
+        return 0; // Not found
     }
 } 

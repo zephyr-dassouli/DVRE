@@ -7,7 +7,6 @@ import { ProjectDeploymentService } from './ProjectDeploymentService';
 
 // Import blockchain dependencies  
 import { ethers } from 'ethers';
-import Project from '../../../abis/Project.json';
 
 /**
  * Deployment results interface
@@ -145,8 +144,8 @@ export class DeploymentOrchestrator {
         throw new Error('IPFS upload failed - no RO-Crate hash returned');
       }
 
-      result.roCrateHash = ipfsResult.roCrateHash;
-      result.steps.ipfsUpload = 'success';
+        result.roCrateHash = ipfsResult.roCrateHash;
+        result.steps.ipfsUpload = 'success';
       console.log(' IPFS upload successful, RO-Crate hash:', result.roCrateHash);
 
       // Step 2: Deploy AL Smart Contracts using ALProjectDeployer (if AL project)

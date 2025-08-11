@@ -240,15 +240,67 @@ class ALEngineServer:
         outputs = {}
         
         try:
-            # Look for output files in the new output directory structure
-            query_samples_files = list(outputs_dir.glob("query_samples_round_*.json"))
-            if query_samples_files:
-                outputs['query_samples'] = str(query_samples_files[0])
+            # FIXED: Parse the iteration number from stdout to get the correct file
+            iteration_number = None
+            
+            # Try to extract iteration number from stdout JSON
+            import json
+            try:
+                # Look for JSON output in stdout that contains the iteration info
+                lines = stdout.strip().split('\n')
+                for line in lines:
+                    if line.strip().startswith('{') and 'query_samples' in line:
+                        cwl_output = json.loads(line)
+                        if 'query_samples' in cwl_output and 'path' in cwl_output['query_samples']:
+                            # Extract iteration number from path: .../query_samples_round_3.json
+                            import re
+                            match = re.search(r'query_samples_round_(\d+)\.json', cwl_output['query_samples']['path'])
+                            if match:
+                                iteration_number = int(match.group(1))
+                                break
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                logger.warning(f"Could not parse iteration number from stdout: {e}")
+            
+            # Look for output files - use specific iteration if found, otherwise fallback to latest
+            if iteration_number:
+                # Use the specific iteration file
+                query_samples_file = outputs_dir / f"query_samples_round_{iteration_number}.json"
+                if query_samples_file.exists():
+                    outputs['query_samples'] = str(query_samples_file)
+                    logger.info(f"Using specific iteration file: {query_samples_file}")
+                else:
+                    logger.warning(f"Expected iteration file not found: {query_samples_file}")
+            else:
+                # Fallback: Look for query samples files and use the latest (highest number)
+                query_samples_files = list(outputs_dir.glob("query_samples_round_*.json"))
+                if query_samples_files:
+                    # Sort by iteration number (extract number from filename)
+                    import re
+                    def extract_iteration(filepath):
+                        match = re.search(r'query_samples_round_(\d+)\.json', str(filepath))
+                        return int(match.group(1)) if match else 0
+                    
+                    latest_file = max(query_samples_files, key=extract_iteration)
+                    outputs['query_samples'] = str(latest_file)
+                    logger.info(f"Using latest query samples file: {latest_file}")
                 
-            # Look for model files in output/model directory
-            model_files = list((outputs_dir / "model").glob("model_round_*.pkl"))
-            if model_files:
-                outputs['model_out'] = str(model_files[0])
+            # Look for model files in output directory (not in model subdirectory)
+            if iteration_number:
+                model_file = outputs_dir / f"model_round_{iteration_number}.pkl"
+                if model_file.exists():
+                    outputs['model_out'] = str(model_file)
+            else:
+                # Fallback for model files
+                model_files = list(outputs_dir.glob("model_round_*.pkl"))
+                if model_files:
+                    # Sort by iteration number and take latest
+                    import re
+                    def extract_model_iteration(filepath):
+                        match = re.search(r'model_round_(\d+)\.pkl', str(filepath))
+                        return int(match.group(1)) if match else 0
+                    
+                    latest_model = max(model_files, key=extract_model_iteration)
+                    outputs['model_out'] = str(latest_model)
                 
             logger.info(f"CWL outputs found: {list(outputs.keys())}")
             
