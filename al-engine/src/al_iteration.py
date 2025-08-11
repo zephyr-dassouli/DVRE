@@ -405,10 +405,14 @@ def main():
         print(f"Starting AL Iteration {args.iteration} with Performance Evaluation")
 
     # CRITICAL FIX: Accumulate newly labeled samples from voting results (for iterations > 1)
-    if args.iteration > 1 and args.project_id and not args.final_training:
+    # Final training should also accumulate the last round's samples
+    if args.iteration > 1 and args.project_id:
         newly_added = accumulate_newly_labeled_samples(args.project_id, args.iteration, args.unlabeled_data)
         if newly_added > 0:
-            print(f"Accumulated {newly_added} newly labeled samples from previous iterations!")
+            if args.final_training:
+                print(f"Final training: Accumulated {newly_added} newly labeled samples from Round {args.iteration - 1}!")
+            else:
+                print(f"Accumulated {newly_added} newly labeled samples from previous iterations!")
             # Reload labeled data since it was updated
             print("Reloading updated labeled dataset...")
 

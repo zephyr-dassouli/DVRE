@@ -211,7 +211,7 @@ export class DALProjectSession extends EventEmitter {
    */
   async startFinalTraining(): Promise<void> {
     try {
-      console.log('Starting final training workflow');
+      console.log('🏁 Starting final training workflow');
 
       this.updateState({
         phase: 'final_training',
@@ -219,14 +219,30 @@ export class DALProjectSession extends EventEmitter {
         error: undefined
       });
 
-      // Step 1: Get project status to determine the final iteration number
+      // Step 1: CRITICAL - Export any remaining voting results to AL-Engine format first
+      console.log('📤 Exporting final voting results to AL-Engine before training...');
+      try {
+        const { votingResultsConnector } = await import('./VotingResultsConnector');
+        const exportedRounds = await votingResultsConnector.exportAllVotingResults(this.state.projectId);
+        
+        if (exportedRounds > 0) {
+          console.log(`✅ Exported voting results for ${exportedRounds} rounds before final training`);
+        } else {
+          console.log('ℹ️ No additional voting results to export');
+        }
+      } catch (exportError) {
+        console.warn('⚠️ Failed to export voting results before final training:', exportError);
+        // Continue with final training - maybe results are already exported
+      }
+
+      // Step 2: Get project status to determine the final iteration number
       const projectStatus = await alContractService.getEnhancedProjectStatus(this.state.projectId);
       const finalIteration = projectStatus.currentIteration + 1;
 
       this.emit('final-training-started', finalIteration);
 
-      // Step 2: Call AL-Engine for final training (no sample querying)
-      console.log(`Starting final training iteration ${finalIteration} with AL-Engine`);
+      // Step 3: Call AL-Engine for final training (no sample querying)
+      console.log(`🎯 Starting final training iteration ${finalIteration} with AL-Engine`);
       
       const response = await fetch(`${this.alEngineBaseUrl}/final_training`, {
         method: 'POST',
@@ -248,14 +264,14 @@ export class DALProjectSession extends EventEmitter {
         throw new Error(`Final training failed: ${result.error || 'Unknown error'}`);
       }
 
-      // Step 3: Update session state to indicate completion
+      // Step 4: Update session state to indicate completion
       this.updateState({
         phase: 'final_training_completed',
         isActive: false,
         error: undefined
       });
 
-      // Step 4: Update smart contract to mark final training as completed
+      // Step 5: Update smart contract to mark final training as completed
       try {
         console.log('Marking final training as completed in smart contract...');
         const success = await alContractService.markFinalTrainingCompleted(this.state.projectId);
