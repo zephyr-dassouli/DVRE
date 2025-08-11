@@ -71,35 +71,36 @@ export const ModelUpdatesPanel: React.FC<ModelUpdatesPanelProps> = ({
                   fontSize: '14px',
                   fontWeight: 'bold'
                 }}>
-                  {update.isFinalTraining ? `${update.totalTrainingSamples} training samples` : `${update.totalTrainingSamples} training samples`}
+                  {update.totalSamples} total samples
                 </div>
               </div>
               <div className="performance-metrics" style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                gap: '12px'
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '16px',
+                marginBottom: '8px'
               }}>
-                <div className="metric">
-                  <span className="metric-label" style={{ color: '#666', fontSize: '12px' }}>Accuracy:</span>
-                  <span className="metric-value" style={{ fontWeight: 'bold', marginLeft: '4px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Accuracy:</div>
+                  <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
                     {(update.performance.accuracy * 100).toFixed(1)}%
                   </span>
                 </div>
-                <div className="metric">
-                  <span className="metric-label" style={{ color: '#666', fontSize: '12px' }}>Precision:</span>
-                  <span className="metric-value" style={{ fontWeight: 'bold', marginLeft: '4px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Precision:</div>
+                  <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
                     {(update.performance.precision * 100).toFixed(1)}%
                   </span>
                 </div>
-                <div className="metric">
-                  <span className="metric-label" style={{ color: '#666', fontSize: '12px' }}>Recall:</span>
-                  <span className="metric-value" style={{ fontWeight: 'bold', marginLeft: '4px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Recall:</div>
+                  <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
                     {(update.performance.recall * 100).toFixed(1)}%
                   </span>
                 </div>
-                <div className="metric">
-                  <span className="metric-label" style={{ color: '#666', fontSize: '12px' }}>F1-Score:</span>
-                  <span className="metric-value" style={{ fontWeight: 'bold', marginLeft: '4px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>F1-Score:</div>
+                  <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
                     {(update.performance.f1Score * 100).toFixed(1)}%
                   </span>
                 </div>

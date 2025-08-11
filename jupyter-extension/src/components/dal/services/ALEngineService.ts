@@ -14,7 +14,7 @@ export interface ModelUpdate {
     recall: number;
     f1Score: number;
   };
-  totalTrainingSamples: number; // Changed from samplesAddedCount to totalTrainingSamples
+  totalSamples: number; // Changed from totalTrainingSamples to totalSamples for clarity
   notes: string;
   isFinalTraining?: boolean; // Added for UI detection
 }
@@ -405,22 +405,15 @@ export class ALEngineService {
     try {
       console.log(`[MODEL_UPDATES] Fetching performance history for project: ${projectAddress}`);
       
-      // NEW: Use single consolidated performance history endpoint
-      const response = await fetch(
-        `${config.alEngine.apiUrl}/performance_history?project_id=${projectAddress}`,
-        {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+      const response = await fetch(`${config.alEngine.apiUrl}/performance_history?project_id=${projectAddress}`);
       
       if (!response.ok) {
-        throw new Error(`Performance history API failed: ${response.status}`);
+        throw new Error(`Failed to fetch performance history: ${response.statusText}`);
       }
       
       const historyData = await response.json();
       
-      if (!historyData.performance_history || !Array.isArray(historyData.performance_history)) {
+      if (!historyData.performance_history) {
         console.log('[MODEL_UPDATES] No performance history found');
         return [];
       }
@@ -432,6 +425,11 @@ export class ALEngineService {
         const performance = entry.performance || {};
         const isFinalTraining = performance.final_training === true;
         
+        // Use total_samples from AL-Engine (training_samples + test_samples)
+        const totalSamples = performance.total_samples || 0;
+        const trainingSamples = performance.training_samples || 0;
+        const testSamples = performance.test_samples || 0;
+        
         return {
           iterationNumber: entry.iteration,
           timestamp: new Date(entry.updated_at || Date.now()),
@@ -441,10 +439,10 @@ export class ALEngineService {
             recall: performance.recall || 0,
             f1Score: performance.f1_score || 0
           },
-          totalTrainingSamples: performance.training_samples || 0,
+          totalSamples: totalSamples, // Now represents total samples (not just training)
           notes: isFinalTraining 
-            ? `Final Training: ${performance.test_samples || 0} test samples`
-            : `Iteration ${entry.iteration}: ${performance.test_samples || 0} test samples`,
+            ? `Final Training: ${trainingSamples} train, ${testSamples} test`
+            : `Iteration ${entry.iteration}: ${trainingSamples} train, ${testSamples} test`,
           isFinalTraining: isFinalTraining
         };
       });
@@ -501,7 +499,7 @@ export class ALEngineService {
                   recall: performanceData.performance.recall || 0,
                   f1Score: performanceData.performance.f1_score || 0
                 },
-                totalTrainingSamples: performanceData.performance.training_samples || 0,
+                totalSamples: performanceData.performance.training_samples || 0,
                 notes: isFinalTraining 
                   ? `Final Training: ${performanceData.performance.test_samples} test samples`
                   : `Iteration ${iteration}: ${performanceData.performance.test_samples} test samples`,

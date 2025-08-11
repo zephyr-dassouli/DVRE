@@ -115,16 +115,19 @@ def evaluate_model_performance(learner, X_test, y_test, config, X_train=None, y_
         # Get label space for context (use config label space)
         performance_label_space = label_space
         
-        # Calculate training samples count
+        # Calculate sample counts
         training_samples = len(y_train) if y_train is not None else 0
+        test_samples = len(y_test)
+        total_samples = training_samples + test_samples
         
         performance_metrics = {
             'accuracy': float(accuracy),
             'precision': float(precision),
             'recall': float(recall),
             'f1_score': float(f1),
-            'test_samples': len(y_test),
-            'training_samples': training_samples,  # Add training samples count
+            'total_samples': total_samples,         # NEW: Total labeled samples used
+            'training_samples': training_samples,   # Samples used for training (after split)
+            'test_samples': test_samples,          # Samples used for testing (after split)
             'label_space': performance_label_space,
             'average_strategy': average_strategy,
             'timestamp': time.time(),
@@ -136,7 +139,7 @@ def evaluate_model_performance(learner, X_test, y_test, config, X_train=None, y_
         print(f"   Precision: {precision:.3f}")
         print(f"   Recall:    {recall:.3f}")
         print(f"   F1-Score:  {f1:.3f}")
-        print(f"   Test Set:  {len(y_test)} samples")
+        print(f"   Total Samples: {total_samples} ({training_samples} train + {test_samples} test)")
         
         return performance_metrics
         
@@ -148,7 +151,9 @@ def evaluate_model_performance(learner, X_test, y_test, config, X_train=None, y_
             'precision': 0.0,
             'recall': 0.0,
             'f1_score': 0.0,
-            'test_samples': len(y_test),
+            'total_samples': len(y_test) if y_test is not None else 0,
+            'training_samples': 0,
+            'test_samples': len(y_test) if y_test is not None else 0,
             'error': str(e),
             'timestamp': time.time(),
             'iso_timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())

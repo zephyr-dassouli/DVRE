@@ -70,7 +70,7 @@ export interface ModelUpdate {
     recall: number;
     f1Score: number;
   };
-  totalTrainingSamples: number; // Changed from samplesAddedCount to totalTrainingSamples
+  totalSamples: number; // Changed from totalTrainingSamples to totalSamples for clarity
   notes?: string;
   isFinalTraining?: boolean; // Added for UI detection
 }

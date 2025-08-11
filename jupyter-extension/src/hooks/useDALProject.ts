@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useProjects, ProjectInfo } from './useProjects';
 import { useAuth } from './useAuth';
 import { projectConfigurationService } from '../components/deployment/services/ProjectConfigurationService';
@@ -43,15 +43,16 @@ export interface DALProjectInfo extends ProjectInfo {
 
 export interface ModelUpdate {
   iterationNumber: number;
-  timestamp: number;
+  timestamp: Date;
   performance: {
     accuracy: number;
     precision: number;
     recall: number;
     f1Score: number;
   };
-  samplesAddedCount: number;
-  modelParameters?: any;
+  totalSamples: number; // Updated from samplesAddedCount to totalSamples
+  notes?: string;
+  isFinalTraining?: boolean;
 }
 
 export interface VotingRecord {
@@ -304,10 +305,19 @@ export const useDALProject = (projectAddress?: string) => {
 
   // Load model updates history (real implementation needed)
   const loadModelUpdates = async (projectAddress: string) => {
-    // TODO: Implement real model updates loading
-    // This should fetch from AL engine, smart contract events, or external ML service
-    // For now, set empty array until real data source is connected
-    setModelUpdates([]);
+    try {
+      console.log(`[MODEL_UPDATES] Loading model updates for project: ${projectAddress}`);
+      
+      // Import ALContractService to get real model updates
+      const { alContractService } = await import('../components/dal/services/ALContractService');
+      const updates = await alContractService.getModelUpdates(projectAddress);
+      
+      console.log(`[MODEL_UPDATES] ✅ Loaded ${updates.length} model updates`);
+      setModelUpdates(updates);
+    } catch (error) {
+      console.error(`[MODEL_UPDATES] ❌ Failed to load model updates:`, error);
+      setModelUpdates([]); // Set empty array on error
+    }
   };
 
   // Load voting history (real implementation needed)

@@ -197,9 +197,9 @@ export class VotingResultsConnector {
   /**
    * Create a minimal summary for a single voting record
    */
-  private async createSampleSummary(record: any): Promise<any> {
+  private async createSampleSummary(record: any, projectAddress: string): Promise<any> {
     if (record.sampleId && record.finalLabel) {
-      const original_index = await this.extractOriginalIndex(record.sampleId, null, 'PROJECT_ID_PLACEHOLDER'); // Pass a dummy project address
+      const original_index = await this.extractOriginalIndex(record.sampleId, null, projectAddress);
       return {
         sample_id: record.sampleId,
         original_index
@@ -220,10 +220,10 @@ export class VotingResultsConnector {
     try {
       const votingHistory = await this.votingService.getVotingHistory(projectAddress);
       
-      // Create summaries async
+      // Create summaries async - pass projectAddress to createSampleSummary
       const samples = [];
       for (const record of votingHistory) {
-        const sampleSummary = await this.createSampleSummary(record);
+        const sampleSummary = await this.createSampleSummary(record, projectAddress);
         samples.push(sampleSummary);
       }
       
