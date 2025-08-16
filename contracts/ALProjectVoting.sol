@@ -269,21 +269,16 @@ contract ALProjectVoting {
             emit VoteSubmitted(sampleId, voter, label, true, block.timestamp);
         }
         
-        // Check if all voters have completed their batch voting for this round
+        // MODIFIED: Only finalize when ALL voters have completed their batch voting
+        // Remove early consensus finalization - wait for everyone
         if (currentBatchRound > 0 && _allVotersCompletedBatch(currentBatchRound)) {
-            // Finalize all samples in the batch
+            // Finalize all samples in the batch only after ALL voters have voted
             string[] memory batchSampleIds = batches[currentBatchRound].sampleIds;
             for (uint256 i = 0; i < batchSampleIds.length; i++) {
                 string memory sampleId = batchSampleIds[i];
                 if (votingSessions[sampleId].isActive && !votingSessions[sampleId].isFinalized) {
-                    // Check for consensus first
-                    string memory consensusLabel = _checkForConsensus(sampleId);
-                    if (bytes(consensusLabel).length > 0) {
-                        _finalizeVotingSession(sampleId, "Consensus reached");
-                        emit ConsensusReached(sampleId, consensusLabel);
-                    } else {
-                        _finalizeVotingSession(sampleId, "All voters completed batch");
-                    }
+                    // Calculate final label after everyone has voted
+                    _finalizeVotingSession(sampleId, "All voters completed batch");
                 }
             }
         }
@@ -334,25 +329,19 @@ contract ALProjectVoting {
             emit VoteSubmitted(sampleId, msg.sender, label, sampleSupport, block.timestamp);
         }
         
-        // Check if all voters have completed their batch voting for this round
-        // Get the round from the first sample
+        // MODIFIED: Only finalize when ALL voters have completed their batch voting
+        // Remove early consensus finalization - wait for everyone
         if (sampleIds.length > 0) {
             uint256 currentBatchRound = votingSessions[sampleIds[0]].round;
             
             if (currentBatchRound > 0 && _allVotersCompletedBatch(currentBatchRound)) {
-                // Finalize all samples in the batch
+                // Finalize all samples in the batch only after ALL voters have voted
                 string[] memory batchSampleIds = batches[currentBatchRound].sampleIds;
                 for (uint256 i = 0; i < batchSampleIds.length; i++) {
                     string memory sampleId = batchSampleIds[i];
                     if (votingSessions[sampleId].isActive && !votingSessions[sampleId].isFinalized) {
-                        // Check for consensus first
-                        string memory consensusLabel = _checkForConsensus(sampleId);
-                        if (bytes(consensusLabel).length > 0) {
-                            _finalizeVotingSession(sampleId, "Consensus reached");
-                            emit ConsensusReached(sampleId, consensusLabel);
-                        } else {
-                            _finalizeVotingSession(sampleId, "All voters completed batch");
-                        }
+                        // Calculate final label after everyone has voted
+                        _finalizeVotingSession(sampleId, "All voters completed batch");
                     }
                 }
             }

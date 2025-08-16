@@ -1,279 +1,388 @@
-# AL-Engine - Active Learning Engine
-
-The AL-Engine is a core component of the DVRE (Decentralized Virtual Research Environment) system, responsible for handling active learning training and querying workflows locally. It supports both traditional command-line execution and modern HTTP API server mode for real-time DAL integration.
+# AL-Engine: Decentralized Active Learning Engine
 
 ## Overview
 
-The AL-Engine uses **cwltool** for workflow execution and runs entirely locally. It can run as an HTTP API server for seamless integration with DAL (Decentralized Active Learning) or in traditional batch processing mode.
+The AL-Engine is a Python-based backend service that powers decentralized active learning workflows. It trains machine learning models, queries new samples for labeling, and evaluates model performance while integrating seamlessly with blockchain smart contracts and IPFS for decentralized data management.
 
 ## Architecture
 
 ```
-al-engine/
-│
-├── main.py                      # Main entrypoint with HTTP API server
-├── al_iteration.py              # Core training + query script
-├── workflow_runner.py           # Executes cwltool workflows locally
-├── test_api.py                  # API server testing script
-├── test_installation.py         # Installation verification script
-├── requirements.txt             # Python dependencies (includes Flask)
-├── example_config.json          # Example AL configuration
-└── README.md                    # This file
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   AL-Engine     │    │   Blockchain    │
+│  (TypeScript)   │◄──►│   (Python)      │    │  Smart Contracts│
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         │              ┌─────────────────┐              │
+         └─────────────►│      IPFS       │◄─────────────┘
+                        │ (Sample Storage) │
+                        └─────────────────┘
 ```
 
-## Features
+## Core Components
 
-- **🌐 HTTP API Server**: RESTful API for real-time DAL communication
-- **📁 File-Based Service Mode**: Traditional signal-based operation (legacy)
-- **🤖 Active Learning Workflow**: Complete AL pipeline with uncertainty sampling
-- **🔧 CWL Integration**: Uses Common Workflow Language for reproducible workflows
-- **📊 Real-time Results**: Immediate API responses with actual sample data
-- **🛡️ Robust Error Handling**: Graceful fallbacks and detailed logging
-- **🏠 Local Execution Only**: Simplified architecture, no remote dependencies
+### 1. AL-Engine Server (`al-engine/src/server.py`)
+- **Port**: `localhost:5050`
+- **Framework**: Flask REST API
+- **Purpose**: Orchestrates Active Learning workflows using CWL (Common Workflow Language)
 
-## Installation
+### 2. AL Iteration Script (`al-engine/src/al_iteration.py`)
+- **Core Logic**: Model training, sample querying, performance evaluation
+- **ML Framework**: scikit-learn with custom Active Learning implementation
+- **Strategy**: Uncertainty sampling for sample selection
 
-### Prerequisites
+### 3. Data Flow Management
+- **Input**: Initial labeled dataset + unlabeled pool
+- **Processing**: Accumulates voting results from blockchain
+- **Output**: Updated models, performance metrics, query samples
 
-- Python 3.8 or higher
-- cwltool (for local execution)
-- Flask (for HTTP API server)
-- Virtual environment (recommended)
+## Workflow
 
-### Local Installation
-
-1. **Clone and navigate to AL-Engine directory:**
-   ```bash
-   cd al-engine
-   ```
-
-2. **Create virtual environment:**
-   ```bash
-   python -m venv al-env
-   source al-env/bin/activate  # On Windows: al-env\Scripts\activate
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Test installation:**
-   ```bash
-   python test_installation.py
-   ```
-
-## Usage
-
-### 🚀 **HTTP API Server Mode (Recommended)**
-
-Start AL-Engine as an HTTP API server for real-time DAL integration:
-
+### 1. Project Initialization
 ```bash
-python main.py --project_id <project-address> --config ro-crates/<project-address>/config.json --server --port 5050
+# AL-Engine creates project structure
+ro-crates/
+└── {PROJECT_ADDRESS}/
+    ├── inputs/
+    │   ├── datasets/
+    │   │   ├── labeled_samples.csv    # Initial training data
+    │   │   └── unlabeled_samples.csv  # Pool for querying
+    │   └── config.json               # ML configuration
+    └── outputs/
+        ├── models/                   # Trained model files
+        ├── performance/              # Evaluation metrics
+        └── query_samples/            # Samples for voting
 ```
 
-**API Endpoints:**
-- `GET /health` - Health check
-- `POST /start_iteration` - Start AL iteration
-- `GET /status` - Get engine status
-- `GET /config` - Get AL configuration
-- `GET /results/<iteration>` - Get iteration results
+### 2. Active Learning Iterations
 
-**Example API Usage:**
-```bash
-# Check if server is running
-curl http://localhost:5050/health
+#### Regular Iteration Flow:
+```
+1. Frontend → AL-Engine: POST /start_iteration
+   ├── Train model on current labeled data
+   ├── Query N most uncertain samples
+   └── Return sample data + model performance
 
-# Start an AL iteration
-curl -X POST http://localhost:5050/start_iteration \
-  -H "Content-Type: application/json" \
-  -d '{
-    "iteration": 1,
-    "project_id": "0x123...",
-    "config_override": {
-      "n_queries": 2,
-      "query_strategy": "uncertainty_sampling"
-    }
-  }'
+2. Frontend → Blockchain: Upload samples to IPFS + start voting
+   ├── Store sample data on IPFS
+   ├── Create voting session on blockchain
+   └── Users vote on sample labels
+
+3. Frontend → AL-Engine: Export voting results
+   ├── Collect finalized labels from blockchain
+   ├── Export to voting_results_round_X.json
+   └── AL-Engine accumulates for next iteration
 ```
 
-**Test the API:**
-```bash
-python test_api.py
+#### Final Training Flow:
+```
+1. Frontend → AL-Engine: POST /final_training
+   ├── Export all remaining voting results first
+   ├── Train model on ALL accumulated labeled data
+   ├── Evaluate final model performance
+   └── Mark training as complete
 ```
 
-### 📁 **File-Based Service Mode (Legacy)**
+## API Endpoints
 
-Run in service mode waiting for file-based signals:
+### Core Endpoints
 
-```bash
-python main.py --project_id <project-address> --config <config.json> --service
-```
-
-### ⚡ **Traditional Command-Line Modes**
-
-#### Run a Single Iteration
-```bash
-python main.py --project_id test-project-1 --config config.json --iteration 1
-```
-
-#### Run Full Workflow
-```bash
-python main.py --project_id test-project-1 --config config.json --workflow
-```
-
-## Configuration File
-
-Create a JSON configuration file with AL parameters:
-
+#### `POST /start_iteration`
+**Purpose**: Start a new AL iteration (train + query)
 ```json
 {
-  "n_queries": 5,
-  "max_iterations": 10,
-  "query_strategy": "uncertainty_sampling",
-  "model_type": "logistic_regression",
-  "solver": "liblinear",
-  "label_space": ["positive", "negative"],
-  "voting_consensus": "simple_majority",
-  "voting_timeout_seconds": 3600
+  "iteration": 3,
+  "project_id": "0x123..."
 }
 ```
 
-## DAL Integration
-
-The AL-Engine HTTP API server is designed for seamless integration with the DAL (Decentralized Active Learning) system:
-
-1. **Start AL-Engine Server:**
-   ```bash
-   cd al-engine
-   python main.py --project_id <contract-address> --config ro-crates/<contract-address>/config.json --server
-   ```
-
-2. **DAL Communication:**
-   - DAL sends HTTP POST requests to `/start_iteration`
-   - AL-Engine processes the request and runs CWL workflows locally
-   - Returns actual sample data and query indices
-   - DAL displays real samples in the labeling interface
-
-3. **Workflow:**
-   ```
-   DAL → POST /start_iteration → AL-Engine → CWL Execution (Local) → Real Samples → DAL UI
-   ```
-
-## API Reference
-
-### POST /start_iteration
-
-Start an active learning iteration.
-
-**Request Body:**
+**Response**:
 ```json
 {
-  "iteration": 1,
-  "project_id": "0x123...",
-  "config_override": {
-    "n_queries": 2,
-    "query_strategy": "uncertainty_sampling",
-    "label_space": ["positive", "negative"]
+  "success": true,
+  "iteration": 3,
+  "result": {
+    "outputs": {
+      "query_samples": "../ro-crates/0x123.../outputs/query_samples_round_3.json",
+      "model_out": "../ro-crates/0x123.../outputs/model_round_3.pkl"
+    }
   }
 }
 ```
 
-**Response:**
+#### `POST /final_training`
+**Purpose**: Perform final training on all labeled data
 ```json
 {
-  "success": true,
-  "iteration": 1,
-  "result": {
-    "success": true,
-    "outputs": {
-      "model_out": "/path/to/model.pkl",
-      "query_indices": "/path/to/indices.npy"
+  "iteration": 4,
+  "project_id": "0x123...",
+  "final_training": true
+}
+```
+
+#### `GET /performance_history?project_id={address}`
+**Purpose**: Get complete performance history
+```json
+{
+  "performance_history": [
+    {
+      "iteration": 1,
+      "performance": {
+        "accuracy": 0.85,
+        "precision": 0.83,
+        "recall": 0.87,
+        "f1_score": 0.85,
+        "total_samples": 11,
+        "training_samples": 8,
+        "test_samples": 3,
+        "final_training": false
+      }
     }
-  },
-  "message": "AL iteration 1 completed successfully"
+  ]
 }
 ```
 
-### GET /health
+### Utility Endpoints
 
-Check server health and status.
+- `GET /health` - Health check
+- `GET /projects` - List active projects
+- `GET /project/{project_id}/status` - Project status
 
-**Response:**
+## Data Structures
+
+### Sample Format (Query Samples)
+```json
+[
+  {
+    "sepal length (cm)": 6.8,
+    "sepal width (cm)": 3.2,
+    "petal length (cm)": 5.9,
+    "petal width (cm)": 2.3,
+    "original_index": 17
+  }
+]
+```
+
+### Voting Results Format
+```json
+[
+  {
+    "original_index": 17,
+    "final_label": "2"
+  }
+]
+```
+
+### Performance Metrics Format
 ```json
 {
-  "status": "healthy",
-  "project_id": "test-project",
-  "computation_mode": "local",
-  "timestamp": 1640995200.0
+  "accuracy": 0.85,
+  "precision": 0.83,
+  "recall": 0.87,
+  "f1_score": 0.85,
+  "total_samples": 13,
+  "training_samples": 10,
+  "test_samples": 3,
+  "label_space": ["0", "1", "2"],
+  "average_strategy": "weighted",
+  "final_training": false,
+  "timestamp": 1754885822.602977,
+  "iso_timestamp": "2025-08-11T04:17:02Z"
 }
 ```
 
-## Troubleshooting
+## Frontend Integration
 
-### Common Issues
+### Key Frontend Services
 
-1. **"AL-Engine server is not running"**
-   - Make sure the server is started with `--server` flag
-   - Check if port 5050 is available
-   - Verify Flask is installed: `pip install flask`
+#### 1. `DALProjectSession.ts`
+- **Role**: Main orchestrator between frontend, AL-Engine, and blockchain
+- **Key Methods**:
+  - `startIteration()` - Triggers AL iteration workflow
+  - `startFinalTraining()` - Handles final training with voting export
+  - `submitBatchVote()` - Manages user voting
 
-2. **"Failed to load configuration"**
-   - Ensure config file exists and is valid JSON
-   - Check file permissions
-   - Verify the config path is correct
+#### 2. `VotingResultsConnector.ts`
+- **Role**: Exports blockchain voting data to AL-Engine format
+- **Key Method**: `exportAllVotingResults()` - Converts blockchain votes to `voting_results_round_X.json`
 
-3. **"CWL workflow failed"**
-   - Install cwltool: `pip install cwltool`
-   - Check if required input files exist
-   - Verify Python dependencies are installed
+#### 3. `ALEngineService.ts`
+- **Role**: Direct communication with AL-Engine API
+- **Key Methods**:
+  - `getModelUpdates()` - Fetches performance history
+  - `storeALSamplesForLabeling()` - Manages sample data for UI
 
-### Testing
+### Data Flow Sequence
 
-Run the comprehensive test suite:
-```bash
-# Test installation
-python test_installation.py
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant B as Blockchain
+    participant I as IPFS
+    participant A as AL-Engine
 
-# Test API server (requires server to be running)
-python test_api.py
+    Note over F,A: Start New Iteration
+    F->>A: POST /start_iteration
+    A->>A: Train model + query samples
+    A-->>F: Return query samples
+    
+    Note over F,I: Upload & Vote
+    F->>I: Upload sample data
+    F->>B: Start voting session
+    B-->>F: Voting events
+    
+    Note over F,A: Export Results
+    F->>B: Get voting results
+    F->>A: Export voting_results_round_X.json
+    
+    Note over F,A: Final Training
+    F->>A: POST /final_training
+    A->>A: Export voting results first
+    A->>A: Train on ALL data
+    A-->>F: Final performance metrics
 ```
 
-## Docker Support
+## Machine Learning Details
 
-Build and run with Docker:
+### Model Training
+- **Algorithm**: Random Forest (default), Logistic Regression, SVM
+- **Train/Test Split**: 80/20 with stratification
+- **Performance Metrics**: Accuracy, Precision, Recall, F1-Score
+- **Multiclass Support**: Automatic averaging strategy selection
 
-```bash
-# Build image
-docker build -t al-engine .
+### Active Learning Strategy
+- **Method**: Uncertainty Sampling
+- **Selection**: Samples with lowest prediction confidence
+- **Batch Size**: Configurable (typically 1-5 samples per iteration)
 
-# Run API server
-docker run -p 5050:5050 -v $(pwd)/data:/app/data al-engine \
-  --project_id test-project --config config.json --server
+### Sample Accumulation
+```python
+# Each iteration accumulates new labeled samples
+if args.iteration > 1 and args.project_id:
+    # Import voting results from blockchain
+    newly_added = accumulate_newly_labeled_samples(
+        args.project_id, 
+        args.iteration, 
+        args.unlabeled_data
+    )
+    # Update labeled dataset for training
 ```
 
-## Development
+## File Structure
 
-### Adding New Features
+### Project Directory Structure
+```
+ro-crates/{PROJECT_ADDRESS}/
+├── inputs/
+│   ├── datasets/
+│   │   ├── labeled_samples.csv      # Growing dataset
+│   │   └── unlabeled_samples.csv    # Shrinking pool
+│   └── config.json                  # ML configuration
+└── outputs/
+    ├── query_samples_round_1.json   # Samples queried each round
+    ├── query_samples_round_2.json
+    ├── voting_results_round_1.json  # Finalized votes
+    ├── voting_results_round_2.json
+    ├── performance_round_1.json     # Model metrics
+    ├── performance_round_2.json
+    ├── performance_history.json     # Consolidated history
+    ├── model_round_1.pkl           # Trained models
+    ├── model_round_2.pkl
+    └── VOTING_RESULTS_FORMAT_*.md   # Documentation
+```
 
-1. **New API Endpoints**: Add routes in `ALEngineServer.setup_routes()`
-2. **New AL Strategies**: Extend `al_iteration.py`
-3. **New Data Sources**: Extend `workflow_runner.py`
+## Configuration
 
-### Code Structure
+### AL-Engine Configuration (`config.json`)
+```json
+{
+  "model_type": "RandomForestClassifier",
+  "training_args": {
+    "n_estimators": 100,
+    "random_state": 42
+  },
+  "query_batch_size": 2,
+  "test_split_ratio": 0.2,
+  "label_space": ["0", "1", "2"]
+}
+```
 
-- `ALEngineServer`: HTTP API server class
-- `ALEngine`: Legacy command-line class  
-- `WorkflowRunner`: CWL execution engine (local only)
+### Frontend Configuration
+```typescript
+// config/index.ts
+export const config = {
+  alEngine: {
+    apiUrl: 'http://localhost:5050'
+  }
+}
+```
 
-## Contributing
+## Key Features
 
-1. Follow PEP 8 style guidelines
-2. Add tests for new functionality
-3. Update documentation
-4. Test with both API and command-line modes
+### 1. **Blockchain Integration**
+- Voting results stored on blockchain for transparency
+- IPFS for decentralized sample data storage
+- Smart contract coordination
 
-## License
+### 2. **Performance Tracking**
+- Comprehensive metrics per iteration
+- Historical performance comparison
+- Real-time model updates
 
-DVRE AL-Engine is part of the DVRE project. 
+### 3. **Data Consistency**
+- Automatic voting results export
+- Sample uniqueness enforcement
+- Original index tracking
+
+### 4. **Error Handling**
+- Graceful fallbacks for missing data
+- Robust file I/O operations
+- Network failure recovery
+
+## Common Issues & Solutions
+
+### Issue: Missing Voting Results
+**Problem**: Final training uses fewer samples than expected
+**Solution**: Ensure `VotingResultsConnector.exportAllVotingResults()` runs before final training
+
+### Issue: Sample ID Conflicts
+**Problem**: Duplicate samples across iterations
+**Solution**: Use `round_{iteration}_sample_{original_index}` format
+
+### Issue: Train/Test Split Problems
+**Problem**: Insufficient samples for proper evaluation
+**Solution**: Dynamic split ratios based on dataset size
+
+## Development & Debugging
+
+### Useful Log Patterns
+```bash
+# AL-Engine activity
+grep "Starting AL iteration" al-engine.log
+
+# Performance tracking
+grep "Total Samples:" al-engine.log
+
+# Voting results export
+grep "Exported voting results" frontend.log
+
+# Final training
+grep "Final training:" al-engine.log
+```
+
+### File Locations
+- **Logs**: Check browser console + AL-Engine terminal
+- **Models**: `ro-crates/{project}/outputs/model_round_X.pkl`
+- **Performance**: `ro-crates/{project}/outputs/performance_history.json`
+- **Samples**: `ro-crates/{project}/outputs/query_samples_round_X.json`
+
+---
+
+## Quick Start
+
+1. **Start AL-Engine**: `cd al-engine && python src/server.py`
+2. **Connect Frontend**: Ensure `localhost:5050` connectivity
+3. **Create Project**: Deploy via frontend
+4. **Run Iterations**: Use "Start Next Iteration" button
+5. **Final Training**: Click "Start Final Training" when ready
+
+The AL-Engine handles all machine learning complexity while the frontend manages user interaction and blockchain coordination. 

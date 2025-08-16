@@ -1,10 +1,10 @@
 import { ethers } from 'ethers';
 import { CONFIG, TEST_DATA } from '../config.js';
 import { 
-  PROJECT_FACTORY_ABI, 
-  AL_PROJECT_ABI, 
-  AL_VOTING_ABI, 
-  PROJECT_ABI 
+  ALPROJECT_ABI, 
+  ALPROJECTVOTING_ABI,
+  PROJECT_FACTORY_ABI,
+  PROJECT_ABI
 } from '../contracts/abis.js';
 
 export class DALWorkflowTester {
@@ -94,7 +94,7 @@ export class DALWorkflowTester {
     try {
       const alProjectContract = new ethers.Contract(
         projectInfo.address,
-        AL_PROJECT_ABI,
+        ALPROJECT_ABI,
         wallet
       );
 
@@ -141,7 +141,7 @@ export class DALWorkflowTester {
     try {
       const alProjectContract = new ethers.Contract(
         projectInfo.address,
-        AL_PROJECT_ABI,
+        ALPROJECT_ABI,
         wallet
       );
 
@@ -181,7 +181,7 @@ export class DALWorkflowTester {
     try {
       const alProjectContract = new ethers.Contract(
         projectInfo.address,
-        AL_PROJECT_ABI,
+        ALPROJECT_ABI,
         wallet
       );
 
@@ -225,7 +225,7 @@ export class DALWorkflowTester {
     try {
       const alProjectContract = new ethers.Contract(
         projectInfo.address,
-        AL_PROJECT_ABI,
+        ALPROJECT_ABI,
         this.provider // Use provider for read operations (no signer needed)
       );
 

@@ -24,7 +24,7 @@ program
   .option('-p, --project <address>', 'ALProject contract address for contract method testing')
   .option('-a, --accounts <number>', 'Number of concurrent accounts (1,2,4,8,16,32,64,128)', '1,2,4,8,16,32,64,128')
   .option('-d, --duration <seconds>', 'Test duration in seconds', '10')
-  .option('--test-type <type>', 'Test type: simple, workflow, load, voting, vote-submission, mixed, or contract-methods', 'voting')
+  .option('--test-type <type>', 'Test type: simple, workflow, load, voting, vote-submission, read-only, mixed, or contract-methods', 'voting')
   .option('--voting-duration <seconds>', 'Duration for voting simulation (seconds)', '30')
   .option('--vote-submissions <number>', 'Number of vote submissions per account in vote-submission test', '5')
   .option('--distributed', 'Distribute users evenly across multiple nodes')
@@ -275,6 +275,22 @@ async function runVoteSubmissionTest(provider, accounts, latencyTracker, nodeInf
   await rpcSimulation.runVoteSubmissionSession(accounts, submissionCount, nodeInfo);
 }
 
+// NEW: Run read-only RPC test (client-perceived JSON-RPC latency)
+async function runReadOnlyTest(provider, accounts, latencyTracker, nodeInfo = null) {
+  console.log('Running read-only RPC latency testing...');
+  console.log('This measures client-perceived JSON-RPC latency for blockchain application responsiveness');
+  
+  const rpcSimulation = new RPCLatencySimulation(provider, latencyTracker);
+  const sessionDuration = parseInt(options.votingDuration) * 1000; // Convert to milliseconds
+  
+  // Run read-only sessions for each account
+  const promises = accounts.map(async (account) => {
+    return await rpcSimulation.runReadOnlySession(account.id, accounts.length, nodeInfo, sessionDuration);
+  });
+  
+  await Promise.all(promises);
+}
+
 // NEW: Run mixed realistic test (85% read, 15% write)
 async function runMixedRealisticTest(provider, accounts, latencyTracker, nodeInfo = null) {
   console.log('Running mixed realistic DAL collaboration simulation...');
@@ -367,6 +383,52 @@ async function runDistributedVoteSubmissionSimulation(accounts, latencyTracker) 
   console.log('\n[*] Distributed vote submission simulation completed across all nodes');
 }
 
+// NEW: Run distributed read-only simulation across multiple nodes
+async function runDistributedReadOnlySimulation(accounts, latencyTracker) {
+  console.log('Running distributed read-only RPC testing across multiple nodes...');
+  console.log('Users are distributed evenly across all available Besu nodes');
+  console.log('Focus: Client-perceived JSON-RPC latency measurement');
+  
+  const sessionDuration = parseInt(options.votingDuration) * 1000;
+  
+  // Group accounts by node
+  const nodeGroups = {};
+  accounts.forEach(account => {
+    if (!nodeGroups[account.nodeUrl]) {
+      nodeGroups[account.nodeUrl] = [];
+    }
+    nodeGroups[account.nodeUrl].push(account);
+  });
+  
+  console.log('\nUser distribution across nodes:');
+  Object.entries(nodeGroups).forEach(([nodeUrl, nodeAccounts]) => {
+    const nodeInfo = getNodeInfo(nodeUrl);
+    console.log(`  ${nodeInfo.name}: ${nodeAccounts.length} users`);
+    nodeAccounts.forEach(account => {
+      console.log(`    ${account.id}: ${account.address}`);
+    });
+  });
+  
+  // Run simulation on each node in parallel
+  const promises = Object.entries(nodeGroups).map(async ([nodeUrl, nodeAccounts]) => {
+    const provider = new ethers.JsonRpcProvider(nodeUrl);
+    const nodeInfo = getNodeInfo(nodeUrl);
+    const rpcSimulation = new RPCLatencySimulation(provider, latencyTracker);
+    
+    console.log(`\nStarting read-only simulation on ${nodeInfo.name} with ${nodeAccounts.length} users...`);
+    
+    // Run read-only sessions for each account on this node
+    const accountPromises = nodeAccounts.map(async (account) => {
+      return await rpcSimulation.runReadOnlySession(account.id, accounts.length, nodeInfo, sessionDuration);
+    });
+    
+    await Promise.all(accountPromises);
+  });
+  
+  await Promise.all(promises);
+  console.log('\n[*] Distributed read-only simulation completed across all nodes');
+}
+
 // NEW: Run distributed mixed realistic simulation across multiple nodes
 async function runDistributedMixedSimulation(accounts, latencyTracker) {
   console.log('Running distributed mixed realistic simulation across multiple nodes...');
@@ -446,6 +508,8 @@ async function runConcurrencyTest(provider, latencyTracker, nodeInfo = null) {
         await runVotingSimulationTest(provider, accounts, latencyTracker, nodeInfo);
       } else if (options.testType === 'vote-submission') {
         await runVoteSubmissionTest(provider, accounts, latencyTracker, nodeInfo);
+      } else if (options.testType === 'read-only') {
+        await runReadOnlyTest(provider, accounts, latencyTracker, nodeInfo);
       } else if (options.testType === 'mixed') {
         await runMixedRealisticTest(provider, accounts, latencyTracker, nodeInfo);
       } else if (options.testType === 'contract-methods') {
@@ -489,10 +553,12 @@ async function runDistributedConcurrencyTest(latencyTracker) {
         await runDistributedVotingSimulation(accounts, latencyTracker);
       } else if (options.testType === 'vote-submission') {
         await runDistributedVoteSubmissionSimulation(accounts, latencyTracker);
+      } else if (options.testType === 'read-only') {
+        await runDistributedReadOnlySimulation(accounts, latencyTracker);
       } else if (options.testType === 'mixed') {
         await runDistributedMixedSimulation(accounts, latencyTracker);
       } else {
-        console.log('Note: Distributed testing currently only supports voting and vote-submission simulation');
+        console.log('Note: Distributed testing currently only supports voting, vote-submission, read-only, and mixed simulation');
         // For other test types, fall back to single node
         const provider = new ethers.JsonRpcProvider(options.rpcUrl);
         if (options.testType === 'simple') {
