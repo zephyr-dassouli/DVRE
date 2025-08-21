@@ -76,9 +76,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
   const availableModels: Model[] = [
     { id: 'logistic_regression', name: 'Logistic Regression', type: 'sklearn', description: 'Simple linear classifier' },
     { id: 'random_forest', name: 'Random Forest', type: 'sklearn', description: 'Ensemble tree-based classifier' },
-    { id: 'svm', name: 'Support Vector Machine', type: 'sklearn', description: 'Support vector classifier' },
-    { id: 'neural_network', name: 'Neural Network', type: 'tensorflow', description: 'Deep learning classifier' },
-    { id: 'custom_model', name: 'Custom Model', type: 'custom', description: 'User uploaded model' }
+    { id: 'svm', name: 'Support Vector Machine', type: 'sklearn', description: 'Support vector classifier' }
   ];
 
   // Detect if this is an Active Learning project
@@ -95,8 +93,7 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
 
     // Check for AL indicators in text
     const indicators = [
-      'active learning', 'al', 'dal', 'machine learning', 'annotation', 'labeling',
-      'query strategy', 'uncertainty sampling', 'model training'
+      'active learning', 'al', 'dal', 'query strategy', 'uncertainty sampling', 'model training'
     ];
     
     const projectText = (
@@ -396,9 +393,6 @@ const ProjectConfigurationPanel: React.FC<ProjectConfigurationPanelProps> = ({
                 disabled={isDeployed}
               >
                 <option value="simple_majority">Simple Majority</option>
-                <option value="unanimous">Unanimous</option>
-                <option value="weighted_majority">Weighted Majority</option>
-                <option value="expert_override">Expert Override</option>
               </select>
               <small>How to resolve labeling conflicts</small>
             </div>
